@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import clsx from "clsx"
 import {
   IconChevronDown,
+  IconChevronLeft,
   IconMoon,
   IconSun,
   IconDashboard,
@@ -20,6 +22,7 @@ import {
   IconFileWord,
   IconInnerShadowTop,
 } from "@tabler/icons-react"
+
 import {
   Accordion,
   AccordionContent,
@@ -37,7 +40,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import { NavUser } from "@/components/nav-user"
-import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 const data = {
   user: {
@@ -134,9 +137,9 @@ const data = {
       url: "/people",
       icon: IconUsers,
       items: [
-        { title: "Employees", url: "/people/employees" },
-        { title: "Users", url: "/people/users" },
-        { title: "Roles", url: "/people/roles" },
+        { title: "Employees", url: "/dashboard/user/employees" },
+        { title: "Users", url: "/dashboard/user/users" },
+        { title: "Roles", url: "/dashboard/user/roles" },
       ],
     },
   ],
@@ -162,30 +165,34 @@ const data = {
   ],
 }
 
-// Recursive accordion renders both main and sub-navigation items,
-// ensuring only one AccordionItem opens per level by using 'type="single"' and 'collapsible'.
 function RecursiveAccordion({ item, depth = 0 }: { item: any; depth?: number }) {
   const pathname = usePathname()
   const Icon = item.icon
   const hasChildren = Array.isArray(item.items) && item.items.length > 0
-  const isActive = pathname === item.url
+  const isActive = pathname === item.url || pathname.startsWith(item.url + "/")
 
   if (!hasChildren) {
     return (
-     <Link
-  href={item.url}
-  className={clsx(
-    "block w-full rounded px-3 py-2 text-sm hover:bg-muted transition-colors",
-    depth > 0 && "pl-6 text-muted-foreground",
-    isActive && "bg-muted font-semibold"
-  )}
->
-  {Icon && <Icon className="mr-2 inline-block h-4 w-4" />}
-  {item.title}
-</Link>
-
+      <Link
+        href={item.url}
+        aria-current={isActive ? "page" : undefined}
+        className={clsx(
+          "flex items-center rounded px-3 py-2 text-sm hover:bg-muted transition-colors",
+          depth > 0 && "pl-6 text-muted-foreground",
+          isActive && "bg-muted font-semibold"
+        )}
+      >
+        {Icon ? (
+          <Icon className="mr-2 h-4 w-4" />
+        ) : (
+          <span className="mr-2 h-4 w-4 inline-block" />
+        )}
+        {item.title}
+      </Link>
     )
   }
+
+  const openByDefault = pathname.startsWith(item.url)
 
   return (
     <AccordionItem value={item.title} className={depth === 0 ? "px-2" : "pl-6"}>
@@ -197,8 +204,7 @@ function RecursiveAccordion({ item, depth = 0 }: { item: any; depth?: number }) 
         </div>
       </AccordionTrigger>
       <AccordionContent>
-        {/* Sub-accordions: single open allowed */}
-        <Accordion type="single" collapsible className="w-full">
+        <Accordion type="single" collapsible defaultValue={item.items.find((child: any) => pathname.startsWith(child.url))?.title}>
           {item.items.map((child: any, idx: number) => (
             <RecursiveAccordion key={idx} item={child} depth={depth + 1} />
           ))}
@@ -212,11 +218,10 @@ function NavGroup({ title, items }: { title?: string; items: any[] }) {
   return (
     <div className="space-y-1">
       {title && (
-        <div className="px-3 text-xs font-semibold text-muted-foreground">
+        <div className="px-3 pt-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           {title}
         </div>
       )}
-      {/* Main navigation: only one open at a time */}
       <Accordion type="single" collapsible className="w-full">
         {items.map((item, idx) => (
           <RecursiveAccordion key={idx} item={item} />
@@ -234,53 +239,49 @@ function ThemeToggler() {
     setMounted(true)
   }, [])
 
-  if (!mounted) {
-    return <div className="h-[40px]" /> // preserve layout
-  }
+  if (!mounted) return <div className="h-[40px]" />
 
   const isDark = theme === "dark"
 
   return (
     <div className="flex items-center justify-between px-3 py-2 text-sm">
       <div className="flex items-center gap-2">
-        {isDark ? (
-          <IconMoon className="h-4 w-4" />
-        ) : (
-          <IconSun className="h-4 w-4" />
-        )}
+        {isDark ? <IconMoon className="h-4 w-4" /> : <IconSun className="h-4 w-4" />}
         <span>Dark Mode</span>
       </div>
       <Switch
         checked={isDark}
         onCheckedChange={(val) => setTheme(val ? "dark" : "light")}
+        aria-label="Toggle dark mode"
       />
     </div>
   )
 }
 
 export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+  const [collapsed, setCollapsed] = React.useState(false)
+
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="offcanvas" {...props} className={clsx({ "w-16": collapsed })}>
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
-            <Link href="/" className="flex items-center gap-2">
-  <IconInnerShadowTop className="!size-5" />
-  <span className="text-base font-semibold">Acme Inc.</span>
-</Link>
-
+          <SidebarMenuItem className="flex items-center justify-between w-full">
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
+              <Link href="/" className="flex items-center gap-2">
+                <IconInnerShadowTop className="!size-5" />
+                <span className="text-base font-semibold">Acme Inc.</span>
+              </Link>
             </SidebarMenuButton>
+            
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto">
+      <SidebarContent className="overflow-y-auto space-y-4 px-1.5 py-3">
         <NavGroup items={data.navMain} />
+        <div className="border-t border-border mx-2" />
         <NavGroup title="Documents" items={data.documents} />
+        <div className="border-t border-border mx-2" />
         <NavGroup items={data.navSecondary} />
         <ThemeToggler />
       </SidebarContent>
