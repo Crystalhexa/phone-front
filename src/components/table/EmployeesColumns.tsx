@@ -8,7 +8,6 @@ import { Employee } from "@/types";
 
 
 export const EmployeesColumns: ColumnDef<Employee>[] = [
- 
   {
     accessorKey: 'userName',
     header: 'User name',
@@ -49,14 +48,13 @@ export const EmployeesColumns: ColumnDef<Employee>[] = [
     header: 'Date Of Birth',
     cell: ({ row }) => <p className="text-14-medium px-4">{row.original.employee.dob}</p>
   },
-  
   {
     id: "id",
     enableHiding: false,
     cell: ({ row }) => {
       const handleViewDistric = () => {
-        const districtId = row.original.id; // Assuming each patient has an "id" field
-        redirect(`/dashboard/district/${districtId}`); // Navigate to patient details page
+        const employeeId = row.original.user_id; // Assuming each patient has an "id" field
+        redirect(`/dashboard/user/employees/update/${employeeId}`); // Navigate to patient details page
       };
 
       return (
@@ -70,7 +68,7 @@ export const EmployeesColumns: ColumnDef<Employee>[] = [
           <DropdownMenuContent align="end" className="w-36">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem onClick={handleViewDistric}>
-              View Distric
+              Update
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

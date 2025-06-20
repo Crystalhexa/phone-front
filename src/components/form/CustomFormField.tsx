@@ -26,6 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { format, isValid } from "date-fns";
+import { DatePicker } from "../date-picker";
 
 export enum FormFieldType {
   INPUT = "input",
@@ -135,31 +136,17 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
       );
 
     case FormFieldType.DATE_PICKER:
-      return (
-        <FormControl>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant={"outline"}
-                className={`w-full justify-start text-left font-normal ${!field.value ? "text-muted-foreground" : ""
-                  }`}
-              >
-                {field.value && isValid(field.value)
-                  ? format(field.value, props.dateFormat ?? "PPP")
-                  : props.placeholder ?? "Pick a date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={field.value}
-                onSelect={field.onChange}
+  return (
+    <FormControl>
+      <DatePicker
+        value={field.value}
+        onChange={field.onChange}
+        placeholder={props.placeholder}
+        dateFormat={props.dateFormat}
+      />
+    </FormControl>
+  );
 
-              />
-            </PopoverContent>
-          </Popover>
-        </FormControl>
-      );
     case FormFieldType.SELECT:
   return (
     <Select

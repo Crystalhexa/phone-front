@@ -60,11 +60,11 @@ const data = {
     },
     {
       title: "Products",
-      url: "/products",
+      url: "/dashboard/products",
       icon: IconFolder,
       items: [
         { title: "All Products", url: "/products/all" },
-        { title: "Categories", url: "/products/categories" },
+        { title: "Categories", url: "/dashboard/products/categories", },
         { title: "Brands", url: "/products/brands" },
         { title: "Variants", url: "/products/variants" },
         { title: "Images", url: "/products/images" },
@@ -99,7 +99,7 @@ const data = {
           url: "/orders/purchase",
           items: [
             { title: "All Purchases", url: "/orders/purchase/all" },
-            { title: "Suppliers", url: "/orders/purchase/suppliers" },
+            { title: "Suppliers", url: "/dashboard/orders/purchase/suppliers" },
           ],
         },
       ],
