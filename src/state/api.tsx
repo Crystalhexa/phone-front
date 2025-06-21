@@ -40,10 +40,10 @@ export const {
 
 // Types for RTK Query
 interface CategoryApiResponse {
-  category_id: number;
+ id?: string;
   name: string;
   description?: string;
-  slug: string;
+  subcategories: string[];
 }
 
 // Ensure CategoryFormData is imported from your form component schema or defined here
