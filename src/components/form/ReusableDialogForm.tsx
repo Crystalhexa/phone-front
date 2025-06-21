@@ -9,12 +9,13 @@ import {
 } from "@/components/ui/dialog";
 import { ReactNode } from "react";
 import UserRegistrationForm from "./UserRegistrationForm";
+import CategoryForm from "./CategoryForm";
 
 interface ReusableDialogFormProps {
   triggerLabel?: ReactNode;
   title?: string;
   description?: string;
-  formType: "userRegistration" | "zonal";
+  formType: "category" | "zonal";
   formProps?: any;
 }
 
@@ -27,8 +28,8 @@ export function ReusableDialogForm({
 }: ReusableDialogFormProps) {
   const renderForm = () => {
     switch (formType) {
-      case "userRegistration":
-        return <UserRegistrationForm {...formProps} />;
+      case "category":
+        return <CategoryForm {...formProps} />;
       case "zonal":
         return <div>Zonal Form Coming Soon</div>;
       default:

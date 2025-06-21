@@ -38,11 +38,10 @@ const page = () => {
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
         <div className="flex justify-end px-4 pt-4 lg:px-6">
-          <Button
-            onClick={handleAddEmployee}
-          >
-              Add Employee
-          </Button>
+          <ReusableDialogForm
+          triggerLabel="Add Category"
+          formType='category'
+          />
         </div>
 
         <div className="px-4 py-4 md:py-6 md:px-6">
