@@ -21,7 +21,7 @@ interface ReusableDialogFormProps {
 
 export function ReusableDialogForm({
   triggerLabel = "Open Dialog",
-  title = "Form",
+  title = "",
   description,
   formType,
   formProps = {},

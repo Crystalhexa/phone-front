@@ -10,7 +10,6 @@ const CreateCategoryPage: React.FC = () => {
 
   const handleSuccess = () => {
     // Optionally redirect after successful creation
-    router.push('/dashboard/categories'); // Navigate to the categories list
   };
 
   const handleCancel = () => {

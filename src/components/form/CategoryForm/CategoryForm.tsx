@@ -65,10 +65,10 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
   showExport = false,
 }) => {
   const config = useMemo(() => ({
-  ...DEFAULT_CATEGORY_CONFIG,
-  ...userConfig,
-  enableDragDrop: !!userConfig.enableDragDrop // ✅ Ensures boolean
-}), [userConfig]);
+    ...DEFAULT_CATEGORY_CONFIG,
+    ...userConfig,
+    enableDragDrop: !!userConfig.enableDragDrop // ✅ Ensures boolean
+  }), [userConfig]);
 
   const categorySchema = useMemo(() => createCategorySchema(config), [config]);
 
@@ -84,8 +84,8 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
 
   const [addCategory, { isLoading: isAddingCategory }] = useAddCategoryMutation();
   const [updateCategory, { isLoading: isUpdatingCategory }] = useUpdateCategoryMutation();
-
-  const form = useForm<CategoryFormData>({
+  
+  const form = useForm<CategoryFormData, any, CategoryFormData>({
     resolver: zodResolver(categorySchema),
     defaultValues: {
       name: '',
@@ -93,6 +93,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
       subcategories: '',
     },
   });
+
 
   // Custom hooks
   const { subcategoriesArray, removeSubcategory, reorderSubcategory } = useSubcategories(form, config);
@@ -140,24 +141,23 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
       }
 
       clearDraft();
-      
+
       trackEvent({
         name: categoryFormEvents.FORM_SUBMITTED,
-        properties: { 
-          mode: isEdit ? 'edit' : 'create', 
+        properties: {
+          mode: isEdit ? 'edit' : 'create',
           categoryId,
-          subcategoriesCount: subcategoriesArray.length 
+          subcategoriesCount: subcategoriesArray.length
         },
       });
 
       onSuccess?.();
     } catch (error: any) {
-      console.error('Submission error:', error);
-      toast.error(error?.data?.error || error?.message || 'Submission failed');
+      toast.error(error.data.message || 'Submission failed');
     }
   };
 
-   const handleExport = () => {
+  const handleExport = () => {
     const formData = form.getValues();
     const exportData = {
       ...formData,

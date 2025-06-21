@@ -2,9 +2,7 @@
 import { ReusableDialogForm } from '@/components/form/ReusableDialogForm'
 import { DataTable } from '@/components/table/DataTable'
 import { EmployeesColumns } from '@/components/table/EmployeesColumns'
-import { Button } from '@/components/ui/button'
 import { Employee } from '@/types'
-import { PlusIcon } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
 
