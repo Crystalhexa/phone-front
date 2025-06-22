@@ -1,23 +1,30 @@
+import { useState } from 'react';
 import { Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from 'react-hot-toast';
 import { Category, useDeleteCategoryMutation } from '@/state/api';
 import { TableAction } from "./CategoryColumn";
+import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
 
 export const useCategoryActions = () => {
+  // Dialog state management
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+
   // Mutation hooks
   const [deleteCategory, { isLoading: isDeleting }] = useDeleteCategoryMutation();
 
   // Action handlers
   const handleView = (category: Category) => {
     console.log('View category:', category);
-    // Navigate to category details page
-    // router.push(`/categories/${category.category_id}`);
+    setSelectedCategory(category);
+    setIsViewDialogOpen(true);
   };
 
   const handleEdit = (category: Category) => {
     console.log('Edit category:', category);
-    // Navigate to edit page or open modal
-    // router.push(`/categories/${category.category_id}/edit`);
+    setSelectedCategory(category);
+    setIsEditDialogOpen(true);
   };
 
   const handleDelete = async (category: Category) => {
@@ -36,8 +43,7 @@ export const useCategoryActions = () => {
 
   const handleAddCategory = () => {
     console.log('Add new category');
-    // Navigate to create page or open modal
-    // router.push('/categories/new');
+    // This will be handled in the header component
   };
 
   // Define table actions
@@ -60,9 +66,53 @@ export const useCategoryActions = () => {
     },
   ];
 
+  // Dialog components
+  const ViewDialog = () => (
+    isViewDialogOpen ? (
+      <ReusableDialogForm
+        triggerLabel="View Category" // This won't be used since we're controlling the dialog
+        title={`View Category: ${selectedCategory?.name}`}
+        description="Category details and information"
+        formType="category"
+        formProps={{
+          initialData: selectedCategory,
+          mode: 'view', // Read-only mode
+          onClose: () => setIsViewDialogOpen(false)
+        }}
+        open={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+      />
+    ) : null
+  );
+
+  const EditDialog = () => (
+    isEditDialogOpen ? (
+      <ReusableDialogForm
+        triggerLabel="Edit Category" // This won't be used since we're controlling the dialog
+        title={`Edit Category: ${selectedCategory?.name}`}
+        description="Update category information"
+        formType="category"
+        formProps={{
+          initialData: selectedCategory,
+          mode: 'edit',
+          onClose: () => setIsEditDialogOpen(false)
+        }}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+      />
+    ) : null
+  );
+
   return {
     tableActions,
     handleAddCategory,
     isDeleting,
+    // Dialog components
+    ViewDialog,
+    EditDialog,
+    // Dialog state
+    isViewDialogOpen,
+    isEditDialogOpen,
+    selectedCategory,
   };
 };

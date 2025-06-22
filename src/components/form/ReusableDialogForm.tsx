@@ -8,7 +8,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { ReactNode } from "react";
-import UserRegistrationForm from "./UserRegistrationForm";
 import CategoryForm from "./CategoryForm";
 
 interface ReusableDialogFormProps {
@@ -17,6 +16,11 @@ interface ReusableDialogFormProps {
   description?: string;
   formType: "category" | "zonal";
   formProps?: any;
+  // Add these props for external state control
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  // Make trigger optional when controlling externally
+  showTrigger?: boolean;
 }
 
 export function ReusableDialogForm({
@@ -25,6 +29,9 @@ export function ReusableDialogForm({
   description,
   formType,
   formProps = {},
+  open,
+  onOpenChange,
+  showTrigger = true,
 }: ReusableDialogFormProps) {
   const renderForm = () => {
     switch (formType) {
@@ -38,12 +45,14 @@ export function ReusableDialogForm({
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="whitespace-nowrap">
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {showTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" className="whitespace-nowrap">
+            {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="w-full max-w-2xl sm:max-w-3xl rounded-2xl p-0">
         <div className="max-h-[85vh] overflow-y-auto px-6 py-8">
