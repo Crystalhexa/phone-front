@@ -1,37 +1,35 @@
 "use client"
 import { ReusableDialogForm } from '@/components/form/ReusableDialogForm'
-import { DataTable } from '@/components/table/DataTable'
-import { EmployeesColumns } from '@/components/table/EmployeesColumns'
-import { Employee } from '@/types'
+import { DataTable } from '@/components/ui/DataTable/DataTable'
+
+import { Category } from '@/types/category'
 import { redirect } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
-
+import React, { useState } from 'react'
+import { CategoryTableHeader } from '@/components/table/CategoryTable/CategoryTableHeader';        // ← Import header
+import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';  
+import { createCategoryColumns } from '@/components/table/CategoryTable/CategoryColumn'
+import { useCategoryActions } from '@/components/table/CategoryTable/CategoryActions'
 const page = () => {
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  console.log(employees)
-
-  useEffect(() => {
-    const fetchEmployee = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/users');
-        if (!response) {
-          throw new Error("Failed to fetch Employees");
-        }
-        const result = await response.json();
-        setEmployees(result);
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'An error occurred while fetching user roles');
-      }
-    }
-    fetchEmployee();
-  }, []);
-
+  const [category, setCategory] = useState<Category[]>([]);
   const handleAddEmployee = ()=>{
     redirect('/dashboard/user/employees/register')
   }
 
+  const {
+    data, isLoading, error, currentPage, pageSize, totalPages,
+    handleSearch, setCurrentPage, handlePageSizeChange,
+  } = useCategoryData();
+
+  // 2. Get action handlers
+  const { tableActions, handleAddCategory } = useCategoryActions();
+
+  // 3. Create columns with actions
+  const columns = createCategoryColumns(tableActions);
+
+  // 4. Create header component
+  const headerActions = (
+    <CategoryTableHeader onAddCategory={handleAddCategory} />
+  );
   return (
     <div className="flex flex-1 flex-col">
       <div className="@container/main flex flex-1 flex-col gap-2">
@@ -44,10 +42,22 @@ const page = () => {
 
         <div className="px-4 py-4 md:py-6 md:px-6">
           <DataTable
-            columns={EmployeesColumns}
-            type="employee"
-            data={employees}
-          />
+      data={data?.data?.categories || []}
+      columns={columns}
+      isLoading={isLoading}
+      error={error}
+      title="Categories"
+      subtitle={`Total: ${data?.data?.total || 0} categories`}
+      actions={headerActions}
+      searchPlaceholder="Search categories..."
+      searchable={true}
+      onSearch={handleSearch}
+      pagination={{
+        currentPage, pageSize, total: data?.data?.total || 0, totalPages,
+      }}
+      onPageChange={setCurrentPage}
+      onPageSizeChange={handlePageSizeChange}
+    />
         </div>
       </div>
     </div>

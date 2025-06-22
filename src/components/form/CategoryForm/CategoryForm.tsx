@@ -153,7 +153,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
 
       onSuccess?.();
     } catch (error: any) {
-      toast.error(error.data.message || 'Submission failed');
+      toast.error(error.data.errors[0]|| error.data.message ||'Submission failed');
     }
   };
 

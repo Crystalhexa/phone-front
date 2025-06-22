@@ -46,6 +46,7 @@
     "react-dom": "^19.0.0",
     "react-error-boundary": "^6.0.0",
     "react-hook-form": "^7.58.1",
+    "react-hot-toast": "^2.5.2",
     "react-phone-number-input": "^3.4.12",
     "react-redux": "^9.2.0",
     "react-toastify": "^11.0.5",

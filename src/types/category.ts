@@ -8,7 +8,11 @@ export interface Category {
   isActive: boolean;
   slug?: string;
 }
-
+export interface Subcategory {
+  subcategory_id: number;
+  name: string;
+  description: string;
+}
 export interface CategoryFormData {
   name: string;
   description?: string;

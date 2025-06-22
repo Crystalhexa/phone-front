@@ -1,5 +1,53 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+interface Subcategory {
+  subcategory_id: number;
+  name: string;
+  description: string;
+}
 
+interface Category {
+  category_id: number;
+  name: string;
+  description: string;
+  subcategories: Subcategory[];
+}
+
+interface CategoriesListResponse {
+  success: boolean;
+  data: {
+    categories: Category[];
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  message?: string;
+}
+
+interface CategoryApiResponse {
+  success: boolean;
+  data: Category;
+  message?: string;
+}
+
+interface CategoryFormData {
+  name: string;
+  description?: string;
+  subcategories?: string[];
+}
+
+interface GetCategoriesParams {
+  limit?: number;
+  offset?: number;
+  page?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+interface DeleteCategoryResponse {
+  success: boolean;
+  message: string;
+}
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
@@ -7,49 +55,184 @@ export const api = createApi({
   }),
   tagTypes: ["Category"],
   endpoints: (builder) => ({
+    // Query for fetching all categories with pagination and filtering
+    getAllCategories: builder.query<CategoriesListResponse, GetCategoriesParams>({
+      query: (params = {} as GetCategoriesParams) => {
+        const searchParams = new URLSearchParams();
+        
+        // Handle pagination
+        if (params.limit) searchParams.append('limit', params.limit.toString());
+        if (params.offset) searchParams.append('offset', params.offset.toString());
+        if (params.page) searchParams.append('page', params.page.toString());
+        
+        // Handle search and sorting
+        if (params.search) searchParams.append('search', params.search);
+        if (params.sortBy) searchParams.append('sortBy', params.sortBy);
+        if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
+        
+        return `categories?${searchParams.toString()}`;
+      },
+      providesTags: (result) =>
+        result?.data?.categories
+          ? [
+              ...result.data.categories.map(({ category_id }) => ({ type: 'Category' as const, id: category_id })),
+              { type: 'Category', id: 'LIST' },
+            ]
+          : [{ type: 'Category', id: 'LIST' }],
+      // Transform the response to match your component's expected format
+      transformResponse: (response: CategoriesListResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to fetch categories');
+      },
+      // Handle errors
+      transformErrorResponse: (
+        baseQueryReturnValue: import('@reduxjs/toolkit/query').FetchBaseQueryError,
+        meta,
+        arg
+      ) => {
+        if ('data' in baseQueryReturnValue && baseQueryReturnValue.data) {
+          // If the error has a data property (API error)
+          return {
+            status: baseQueryReturnValue.status,
+            message:
+              (typeof baseQueryReturnValue.data === 'object' && 'message' in baseQueryReturnValue.data
+                ? (baseQueryReturnValue.data as any).message
+                : undefined) ||
+              'An error occurred while fetching categories',
+          };
+        } else if ('error' in baseQueryReturnValue) {
+          // If the error is a FETCH_ERROR
+          return {
+            status: baseQueryReturnValue.status,
+            message: baseQueryReturnValue.error || 'A network error occurred while fetching categories',
+          };
+        }
+        return {
+          status: baseQueryReturnValue.status,
+          message: 'An unknown error occurred while fetching categories',
+        };
+      },
+    }),
+
     // Query for fetching a single category (for edit mode)
-    getCategoryById: builder.query<CategoryApiResponse, string>({
+    getCategoryById: builder.query<CategoryApiResponse, string | number>({
       query: (id) => `categories/${id}`,
       providesTags: (result, error, id) => [{ type: 'Category', id }],
+      transformResponse: (response: CategoryApiResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to fetch category');
+      },
     }),
+
     // Mutation for adding a new category
     addCategory: builder.mutation<CategoryApiResponse, CategoryFormData>({
       query: (body) => ({
-        url: '/categories',
+        url: 'categories',
         method: 'POST',
         body,
       }),
-      invalidatesTags: [{ type: 'Category', id: 'LIST' }], // Invalidate list after creation
+      invalidatesTags: [{ type: 'Category', id: 'LIST' }],
+      transformResponse: (response: CategoryApiResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to create category');
+      },
     }),
+
     // Mutation for updating an existing category
-    updateCategory: builder.mutation<CategoryApiResponse, { id: string; body: CategoryFormData }>({
+    updateCategory: builder.mutation<CategoryApiResponse, { id: string | number; body: CategoryFormData }>({
       query: ({ id, body }) => ({
         url: `categories/${id}`,
         method: 'PUT',
         body,
       }),
-      invalidatesTags: (result, error, { id }) => [{ type: 'Category', id }, { type: 'Category', id: 'LIST' }], // Invalidate specific and list
+      invalidatesTags: (result, error, { id }) => [
+        { type: 'Category', id }, 
+        { type: 'Category', id: 'LIST' }
+      ],
+      transformResponse: (response: CategoryApiResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to update category');
+      },
+    }),
+
+    // Mutation for deleting a category
+    deleteCategory: builder.mutation<DeleteCategoryResponse, string | number>({
+      query: (id) => ({
+        url: `categories/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, id) => [
+        { type: 'Category', id }, 
+        { type: 'Category', id: 'LIST' }
+      ],
+      transformResponse: (response: DeleteCategoryResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to delete category');
+      },
+    }),
+
+    // Bulk operations
+    bulkDeleteCategories: builder.mutation<DeleteCategoryResponse, (string | number)[]>({
+      query: (ids) => ({
+        url: 'categories/bulk-delete',
+        method: 'DELETE',
+        body: { ids },
+      }),
+      invalidatesTags: [{ type: 'Category', id: 'LIST' }],
     }),
   })
-})
+});
+
+// Export hooks for usage in components
 export const {
+  useGetAllCategoriesQuery,
   useGetCategoryByIdQuery,
   useAddCategoryMutation,
   useUpdateCategoryMutation,
+  useDeleteCategoryMutation,
+  useBulkDeleteCategoriesMutation,
 } = api;
 
-// Types for RTK Query
-interface CategoryApiResponse {
-  id?: string;
-  name: string;
-  description?: string;
-  subcategories: string[];
-}
+// Export types for use in components
+export type {
+  Category,
+  Subcategory,
+  CategoriesListResponse,
+  CategoryApiResponse,
+  CategoryFormData,
+  GetCategoriesParams,
+};
 
-// Ensure CategoryFormData is imported from your form component schema or defined here
-// (It's better to import from the form if the schema originates there)
-export interface CategoryFormData {
-  name: string;
-  description?: string;
-}
+// Custom hook for better pagination handling
+export const useGetCategoriesWithPagination = (
+  page: number = 1,
+  pageSize: number = 10,
+  additionalParams?: Omit<GetCategoriesParams, 'page' | 'limit' | 'offset'>
+) => {
+  const offset = (page - 1) * pageSize;
+  
+  const result = useGetAllCategoriesQuery({
+    page,
+    limit: pageSize,
+    offset,
+    ...additionalParams,
+  });
 
+  return {
+    ...result,
+    // Add computed properties for easier pagination handling
+    totalPages: result.data?.data ? Math.ceil(result.data.data.total / pageSize) : 0,
+    hasNextPage: result.data?.data ? (page * pageSize) < result.data.data.total : false,
+    hasPreviousPage: page > 1,
+  };
+};
