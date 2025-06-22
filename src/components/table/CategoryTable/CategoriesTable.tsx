@@ -47,7 +47,6 @@ const CategoriesTable: React.FC = () => {
         actions={headerActions}
         searchPlaceholder="Search categories..."
         searchable={true}
-        onSearch={handleSearch}
         pagination={{
           currentPage,
           pageSize,
