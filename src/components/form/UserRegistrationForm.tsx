@@ -11,6 +11,8 @@ import { ArrowLeft } from 'lucide-react'
 import { Form } from '../ui/form'
 import CustomFormField, { FormFieldType } from '../form/CustomFormField'
 import SubmitButton from '../form/SubmitButton'
+import { useGetRolesQuery } from '@/state/api'
+import { Props, RolesApiResponse } from '@/types/roles'
 
 const userSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -30,16 +32,16 @@ const userSchema = z.object({
 
 export type UserFormData = z.infer<typeof userSchema>
 
-type Props = {
-  userId?: string
-  isEdit?: boolean
-}
 
 const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
-  const [userRoles, setUserRoles] = useState<{ id: number; name: string }[]>([])
   const [loading, setLoading] = useState<boolean>(isEdit)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+
+  const { data: rolesData, isLoading: rolesLoading } = useGetRolesQuery() as {
+    data?: RolesApiResponse
+    isLoading: boolean
+  }
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -59,20 +61,6 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
       },
     },
   })
-
-  // Fetch user roles
-  useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        const res = await fetch('http://localhost:3001/api/userRoles')
-        const data = await res.json()
-        setUserRoles(data.map((r: any) => ({ id: r.role_id, name: r.name })))
-      } catch (err) {
-        setError('Failed to load roles')
-      }
-    }
-    fetchRoles()
-  }, [])
 
   // Fetch user data for editing
   useEffect(() => {
@@ -116,36 +104,36 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
   }
 
   const handleSubmit = async (data: UserFormData) => {
-  const url = isEdit
-    ? `http://localhost:3001/api/users/${userId}`
-    : 'http://localhost:3001/api/users'
+    const url = isEdit
+      ? `http://localhost:3001/api/users/${userId}`
+      : 'http://localhost:3001/api/users'
 
-  const method = isEdit ? 'PUT' : 'POST'
+    const method = isEdit ? 'PUT' : 'POST'
 
-  try {
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
 
-    const result = await res.json()
+      const result = await res.json()
 
-    if (!res.ok) {
-      throw new Error(result?.error || 'Something went wrong')
+      if (!res.ok) {
+        throw new Error(result?.error || 'Something went wrong')
+      }
+
+      toast.success(`User ${isEdit ? 'updated' : 'registered'} successfully!`)
+
+      if (!isEdit) {
+        form.reset()
+      } else {
+        router.push('/dashboard/user/employees')
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Submission failed')
     }
-
-    toast.success(`User ${isEdit ? 'updated' : 'registered'} successfully!`)
-
-    if (!isEdit) {
-      form.reset()
-    } else {
-      router.push('/dashboard/user/employees')
-    }
-  } catch (err: any) {
-    toast.error(err.message || 'Submission failed')
   }
-}
 
   if (loading) return <p className="text-center py-10">Loading user data...</p>
 
@@ -185,14 +173,13 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
                 label="Role"
                 fieldType={FormFieldType.SELECT}
                 placeholder="Select Role"
-                options={userRoles}
+                options={
+                  rolesData?.data?.map(role => ({
+                    id: role.role_id,
+                    name: role.name,
+                  })) || []
+                }
                 trackById
-              />
-              <CustomFormField
-                control={form.control}
-                name="is_active"
-                label="User Active"
-                fieldType={FormFieldType.CHECKBOX}
               />
             </div>
           </div>
@@ -236,7 +223,7 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
             >
               {isEdit ? 'Update User' : 'Register Employee'}
             </SubmitButton>
-            
+
           </div>
         </form>
       </Form>

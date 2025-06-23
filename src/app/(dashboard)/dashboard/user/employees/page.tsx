@@ -1,8 +1,9 @@
 "use client"
-import { DataTable } from '@/components/table/DataTable'
+import { ReusableDialogForm } from '@/components/form/ReusableDialogForm'
 import { EmployeesColumns } from '@/components/table/EmployeesColumns'
 import { Button } from '@/components/ui/button'
 import { Employee } from '@/types'
+import { PlusIcon } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import React, { useEffect, useState } from 'react'
 
@@ -39,16 +40,12 @@ const page = () => {
           <Button
             onClick={handleAddEmployee}
           >
-              Add Suppliers
+              Add Employee
           </Button>
         </div>
 
         <div className="px-4 py-4 md:py-6 md:px-6">
-          <DataTable
-            columns={EmployeesColumns}
-            type="employee"
-            data={employees}
-          />
+          
         </div>
       </div>
     </div>

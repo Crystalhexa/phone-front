@@ -41,10 +41,7 @@ export const useCategoryActions = () => {
     }
   };
 
-  const handleAddCategory = () => {
-    console.log('Add new category');
-    // This will be handled in the header component
-  };
+ 
 
   // Define table actions
   const tableActions: TableAction[] = [
@@ -105,12 +102,9 @@ export const useCategoryActions = () => {
 
   return {
     tableActions,
-    handleAddCategory,
     isDeleting,
-    // Dialog components
     ViewDialog,
     EditDialog,
-    // Dialog state
     isViewDialogOpen,
     isEditDialogOpen,
     selectedCategory,

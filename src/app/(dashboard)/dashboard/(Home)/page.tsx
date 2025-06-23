@@ -1,9 +1,9 @@
 import React from 'react'
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
-import CategoriesPage from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
 
 import data from "./data.json"
+import { DataTable } from '@/components/data-table'
 
 const page = () => {
   return (
@@ -15,7 +15,7 @@ const page = () => {
             <div className="px-4 lg:px-6">
               <ChartAreaInteractive />
             </div>
-            <CategoriesPage/>
+            <DataTable data={data}/>
           </div>
         </div>
       </div></div>

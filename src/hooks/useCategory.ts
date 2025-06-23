@@ -15,7 +15,7 @@ export const useCategory = (categoryId?: string) => {
 
   const categoryData = useMemo(() => {
     if (!category) return null;
-    return category as Category;
+    return category as unknown as Category;
   }, [category]);
 
   return {

@@ -1,3 +1,4 @@
+import { Role } from "@/types/user";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 interface Subcategory {
   subcategory_id: number;
@@ -24,6 +25,9 @@ interface CategoriesListResponse {
 }
 
 interface CategoryApiResponse {
+  subcategories(subcategories: any, separator: string): string | undefined;
+  description: string;
+  name: string | undefined;
   success: boolean;
   data: Category;
   message?: string;
@@ -51,7 +55,7 @@ interface DeleteCategoryResponse {
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
+    baseUrl:'/api',
   }),
   tagTypes: ["Category"],
   endpoints: (builder) => ({
@@ -70,7 +74,7 @@ export const api = createApi({
         if (params.sortBy) searchParams.append('sortBy', params.sortBy);
         if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
         
-        return `categories?${searchParams.toString()}`;
+        return `products/categories?${searchParams.toString()}`;
       },
       providesTags: (result) =>
         result?.data?.categories
@@ -131,7 +135,7 @@ export const api = createApi({
     // Mutation for adding a new category
     addCategory: builder.mutation<CategoryApiResponse, CategoryFormData>({
       query: (body) => ({
-        url: 'categories',
+        url: 'products/categories',
         method: 'POST',
         body,
       }),
@@ -190,7 +194,13 @@ export const api = createApi({
       }),
       invalidatesTags: [{ type: 'Category', id: 'LIST' }],
     }),
-  })
+
+    getRoles: builder.query<Role[], void>({
+      query: () => 'auth/roles',
+    }),
+
+  }),
+  
 });
 
 // Export hooks for usage in components
@@ -201,6 +211,7 @@ export const {
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
   useBulkDeleteCategoriesMutation,
+  useGetRolesQuery,
 } = api;
 
 // Export types for use in components

@@ -5,23 +5,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
-
 import { CategoryFormData, CategoryFormConfig } from '@/types/category';
 import { DEFAULT_CATEGORY_CONFIG } from '@/lib/constants/categoryConstants';
 import { createCategorySchema } from '@/lib/validations/categoryValidation';
 import { subcategoriesToString } from '@/lib/utils/subcategoryUtils';
 import { trackEvent, categoryFormEvents } from '@/lib/utils/analytics';
-
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { useFormDraft } from '@/hooks/useFormDraft';
-
 import { Form } from '../../ui/form';
 import CustomFormField, { FormFieldType } from '../common/CustomFormField';
 import { CategoryFormHeader } from './CategoryFormHeader';
 import { SubcategoryPreview } from './SubcategoryPreview';
 import { CategoryFormActions } from './CategoryFormActions';
 import { CategoryFormSkeleton } from './CategoryFormSkeleton';
-
 // Import RTK Query hooks
 import {
   useGetCategoryByIdQuery,
@@ -31,7 +27,7 @@ import {
 
 interface CategoryFormProps {
   categoryId?: string;
-  isEdit?: boolean;
+  isEdit: boolean;
   onSuccess?: () => void;
   onCancel?: () => void;
   config?: Partial<CategoryFormConfig>;
@@ -54,15 +50,14 @@ const CategoryFormErrorFallback: React.FC<{ error: Error; resetErrorBoundary: ()
     </button>
   </div>
 );
-
 const CategoryFormComponent: React.FC<CategoryFormProps> = ({
   categoryId,
-  isEdit = false,
+  isEdit=true,
   onSuccess,
   onCancel,
   config: userConfig = {},
   title,
-  showExport = false,
+  showExport,
 }) => {
   const config = useMemo(() => ({
     ...DEFAULT_CATEGORY_CONFIG,
@@ -84,9 +79,9 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
 
   const [addCategory, { isLoading: isAddingCategory }] = useAddCategoryMutation();
   const [updateCategory, { isLoading: isUpdatingCategory }] = useUpdateCategoryMutation();
-  
+  console.log(isUpdatingCategory)
   const form = useForm<CategoryFormData, any, CategoryFormData>({
-    resolver: zodResolver(categorySchema),
+    resolver: zodResolver(categorySchema) as any,
     defaultValues: {
       name: '',
       description: '',
@@ -105,7 +100,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
       form.reset({
         name: categoryData.name,
         description: categoryData.description || '',
-        subcategories: subcategoriesToString(categoryData.subcategories, config.separator),
+        subcategories: subcategoriesToString( config.separator),
       });
     }
   }, [isEdit, categoryData, form, config.separator]);

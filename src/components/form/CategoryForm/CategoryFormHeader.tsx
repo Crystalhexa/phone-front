@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface CategoryFormHeaderProps {
-  isEdit: boolean;
+  isEdit?: boolean;
   title?: string;
 }
 

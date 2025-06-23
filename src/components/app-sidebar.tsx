@@ -128,8 +128,8 @@ const data = {
       url: "/customers",
       icon: IconUsers,
       items: [
-        { title: "All Customers", url: "/customers/all" },
-        { title: "Reports", url: "/customers/reports" },
+        { title: "All Customers", url: "/dashboard/customers" },
+        { title: "Reports", url: "/dashboard/customers/reports" },
       ],
     },
     {

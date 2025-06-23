@@ -1,6 +1,5 @@
 "use client"
 import { ReusableDialogForm } from '@/components/form/ReusableDialogForm'
-import { DataTable } from '@/components/table/DataTable'
 import { EmployeesColumns } from '@/components/table/EmployeesColumns'
 import { Button } from '@/components/ui/button'
 import { Employee } from '@/types'
@@ -30,8 +29,8 @@ const page = () => {
     fetchEmployee();
   }, []);
 
-  const handleAddEmployee = ()=>{
-    redirect('/dashboard/user/employees/register')
+  const handleAddCustomer = ()=>{
+    redirect('/dashboard/customers/register')
   }
 
   return (
@@ -39,18 +38,14 @@ const page = () => {
       <div className="@container/main flex flex-1 flex-col gap-2">
         <div className="flex justify-end px-4 pt-4 lg:px-6">
           <Button
-            onClick={handleAddEmployee}
+            onClick={handleAddCustomer}
           >
-              Add Employee
+              Add Customer
           </Button>
         </div>
 
         <div className="px-4 py-4 md:py-6 md:px-6">
-          <DataTable
-            columns={EmployeesColumns}
-            type="employee"
-            data={employees}
-          />
+          
         </div>
       </div>
     </div>

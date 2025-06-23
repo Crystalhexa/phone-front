@@ -22,7 +22,6 @@ const CategoriesTable: React.FC = () => {
 
   const {
     tableActions,
-    handleAddCategory,
     ViewDialog,
     EditDialog,
   } = useCategoryActions();
@@ -32,7 +31,7 @@ const CategoriesTable: React.FC = () => {
 
   // Header actions component
   const headerActions = (
-    <CategoryTableHeader onAddCategory={handleAddCategory} />
+    <CategoryTableHeader/>
   );
 
   return (
