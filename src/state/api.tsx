@@ -132,21 +132,15 @@ export const api = createApi({
       },
     }),
 
-    // Mutation for adding a new category
-    addCategory: builder.mutation<CategoryApiResponse, CategoryFormData>({
-      query: (body) => ({
-        url: 'products/categories',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: [{ type: 'Category', id: 'LIST' }],
-      transformResponse: (response: CategoryApiResponse) => {
-        if (response.success) {
-          return response;
-        }
-        throw new Error(response.message || 'Failed to create category');
-      },
-    }),
+   addCategory: builder.mutation<CategoryApiResponse, CategoryFormData>({
+  query: (body) => ({
+    url: 'products/categories',
+    method: 'POST',
+    body,
+  }),
+  invalidatesTags: [{ type: 'Category', id: 'LIST' }],
+}),
+
 
     // Mutation for updating an existing category
     updateCategory: builder.mutation<CategoryApiResponse, { id: string | number; body: CategoryFormData }>({

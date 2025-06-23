@@ -52,7 +52,7 @@ const CategoryFormErrorFallback: React.FC<{ error: Error; resetErrorBoundary: ()
 );
 const CategoryFormComponent: React.FC<CategoryFormProps> = ({
   categoryId,
-  isEdit=true,
+  isEdit = true,
   onSuccess,
   onCancel,
   config: userConfig = {},
@@ -100,7 +100,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
       form.reset({
         name: categoryData.name,
         description: categoryData.description || '',
-        subcategories: subcategoriesToString( config.separator),
+        subcategories: subcategoriesToString(config.separator),
       });
     }
   }, [isEdit, categoryData, form, config.separator]);
@@ -113,7 +113,6 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
     });
   }, [isEdit, categoryId]);
 
-  // Form submission
   const onSubmit = async (values: CategoryFormData) => {
     try {
       const subcategoriesArray = values.subcategories
@@ -142,15 +141,19 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
         properties: {
           mode: isEdit ? 'edit' : 'create',
           categoryId,
-          subcategoriesCount: subcategoriesArray.length
+          subcategoriesCount: subcategoriesArray.length,
         },
       });
 
       onSuccess?.();
     } catch (error: any) {
-      toast.error(error.data.errors[0]|| error.data.message ||'Submission failed');
+      form.reset();
+      const errorMessage = error?.data?.message;
+      toast.error(errorMessage);
     }
+
   };
+
 
   const handleExport = () => {
     const formData = form.getValues();

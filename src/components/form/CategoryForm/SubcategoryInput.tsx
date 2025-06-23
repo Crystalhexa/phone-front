@@ -29,32 +29,7 @@ export const SubcategoryInput: React.FC<SubcategoryInputProps> = ({
   // Get existing subcategories to avoid duplicates
   const existingSubcategories = stringToSubcategories(value, separator);
   
-  // Generate suggestions based on input and common subcategories
-  useEffect(() => {
-    if (!debouncedInputValue.trim() || !showSuggestions) {
-      setFilteredSuggestions([]);
-      return;
-    }
-    
-    const searchTerm = debouncedInputValue.toLowerCase();
-    const allSuggestions = [
-      ...suggestions,
-      ...Object.values(COMMON_SUBCATEGORIES).flat(),
-    ];
-    
-    const filtered = allSuggestions
-      .filter(suggestion => 
-        suggestion.toLowerCase().includes(searchTerm) &&
-        !existingSubcategories.some(existing => 
-          existing.toLowerCase() === suggestion.toLowerCase()
-        )
-      )
-      .slice(0, 8); // Limit to 8 suggestions
-    
-    setFilteredSuggestions(filtered);
-    setSelectedSuggestionIndex(-1);
-  }, [debouncedInputValue, suggestions, existingSubcategories, separator, showSuggestions]);
-  
+ 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
