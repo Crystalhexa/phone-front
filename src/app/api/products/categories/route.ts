@@ -1,6 +1,6 @@
 // /app/api/categories/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { initDatabase, query, transaction } from '@/lib/database/connection'
+import { ApiResponse, initDatabase, query, transaction } from '@/lib/database/connection'
 import { z } from 'zod'
 
 // Zod Schema for request payload

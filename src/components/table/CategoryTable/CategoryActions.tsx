@@ -16,13 +16,11 @@ export const useCategoryActions = () => {
 
   // Action handlers
   const handleView = (category: Category) => {
-    console.log('View category:', category);
     setSelectedCategory(category);
     setIsViewDialogOpen(true);
   };
 
   const handleEdit = (category: Category) => {
-    console.log('Edit category:', category);
     setSelectedCategory(category);
     setIsEditDialogOpen(true);
   };
@@ -31,7 +29,6 @@ export const useCategoryActions = () => {
     if (!confirm(`Are you sure you want to delete "${category.name}"?`)) {
       return;
     }
-
     try {
       await deleteCategory(category.category_id).unwrap();
       toast.success('Category deleted successfully');
@@ -41,7 +38,7 @@ export const useCategoryActions = () => {
     }
   };
 
- 
+
 
   // Define table actions
   const tableActions: TableAction[] = [
@@ -63,36 +60,21 @@ export const useCategoryActions = () => {
     },
   ];
 
-  // Dialog components
-  const ViewDialog = () => (
-    isViewDialogOpen ? (
-      <ReusableDialogForm
-        triggerLabel="View Category" // This won't be used since we're controlling the dialog
-        title={`View Category: ${selectedCategory?.name}`}
-        description="Category details and information"
-        formType="category"
-        formProps={{
-          initialData: selectedCategory,
-          mode: 'view', // Read-only mode
-          onClose: () => setIsViewDialogOpen(false)
-        }}
-        open={isViewDialogOpen}
-        onOpenChange={setIsViewDialogOpen}
-      />
-    ) : null
-  );
 
   const EditDialog = () => (
     isEditDialogOpen ? (
       <ReusableDialogForm
+        showTrigger={false}
         triggerLabel="Edit Category" // This won't be used since we're controlling the dialog
         title={`Edit Category: ${selectedCategory?.name}`}
         description="Update category information"
         formType="category"
         formProps={{
-          initialData: selectedCategory,
-          mode: 'edit',
-          onClose: () => setIsEditDialogOpen(false)
+         categoryId: selectedCategory?.category_id,
+          mode: 'edit', // Read-only mode
+          showExport: true,
+          isEdit: true, // Read-only mode
+          onClose: () => setIsViewDialogOpen(false)
         }}
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
@@ -103,7 +85,6 @@ export const useCategoryActions = () => {
   return {
     tableActions,
     isDeleting,
-    ViewDialog,
     EditDialog,
     isViewDialogOpen,
     isEditDialogOpen,

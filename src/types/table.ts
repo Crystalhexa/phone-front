@@ -17,6 +17,7 @@ export interface TableAction {
 export interface DataTableProps<T> {
   data: T[];
   columns: ColumnDef<T>[];
+  handleSearch?: (searchTerm: string) => void;
   isLoading?: boolean;
   error?: string | null;
   pagination?: PaginationInfo;

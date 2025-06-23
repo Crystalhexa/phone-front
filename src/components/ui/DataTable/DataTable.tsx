@@ -16,6 +16,7 @@ import { LoadingState } from './LoadingState';
 import { ErrorState } from './ErrorState';
 import { DataTableProps } from '@/types/table';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow  } from '../table';
+import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 
 export function DataTable<T>({
   data,
@@ -36,6 +37,7 @@ export function DataTable<T>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState<string>("");
+
 
   const table = useReactTable({
     data,

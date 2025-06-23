@@ -67,6 +67,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
 
   const categorySchema = useMemo(() => createCategorySchema(config), [config]);
 
+  
   // RTK Query hooks
   const {
     data: categoryData,
@@ -76,10 +77,10 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
   } = useGetCategoryByIdQuery(categoryId!, {
     skip: !isEdit || !categoryId,
   });
+  console.log(isEdit,categoryId)
 
   const [addCategory, { isLoading: isAddingCategory }] = useAddCategoryMutation();
   const [updateCategory, { isLoading: isUpdatingCategory }] = useUpdateCategoryMutation();
-  console.log(isUpdatingCategory)
   const form = useForm<CategoryFormData, any, CategoryFormData>({
     resolver: zodResolver(categorySchema) as any,
     defaultValues: {
@@ -96,14 +97,14 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
 
   // Populate form with fetched data
   useEffect(() => {
-    if (isEdit && categoryData) {
-      form.reset({
-        name: categoryData.name,
-        description: categoryData.description || '',
-        subcategories: subcategoriesToString(config.separator),
-      });
-    }
-  }, [isEdit, categoryData, form, config.separator]);
+  if (isEdit && categoryData) {
+    form.reset({
+      name: categoryData.data.name,
+      description: categoryData.data.description || '',
+      subcategories: categoryData.data.subcategories.join(config.separator),
+    });
+  }
+}, [isEdit, categoryData, form, config.separator]);
 
   // Analytics tracking
   useEffect(() => {

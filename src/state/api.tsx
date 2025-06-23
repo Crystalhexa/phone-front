@@ -13,6 +13,7 @@ interface Category {
   subcategories: Subcategory[];
 }
 
+
 interface CategoriesListResponse {
   success: boolean;
   data: {
@@ -122,7 +123,7 @@ export const api = createApi({
 
     // Query for fetching a single category (for edit mode)
     getCategoryById: builder.query<CategoryApiResponse, string | number>({
-      query: (id) => `categories/${id}`,
+      query: (id) => `products/categories/${id}`,
       providesTags: (result, error, id) => [{ type: 'Category', id }],
       transformResponse: (response: CategoryApiResponse) => {
         if (response.success) {
@@ -145,7 +146,7 @@ export const api = createApi({
     // Mutation for updating an existing category
     updateCategory: builder.mutation<CategoryApiResponse, { id: string | number; body: CategoryFormData }>({
       query: ({ id, body }) => ({
-        url: `categories/${id}`,
+        url: `products/categories/${id}`,
         method: 'PUT',
         body,
       }),

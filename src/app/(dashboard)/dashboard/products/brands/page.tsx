@@ -1,12 +1,12 @@
-'use client'
-import React from 'react';
-import { DataTable } from '../../../components/ui/DataTable/DataTable';
-import { useCategoryActions } from './CategoryActions';
-import { CategoryTableHeader } from './CategoryTableHeader';
-import { useCategoryData } from './useCategoryData';
-import { createCategoryColumns } from './CategoryColumn';
+"use client"
+import { DataTable } from '@/components/ui/DataTable/DataTable'
+import React from 'react'
+import { CategoryTableHeader } from '@/components/table/CategoryTable/CategoryTableHeader';        // ← Import header
+import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
+import { useCategoryActions } from '@/components/table/CategoryTable/CategoryActions'
+import { createBrandColumns } from '@/components/table/BrandTable/BrandColumn';
 
-const CategoriesTable: React.FC = () => {
+const BrandTable: React.FC = () => {
   // Custom hooks
   const {
     data,
@@ -15,24 +15,21 @@ const CategoriesTable: React.FC = () => {
     currentPage,
     pageSize,
     totalPages,
-    handleSearch,
     setCurrentPage,
     handlePageSizeChange,
   } = useCategoryData();
 
   const {
     tableActions,
-    handleAddCategory,
-    ViewDialog,
     EditDialog,
   } = useCategoryActions();
 
   // Create columns with actions
-  const columns = createCategoryColumns(tableActions);
+  const columns = createBrandColumns(tableActions);
 
   // Header actions component
   const headerActions = (
-    <CategoryTableHeader onAddCategory={handleAddCategory} />
+    <CategoryTableHeader/>
   );
 
   return (
@@ -58,10 +55,9 @@ const CategoriesTable: React.FC = () => {
       />
       
       {/* Render dialogs */}
-      <ViewDialog />
       <EditDialog />
     </>
   );
 };
 
-export default CategoriesTable;
+export default BrandTable;

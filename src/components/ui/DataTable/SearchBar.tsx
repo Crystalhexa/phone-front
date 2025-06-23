@@ -2,7 +2,6 @@ import React from 'react';
 import { Search } from 'lucide-react';
 import { Input } from '../input';
 
-
 interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
@@ -22,7 +21,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       <Input
         placeholder={placeholder}
         value={value}
-        onChange={(e: { target: { value: string; }; }) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
         className="pl-9"
       />
     </div>

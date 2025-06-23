@@ -65,7 +65,7 @@ const data = {
       items: [
         { title: "All Products", url: "/products/all" },
         { title: "Categories", url: "/dashboard/products/categories", },
-        { title: "Brands", url: "/products/brands" },
+        { title: "Brands", url: "/dashboard/products/brands" },
         { title: "Variants", url: "/products/variants" },
         { title: "Images", url: "/products/images" },
       ],
