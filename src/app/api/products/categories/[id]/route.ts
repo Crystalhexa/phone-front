@@ -321,3 +321,73 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await initDatabase();
+
+    const { id: categoryId } = await params;
+
+    // Validate category ID
+    if (!categoryId || isNaN(Number(categoryId))) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid category ID provided",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if category exists
+    const categoryExists = await checkCategoryExistsById(categoryId);
+    if (!categoryExists) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Category with ID ${categoryId} not found`,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
+    }
+
+    // Delete category and its subcategories in a transaction
+    await transaction(async (client) => {
+      // Delete subcategories first due to foreign key constraint
+      await client.query(
+        `DELETE FROM "SubCategory" WHERE category_id = $1`,
+        [categoryId]
+      );
+
+      // Delete the category
+      await client.query(
+        `DELETE FROM "Category" WHERE category_id = $1`,
+        [categoryId]
+      );
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: null,
+      message: `Category with ID ${categoryId} deleted successfully`,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (error: any) {
+    console.error("Error deleting category:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Internal server error",
+        errors: [error.message || error],
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+}

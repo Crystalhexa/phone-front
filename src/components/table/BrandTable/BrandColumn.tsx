@@ -11,10 +11,10 @@ export interface TableAction {
 
 export const createBrandColumns = (actions: TableAction[]): ColumnDef<Brand>[] => [
   {
-    accessorKey: "brand_id",
-    header: "ID",
+    accessorKey: "code",
+    header: "Code",
     cell: ({ row }) => (
-      <div className="font-medium text-gray-300">#{row.getValue("brand_id")}</div>
+      <div className="font-medium text-gray-300">#{row.getValue("code")}</div>
     ),
   },
   {

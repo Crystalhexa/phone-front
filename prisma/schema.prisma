@@ -579,7 +579,8 @@ model SubCategory {
 
 model Brand {
   brand_id    Int       @id @default(autoincrement())
-  name        String
+  name        String    @unique
+  code        String    @unique
   description String?
   products    Product[]
 }

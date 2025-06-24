@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { Category, useDeleteCategoryMutation } from '@/state/api';
 import { TableAction } from "./BrandColumn";
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
-import { Brand } from '@/state/brand';
+import { Brand, useDeleteBrandMutation } from '@/state/brand';
 
 export const useBrandActions = () => {
   // Dialog state management
@@ -13,7 +13,7 @@ export const useBrandActions = () => {
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
 
   // Mutation hooks
-  const [deleteBrand, { isLoading: isDeleting }] = useDeleteCategoryMutation();
+  const [deleteBrand, { isLoading: isDeleting }] = useDeleteBrandMutation();
 
   // Action handlers
   const handleView = (brand: Brand) => {
