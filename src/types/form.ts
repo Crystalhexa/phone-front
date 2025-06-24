@@ -14,10 +14,25 @@ export interface SubcategoryPreviewProps {
   onReorder?: (startIndex: number, endIndex: number) => void;
   enableDragDrop?: boolean;
 }
+export interface AttributePreviewProps {
+  values: string[];
+  onRemove: (index: number) => void;
+  onReorder?: (startIndex: number, endIndex: number) => void;
+  enableDragDrop?: boolean;
+}
 
 export interface CategoryFormActionsProps {
   onCancel?: () => void;
   onSubmit: () => void;
+  isLoading: boolean;
+  isEdit: boolean;
+  showExport?: boolean;
+  onExport?: () => void;
+}
+
+export interface AttributeFormActionsProps {
+  onCancel?: () => void;
+  onSubmit: () => void;   
   isLoading: boolean;
   isEdit: boolean;
   showExport?: boolean;

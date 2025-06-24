@@ -71,6 +71,43 @@ model Employee {
 }
 
 // ================== PRODUCT CATALOG ==================
+
+
+// 🕒 Price history for audit and trend tracking
+model ProductPriceHistory {
+  id             String   @id @default(cuid())
+  variationId    String
+  costPrice      Float
+  wholesalePrice Float?
+  retailPrice    Float?
+  effectiveDate  DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  variation ProductVariation @relation(fields: [variationId], references: [id])
+}
+
+// 📘 Optional Stock Ledger for traceability
+model ProductStockLedger {
+  id             String         @id @default(cuid())
+  variationId    String
+  branchId       String?
+  quantity       Int
+  cost_price     Float
+  entry_type     StockEntryType
+  reference_id   String?
+  reference_type String?
+  timestamp      DateTime       @default(now())
+
+  variation ProductVariation @relation(fields: [variationId], references: [id])
+}
+
+enum StockEntryType {
+  PURCHASE
+  SALE
+  RETURN
+  TRANSFER_IN
+  TRANSFER_OUT
+}
 model Product {
   product_id     String  @id @default(cuid())
   name           String
@@ -125,53 +162,16 @@ model ProductVariation {
 
   @@map("product_variations")
 }
-
-// 🕒 Price history for audit and trend tracking
-model ProductPriceHistory {
-  id             String   @id @default(cuid())
-  variationId    String
-  costPrice      Float
-  wholesalePrice Float?
-  retailPrice    Float?
-  effectiveDate  DateTime @default(now())
-  createdAt      DateTime @default(now())
-
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-// 📘 Optional Stock Ledger for traceability
-model ProductStockLedger {
-  id             String         @id @default(cuid())
-  variationId    String
-  branchId       String?
-  quantity       Int
-  cost_price     Float
-  entry_type     StockEntryType
-  reference_id   String?
-  reference_type String?
-  timestamp      DateTime       @default(now())
-
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-enum StockEntryType {
-  PURCHASE
-  SALE
-  RETURN
-  TRANSFER_IN
-  TRANSFER_OUT
-}
-
 model ProductAttribute {
   id          String   @id @default(cuid())
   productId   String
-  attributeId String
+  attributeId Int
   isRequired  Boolean  @default(false)
   sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
 
   product   Product   @relation(fields: [productId], references: [product_id], onDelete: Cascade)
-  attribute Attribute @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  attribute Attribute @relation(fields: [attributeId], references: [attribute_id], onDelete: Cascade)
 
   @@unique([productId, attributeId])
   @@map("product_attributes")
@@ -180,15 +180,35 @@ model ProductAttribute {
 model ProductVariationAttribute {
   id               String @id @default(cuid())
   variationId      String
-  attributeId      String
-  attributeValueId String
+  attributeId      Int
+  attributeValueId Int
 
   variation      ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
-  attribute      Attribute        @relation(fields: [attributeId], references: [id], onDelete: Cascade)
-  attributeValue AttributeValue   @relation(fields: [attributeValueId], references: [id], onDelete: Cascade)
+  attribute      Attribute        @relation(fields: [attributeId], references: [attribute_id], onDelete: Cascade)
+  attributeValue AttributeValue   @relation(fields: [attributeValueId], references: [attribute_values_id], onDelete: Cascade)
 
   @@unique([variationId, attributeId])
   @@map("product_variation_attributes")
+}
+model Attribute {
+  attribute_id          Int                     @id @default(autoincrement())
+  name        String        @unique
+  description String?
+  values           AttributeValue[]
+  productAttribs   ProductAttribute[]
+  variationAttribs ProductVariationAttribute[]
+
+  @@map("attributes")
+}
+
+model AttributeValue {
+  attribute_values_id           Int                @id @default(autoincrement())
+  attributeId  Int
+  value        String          @unique
+  attribute        Attribute                   @relation(fields: [attributeId], references: [attribute_id], onDelete: Cascade)
+  variationAttribs ProductVariationAttribute[]
+
+  @@map("attribute_values")
 }
 
 model ProductImage {
@@ -200,40 +220,6 @@ model ProductImage {
   productVariation ProductVariation @relation(fields: [productVariationId], references: [id])
 }
 
-model Attribute {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  displayName String
-  type        AttributeType @default(SELECT)
-  isRequired  Boolean       @default(false)
-  sortOrder   Int           @default(0)
-  isActive    Boolean       @default(true)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  values           AttributeValue[]
-  productAttribs   ProductAttribute[]
-  variationAttribs ProductVariationAttribute[]
-
-  @@map("attributes")
-}
-
-model AttributeValue {
-  id           String   @id @default(cuid())
-  attributeId  String
-  value        String
-  displayValue String?
-  hexColor     String?
-  sortOrder    Int      @default(0)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  attribute        Attribute                   @relation(fields: [attributeId], references: [id], onDelete: Cascade)
-  variationAttribs ProductVariationAttribute[]
-
-  @@map("attribute_values")
-}
 
 model Barcode {
   id          String      @id @default(cuid())

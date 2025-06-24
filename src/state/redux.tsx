@@ -8,12 +8,14 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 import globalReducer from "@/state";
 import { api } from "@/state/api";
 import { brandsApi } from "./brand";
+import { attributesApi } from "./attribute";
 
 /* REDUX STORE */
 const rootReducer = combineReducers({
   global: globalReducer,
   [api.reducerPath]: api.reducer,
    [brandsApi.reducerPath]: brandsApi.reducer,
+   [attributesApi.reducerPath]: attributesApi.reducer,
 });
 
 export const makeStore = () => {
@@ -22,7 +24,8 @@ export const makeStore = () => {
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware()
         .concat(api.middleware)
-        .concat(brandsApi.middleware),
+        .concat(brandsApi.middleware)
+        .concat(attributesApi.middleware)
   });
 };
 /* REDUX TYPES */

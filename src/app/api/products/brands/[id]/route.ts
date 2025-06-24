@@ -9,48 +9,100 @@ const brandUpdateSchema = z.object({
 });
 
 // GET /api/brand/[id]
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   await initDatabase();
-  const id = Number(params.id);
+  const { id: idParam } = await params;
+  const id = Number(idParam);
 
   if (isNaN(id)) {
-    return NextResponse.json({ success: false, data: null, message: 'Invalid brand ID', timestamp: new Date().toISOString() }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Invalid brand ID',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
   }
 
   try {
-    const result = await query(`SELECT brand_id, name, code, description FROM "Brand" WHERE brand_id = $1`, [id]);
+    const result = await query(
+      `SELECT brand_id, name, code, description FROM "Brand" WHERE brand_id = $1`,
+      [id]
+    );
 
     if (result.rowCount === 0) {
-      return NextResponse.json({ success: false, data: null, message: 'Brand not found', timestamp: new Date().toISOString() }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Brand not found',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ success: true, data: result.rows[0], message: 'Brand retrieved', timestamp: new Date().toISOString() });
+    return NextResponse.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Brand retrieved',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error: any) {
     console.error('GET /brand/[id] error:', error);
-    return NextResponse.json({ success: false, data: null, message: 'Error retrieving brand', errors: [error.message || error], timestamp: new Date().toISOString() }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Error retrieving brand',
+        errors: [error.message || error],
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }
 
 // PUT /api/brand/[id]
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   await initDatabase();
-  const id = Number(params.id);
+  const { id: idParam } = await params;
+  const id = Number(idParam);
 
   if (isNaN(id)) {
-    return NextResponse.json({ success: false, data: null, message: 'Invalid brand ID', timestamp: new Date().toISOString() }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Invalid brand ID',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
   }
 
   const body = await req.json();
   const parsed = brandUpdateSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({
-      success: false,
-      data: null,
-      message: 'Validation failed',
-      errors: parsed.error.format(),
-      timestamp: new Date().toISOString(),
-    }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Validation failed',
+        errors: parsed.error.format(),
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
   }
 
   const { name, code, description } = parsed.data;
@@ -65,46 +117,112 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     );
 
     if (result.rowCount === 0) {
-      return NextResponse.json({ success: false, data: null, message: 'Brand not found', timestamp: new Date().toISOString() }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Brand not found',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ success: true, data: result.rows[0], message: 'Brand updated', timestamp: new Date().toISOString() });
+    return NextResponse.json({
+      success: true,
+      data: result.rows[0],
+      message: 'Brand updated',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error: any) {
     console.error('PUT /brand/[id] error:', error);
 
     if (error.code === '23505') {
-      const field = error.constraint?.includes('name') ? 'name' : error.constraint?.includes('code') ? 'code' : 'field';
-      return NextResponse.json({
-        success: false,
-        data: null,
-        message: `A brand with the same ${field} already exists.`,
-        timestamp: new Date().toISOString(),
-      }, { status: 400 });
+      const field = error.constraint?.includes('name')
+        ? 'name'
+        : error.constraint?.includes('code')
+        ? 'code'
+        : 'field';
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: `A brand with the same ${field} already exists.`,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({ success: false, data: null, message: 'Error updating brand', errors: [error.message || error], timestamp: new Date().toISOString() }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Error updating brand',
+        errors: [error.message || error],
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }
 
 // DELETE /api/brand/[id]
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   await initDatabase();
-  const id = Number(params.id);
+  const { id: idParam } = await params;
+  const id = Number(idParam);
 
   if (isNaN(id)) {
-    return NextResponse.json({ success: false, data: null, message: 'Invalid brand ID', timestamp: new Date().toISOString() }, { status: 400 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Invalid brand ID',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
   }
 
   try {
-    const result = await query(`DELETE FROM "Brand" WHERE brand_id = $1 RETURNING brand_id`, [id]);
+    const result = await query(
+      `DELETE FROM "Brand" WHERE brand_id = $1 RETURNING brand_id`,
+      [id]
+    );
 
     if (result.rowCount === 0) {
-      return NextResponse.json({ success: false, data: null, message: 'Brand not found', timestamp: new Date().toISOString() }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Brand not found',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ success: true, data: { brand_id: id }, message: 'Brand deleted', timestamp: new Date().toISOString() });
+    return NextResponse.json({
+      success: true,
+      data: { brand_id: id },
+      message: 'Brand deleted',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error: any) {
     console.error('DELETE /brand/[id] error:', error);
-    return NextResponse.json({ success: false, data: null, message: 'Error deleting brand', errors: [error.message || error], timestamp: new Date().toISOString() }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Error deleting brand',
+        errors: [error.message || error],
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }

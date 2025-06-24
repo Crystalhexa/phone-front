@@ -13,7 +13,15 @@ export const trackEvent = (event: AnalyticsEvent): void => {
   // analytics.track(event.name, event.properties);
   // mixpanel.track(event.name, event.properties);
 };
-
+export const attributeFormEvents={
+  FORM_OPENED: 'attribute_form_opened',
+  FORM_SUBMITTED: 'category_form_submitted',
+  VALUES_ADDED: 'values_added',
+  VALUES_REMOVED: 'values_removed',
+  VALUES_REORDERED: 'values_reordered',
+  FORM_DRAFT_SAVED: 'form_draft_saved',
+  FORM_EXPORTED: 'form_exported',
+}
 export const categoryFormEvents = {
   FORM_OPENED: 'category_form_opened',
   FORM_SUBMITTED: 'category_form_submitted',

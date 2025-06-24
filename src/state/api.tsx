@@ -5,6 +5,11 @@ interface Subcategory {
   name: string;
   description: string;
 }
+interface AttributeValue {
+  attribute_values_id: number;
+  value: string;
+
+}
 
 interface Category {
   category_id: number;
@@ -218,6 +223,7 @@ export type {
   CategoryApiResponse,
   CategoryFormData,
   GetCategoriesParams,
+  AttributeValue
   
 };
 
