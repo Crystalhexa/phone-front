@@ -1,21 +1,16 @@
-import React from 'react';
+import React, { JSX } from 'react';
 import { Plus, Columns3 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
 
-interface CategoryTableHeaderProps {
-}
-
-export const CategoryTableHeader: React.FC<CategoryTableHeaderProps> = ({
-  
-}) => {
+export function CategoryTableHeader(): JSX.Element {
   return (
     <>
       <Button variant="outline" size="sm">
         <Columns3 className="mr-2 h-4 w-4" />
         Columns
       </Button>
-      
+
       {/* Add Category Dialog */}
       <ReusableDialogForm
         triggerLabel={
@@ -26,10 +21,10 @@ export const CategoryTableHeader: React.FC<CategoryTableHeaderProps> = ({
         }
         formType="category"
         formProps={{
-          showExport:true,
+          showExport: true,
           isEdit: false,
         }}
       />
     </>
   );
-};
+}

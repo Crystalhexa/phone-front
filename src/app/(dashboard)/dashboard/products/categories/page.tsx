@@ -35,6 +35,7 @@ const CategoriesTable: React.FC = () => {
   const headerActions = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       {/* You can keep other buttons in CategoryTableHeader */}
+      
       <CategoryTableHeader />
       {/* 🔍 Search input */}
       <Input

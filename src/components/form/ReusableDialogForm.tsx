@@ -9,12 +9,13 @@ import {
 } from "@/components/ui/dialog";
 import { ReactNode } from "react";
 import CategoryForm from "./CategoryForm";
+import BrandForm from "./BrandForm/BrandForm";
 
 interface ReusableDialogFormProps {
   triggerLabel?: ReactNode;
   title?: string;
   description?: string;
-  formType: "category" | "zonal";
+  formType: "category" | "brand";
   formProps?: any;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -33,8 +34,8 @@ export function ReusableDialogForm({
     switch (formType) {
       case "category":
         return <CategoryForm {...formProps} />;
-      case "zonal":
-        return <div>Zonal Form Coming Soon</div>;
+      case "brand":
+        return <BrandForm {...formProps} />;
       default:
         return null;
     }

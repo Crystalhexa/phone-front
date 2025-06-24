@@ -8,7 +8,6 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { CategoryFormData, CategoryFormConfig } from '@/types/category';
 import { DEFAULT_CATEGORY_CONFIG } from '@/lib/constants/categoryConstants';
 import { createCategorySchema } from '@/lib/validations/categoryValidation';
-import { subcategoriesToString } from '@/lib/utils/subcategoryUtils';
 import { trackEvent, categoryFormEvents } from '@/lib/utils/analytics';
 import { useSubcategories } from '@/hooks/useSubcategories';
 import { useFormDraft } from '@/hooks/useFormDraft';

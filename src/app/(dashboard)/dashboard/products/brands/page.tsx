@@ -1,49 +1,75 @@
 "use client"
-import { DataTable } from '@/components/ui/DataTable/DataTable'
+
 import React from 'react'
-import { CategoryTableHeader } from '@/components/table/CategoryTable/CategoryTableHeader';        // ← Import header
-import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
-import { useCategoryActions } from '@/components/table/CategoryTable/CategoryActions'
-import { createBrandColumns } from '@/components/table/BrandTable/BrandColumn';
+import { DataTable } from '@/components/ui/DataTable/DataTable'
+import { useBrandData } from '@/components/table/BrandTable/useBrandData'
+import { createBrandColumns } from '@/components/table/BrandTable/BrandColumn'
+import { useBrandActions } from '@/components/table/BrandTable/BrandActions'
+import { Input } from '@/components/ui/input' // Adjust path as needed
+import { ReusableDialogForm } from '@/components/form/ReusableDialogForm'
+import { Plus } from 'lucide-react'
 
 const BrandTable: React.FC = () => {
   // Custom hooks
   const {
     data,
     isLoading,
+    handleSearch,
+    searchTerm,
     error,
     currentPage,
     pageSize,
     totalPages,
     setCurrentPage,
     handlePageSizeChange,
-  } = useCategoryData();
+  } = useBrandData()
 
   const {
     tableActions,
     EditDialog,
-  } = useCategoryActions();
+  } = useBrandActions()
 
   // Create columns with actions
-  const columns = createBrandColumns(tableActions);
+  const columns = createBrandColumns(tableActions)
 
   // Header actions component
   const headerActions = (
-    <CategoryTableHeader/>
-  );
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+         <ReusableDialogForm
+                triggerLabel={
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Brand
+                  </>
+                }
+                formType="brand"
+                formProps={{
+                  showExport: true,
+                  isEdit: false,
+                }}
+              />
+      {/* 🔍 Search input */}
+      <Input
+        type="text"
+        placeholder="Search brands..."
+        value={searchTerm}
+        onChange={(e) => handleSearch(e.target.value)}
+        className="sm:w-64 w-full"
+      />
+    </div>
+  )
 
   return (
     <>
       <DataTable
-        data={data?.data?.categories || []}
+        data={data?.data?.brands || []}
         columns={columns}
         isLoading={isLoading}
         error={error}
-        title="Categories"
-        subtitle={`Total: ${data?.data?.total || 0} categories`}
+        title="Brands"
+        subtitle={`Total: ${data?.data?.total || 0} brands`}
         actions={headerActions}
-        searchPlaceholder="Search categories..."
-        searchable={true}
+        searchable={false} // Disable built-in search if using custom input
         pagination={{
           currentPage,
           pageSize,
@@ -53,11 +79,11 @@ const BrandTable: React.FC = () => {
         onPageChange={setCurrentPage}
         onPageSizeChange={handlePageSizeChange}
       />
-      
-      {/* Render dialogs */}
+
+      {/* Modals */}
       <EditDialog />
     </>
-  );
-};
+  )
+}
 
-export default BrandTable;
+export default BrandTable

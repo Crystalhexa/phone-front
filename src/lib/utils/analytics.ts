@@ -23,3 +23,11 @@ export const categoryFormEvents = {
   FORM_DRAFT_SAVED: 'form_draft_saved',
   FORM_EXPORTED: 'form_exported',
 } as const;
+
+
+// ========== brandFormEvents.ts ==========
+export const brandFormEvents = {
+  FORM_OPENED: 'brand_form_opened',
+  FORM_SUBMITTED: 'brand_form_submitted',
+  FORM_EXPORTED: 'brand_form_exported',
+};
