@@ -19,7 +19,7 @@ export function CategoryTableHeader(): JSX.Element {
             Add Category
           </>
         }
-        formType="attribute"
+        formType="category"
         formProps={{
           showExport: true,
           isEdit: false,

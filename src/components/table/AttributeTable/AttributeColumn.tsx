@@ -1,8 +1,8 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from '@/components/ui/badge';
 import { ActionCell } from '../../ui/DataTable/ActionCell';
-import { Category, AttributeValue } from '@/state/api';
-import { Attribute,  } from "@/state/attribute";
+import { Attribute, AttributeValue } from "@/types/attribute";
+
 
 export interface TableAction {
   label: string;
