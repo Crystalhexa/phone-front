@@ -1,51 +1,7 @@
+import { AttributeApiResponse, AttributeFormData, AttributesListResponse, DeleteAttributeResponse, GetAttributesParams } from "@/types/attribute";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-export interface AttributeValue {
-  id: string;
-  value: string;
-}
 
-export interface Attribute {
-  id: string;
-  name: string;
-  values: AttributeValue[];
-}
-
-export interface AttributesListResponse {
-  success: boolean;
-  data: {
-    attributes: Attribute[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
-  message?: string;
-}
-
-export interface AttributeApiResponse {
-  success: boolean;
-  data: Attribute;
-  message?: string;
-}
-
-export interface AttributeFormData {
-  name: string;
-  values?: string[];
-}
-
-export interface GetAttributesParams {
-  limit?: number;
-  offset?: number;
-  page?: number;
-  search?: string;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-}
-
-export interface DeleteAttributeResponse {
-  success: boolean;
-  message: string;
-}
 
 export const attributesApi = createApi({
   reducerPath: "attributesApi",

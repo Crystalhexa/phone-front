@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from 'react-hot-toast';
-import { Category, useDeleteCategoryMutation } from '@/state/api';
 import { TableAction } from "./BrandColumn";
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
 import { Brand, useDeleteBrandMutation } from '@/state/brand';
@@ -22,6 +21,7 @@ export const useBrandActions = () => {
   };
 
   const handleEdit = (brand: Brand) => {
+    console.log("Editing brand:", brand);
     setSelectedBrand(brand);
     setIsEditDialogOpen(true);
   };
@@ -31,7 +31,7 @@ export const useBrandActions = () => {
       return;
     }
     try {
-      await deleteBrand(brand.brand_id).unwrap();
+      await deleteBrand(brand.id).unwrap();
       toast.success('Brand deleted successfully');
     } catch (error: any) {
       console.error('Delete error:', error);
@@ -71,7 +71,7 @@ export const useBrandActions = () => {
         description="Update brand information"
         formType="brand"
         formProps={{
-          brandId: selectedBrand?.brand_id,
+          brandId: selectedBrand?.id,
           mode: 'edit', // Read-only mode
           showExport: true,
           isEdit: true, // Read-only mode

@@ -3,570 +3,973 @@ generator client {
 }
 
 datasource db {
-  provider = "postgres"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 // ================== USER MANAGEMENT ==================
-model User {
-  user_id         Int               @id @default(autoincrement())
-  username        String            @unique
-  password_hash   String
-  is_active       Boolean           @default(true)
-  role_id         Int?              
-  role            Role?             @relation(fields: [role_id], references: [role_id])
-  employee        Employee?
-  purchase_orders PurchaseOrder[]
-  notifications   Notification[]
-  activities      UserActivityLog[]
+model users {
+  id            String              @id @default(cuid())
+  username      String              @unique @db.VarChar(50)
+  email         String              @unique @db.VarChar(255)
+  password_hash String              @db.VarChar(255)
+  is_active     Boolean             @default(true)
+  role_id       String?
+  created_at    DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime            @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  role            roles?               @relation(fields: [role_id], references: [id], onDelete: SetNull)
+  employee        employees?
+  purchase_orders purchase_orders[]
+  notifications   notifications[]
+  activity_logs   user_activity_logs[]
+
+  @@map("users")
 }
 
-model Role {
-  role_id Int    @id @default(autoincrement())
-  name    String @unique
-  users   User[] 
+model roles {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  permissions Json?    @default("{}")
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  users users[]
+
+  @@map("roles")
 }
 
-model Notification {
-  notification_id Int      @id @default(autoincrement())
-  user_id         Int
-  title           String
-  message         String
-  read            Boolean  @default(false)
-  created_at      DateTime @default(now())
+model notifications {
+  id         String   @id @default(cuid())
+  user_id    String
+  title      String   @db.VarChar(255)
+  message    String   @db.Text
+  type       String   @default("info") @db.VarChar(20)
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  read_at    DateTime? @db.Timestamptz(6)
 
-  user User @relation(fields: [user_id], references: [user_id])
+  // Relations
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, is_read])
+  @@map("notifications")
 }
 
-model UserActivityLog {
-  log_id    Int      @id @default(autoincrement())
-  user_id   Int
-  action    String
-  entity    String?
-  entity_id String?
-  timestamp DateTime @default(now())
-  notes     String?
+model user_activity_logs {
+  id         String   @id @default(cuid())
+  user_id    String
+  action     String   @db.VarChar(100)
+  entity     String?  @db.VarChar(50)
+  entity_id  String?  @db.VarChar(50)
+  ip_address String?  @db.VarChar(45)
+  user_agent String?  @db.Text
+  metadata   Json?    @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
-  user User @relation(fields: [user_id], references: [user_id])
+  // Relations
+  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+  @@index([entity, entity_id])
+  @@map("user_activity_logs")
 }
 
-// ================== EMPLOYEE ==================
-model Employee {
-  employee_id           Int                    @id @default(autoincrement())
-  name                  String
-  email                 String                 @unique
-  phone                 String?                @unique
-  nic                   String?                @unique
-  gender                String?
-  dob                   DateTime?
-  position              String?
-  hire_date             DateTime               @default(now())
-  is_active             Boolean                @default(true)
-  user_id               Int?                   @unique
-  user                  User?                  @relation(fields: [user_id], references: [user_id])
-  requested_transfers   StockTransferRequest[] @relation("RequestedBy")
-  dispatched_deliveries Delivery[]             @relation("DispatchedBy")
-  received_deliveries   Delivery[]             @relation("ReceivedBy")
-  stock_logs            StockTransferLog[]
+// ================== EMPLOYEE MANAGEMENT ==================
+model employees {
+  id              String    @id @default(cuid())
+  employee_number String    @unique @db.VarChar(20)
+  name            String    @db.VarChar(100)
+  email           String    @unique @db.VarChar(255)
+  phone           String?   @unique @db.VarChar(20)
+  nic             String?   @unique @db.VarChar(20)
+  gender          gender?
+  position        String?   @db.VarChar(100)
+  department      String?   @db.VarChar(50)
+  is_active       Boolean   @default(true)
+  user_id         String?   @unique
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  user                    users?                   @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  requested_transfers     stock_transfer_requests[] @relation("RequestedBy")
+  dispatched_deliveries   deliveries[]             @relation("DispatchedBy")
+  received_deliveries     deliveries[]             @relation("ReceivedBy")
+  stock_transfer_logs     stock_transfer_logs[]
+  stock_adjustments       stock_adjustments[]      @relation("AdjustedBy")
+
+  @@index([employee_number])
+  @@index([email])
+  @@map("employees")
+}
+
+enum gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// ================== CATEGORY & BRAND MANAGEMENT ==================
+model categories {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  
+  // Relations
+  subcategories subcategories[]
+
+  @@map("categories")
+}
+
+model subcategories {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  category_id String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  category categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  products products[]
+
+  @@index([category_id])
+  @@map("subcategories")
+}
+
+model brands {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  code        String   @unique @db.VarChar(10)
+  description String?  @db.Text
+  logo_url    String?  @db.VarChar(500)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  
+  // Relations
+  products products[]
+
+  @@index([code])
+  @@map("brands")
 }
 
 // ================== PRODUCT CATALOG ==================
+model products {
+  id              String   @id @default(cuid())
+  name            String   @db.VarChar(255)
+  description     String?  @db.Text
+  subcategory_id  String?
+  brand_id        String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
 
+  // Relations
+  brand                brands?              @relation(fields: [brand_id], references: [id], onDelete: SetNull)
+  subcategory          subcategories?       @relation(fields: [subcategory_id], references: [id], onDelete: SetNull)
+  attributes           product_attributes[]
+  variations           product_variations[]
 
-// 🕒 Price history for audit and trend tracking
-model ProductPriceHistory {
-  id             String   @id @default(cuid())
-  variationId    String
-  costPrice      Float
-  wholesalePrice Float?
-  retailPrice    Float?
-  effectiveDate  DateTime @default(now())
-  createdAt      DateTime @default(now())
-
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-// 📘 Optional Stock Ledger for traceability
-model ProductStockLedger {
-  id             String         @id @default(cuid())
-  variationId    String
-  branchId       String?
-  quantity       Int
-  cost_price     Float
-  entry_type     StockEntryType
-  reference_id   String?
-  reference_type String?
-  timestamp      DateTime       @default(now())
-
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-enum StockEntryType {
-  PURCHASE
-  SALE
-  RETURN
-  TRANSFER_IN
-  TRANSFER_OUT
-}
-model Product {
-  product_id     String  @id @default(cuid())
-  name           String
-  description    String?
-  subcategory_id Int?
-  brand_id       Int?
-  isActive       Boolean @default(true)
-
-  brand                Brand?              @relation(fields: [brand_id], references: [brand_id])
-  sub_category         SubCategory?        @relation(fields: [subcategory_id], references: [subcategory_id])
-  attributes           ProductAttribute[]
-  variations           ProductVariation[]
-
+  @@index([subcategory_id])
+  @@index([brand_id])
+  @@index([name])
   @@map("products")
 }
 
-model ProductVariation {
-  id                String   @id @default(cuid())
-  productId         String
-  sku               String   @unique
-  price             Decimal  @db.Decimal(10, 2)
-  comparePrice      Decimal? @db.Decimal(10, 2)
-  stock             Int      @default(0)
-  lowStockThreshold Int      @default(5)
-  weight            Decimal? @db.Decimal(8, 2)
-  dimensions        Json?
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // ✅ Current Pricing Fields
-  currentCostPrice      Float?
-  currentWholesalePrice Float?
-  currentRetailPrice    Float?
+model product_variations {
+  id                     String    @id @default(cuid())
+  product_id             String
+  sku                    String    @unique @db.VarChar(50)
+  name                   String?   @db.VarChar(255)
+  cost_price             Decimal   @default(0) @db.Decimal(10, 2)
+  wholesale_price        Decimal?  @db.Decimal(10, 2)
+  retail_price           Decimal   @db.Decimal(10, 2)
+  stock_quantity         Int       @default(0)
+  low_stock_threshold    Int       @default(5)
+  warranty_period        Int?      // in months
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime  @updatedAt @db.Timestamptz(6)
 
   // Relations
-  product            Product                     @relation(fields: [productId], references: [product_id], onDelete: Cascade)
-  attributes         ProductVariationAttribute[]
-  imeiNumbers        ImeiNumber[]
-  purchase_items     PurchaseOrderItem[]
-  sales_items        SalesOrderItem[]
-  branchInventory    BranchInventory[]
-  images             ProductImage[]
-  barcodes           Barcode[]
-  priceHistory       ProductPriceHistory[]
-  stockLedgers       ProductStockLedger[]
-  ProductBatch       ProductBatch[]
-  StockTransferItem  StockTransferItem[]
-  StockAdjustment    StockAdjustment[]
-  PurchaseReturnItem PurchaseReturnItem[]
-  SalesReturnItem    SalesReturnItem[]
+  product                    products                       @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  attributes                 product_variation_attributes[]
+  serial_numbers             serial_numbers[]
+  purchase_order_items       purchase_order_items[]
+  sales_order_items          sales_order_items[]
+  branch_inventory           branch_inventory[]
+  images                     product_images[]
+  barcodes                   barcodes[]
+  price_history              product_price_history[]
+  stock_ledgers              product_stock_ledgers[]
+  batches                    product_batches[]
+  stock_transfer_items       stock_transfer_items[]
+  stock_adjustments          stock_adjustments[]            @relation("ProductVariation")
+  purchase_return_items      purchase_return_items[]
+  sales_return_items         sales_return_items[]
 
+  @@index([product_id])
+  @@index([sku])
+  @@index([stock_quantity])
   @@map("product_variations")
 }
-model ProductAttribute {
+
+model attributes {
   id          String   @id @default(cuid())
-  productId   String
-  attributeId Int
-  isRequired  Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-
-  product   Product   @relation(fields: [productId], references: [product_id], onDelete: Cascade)
-  attribute Attribute @relation(fields: [attributeId], references: [attribute_id], onDelete: Cascade)
-
-  @@unique([productId, attributeId])
-  @@map("product_attributes")
-}
-
-model ProductVariationAttribute {
-  id               String @id @default(cuid())
-  variationId      String
-  attributeId      Int
-  attributeValueId Int
-
-  variation      ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
-  attribute      Attribute        @relation(fields: [attributeId], references: [attribute_id], onDelete: Cascade)
-  attributeValue AttributeValue   @relation(fields: [attributeValueId], references: [attribute_values_id], onDelete: Cascade)
-
-  @@unique([variationId, attributeId])
-  @@map("product_variation_attributes")
-}
-model Attribute {
-  attribute_id          Int                     @id @default(autoincrement())
-  name        String        @unique
-  description String?
-  values           AttributeValue[]
-  productAttribs   ProductAttribute[]
-  variationAttribs ProductVariationAttribute[]
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  
+  // Relations
+  values                   attribute_values[]
+  product_attributes       product_attributes[]
+  variation_attributes     product_variation_attributes[]
 
   @@map("attributes")
 }
 
-model AttributeValue {
-  attribute_values_id           Int                @id @default(autoincrement())
-  attributeId  Int
-  value        String          @unique
-  attribute        Attribute                   @relation(fields: [attributeId], references: [attribute_id], onDelete: Cascade)
-  variationAttribs ProductVariationAttribute[]
+model attribute_values {
+  id           String   @id @default(cuid())
+  attribute_id String
+  value        String   @unique @db.VarChar(100) 
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  
+  // Relations
+  attribute            attributes                     @relation(fields: [attribute_id], references: [id], onDelete: Cascade)
+  variation_attributes product_variation_attributes[]
 
+  @@unique([attribute_id, value])
+  @@index([attribute_id])
   @@map("attribute_values")
 }
 
-model ProductImage {
-  image_id           Int     @id @default(autoincrement())
-  productVariationId String
-  image_url          String
-  is_primary         Boolean @default(false)
+model product_attributes {
+  id           String   @id @default(cuid())
+  product_id   String
+  attribute_id String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
 
-  productVariation ProductVariation @relation(fields: [productVariationId], references: [id])
+  // Relations
+  product   products   @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  attribute attributes @relation(fields: [attribute_id], references: [id], onDelete: Cascade)
+
+  @@unique([product_id, attribute_id])
+  @@map("product_attributes")
 }
 
+model product_variation_attributes {
+  id                 String   @id @default(cuid())
+  variation_id       String
+  attribute_id       String
+  attribute_value_id String
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
 
-model Barcode {
-  id          String      @id @default(cuid())
-  variationId String
-  code        String      @unique
-  type        BarcodeType @default(INTERNAL)
-  createdAt   DateTime    @default(now())
+  // Relations
+  variation       product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+  attribute       attributes         @relation(fields: [attribute_id], references: [id], onDelete: Cascade)
+  attribute_value attribute_values   @relation(fields: [attribute_value_id], references: [id], onDelete: Cascade)
 
-  variation ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  @@unique([variation_id, attribute_id])
+  @@map("product_variation_attributes")
+}
 
+model product_images {
+  id           String   @id @default(cuid())
+  variation_id String
+  image_url    String   @db.VarChar(500)
+  alt_text     String?  @db.VarChar(255)
+  is_primary   Boolean  @default(false)
+  file_size    Int?     // in bytes
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+
+  @@index([variation_id])
+  @@map("product_images")
+}
+
+model barcodes {
+  id           String       @id @default(cuid())
+  variation_id String
+  code         String       @unique @db.VarChar(50)
+  type         barcode_type @default(INTERNAL)
+  is_active    Boolean      @default(true)
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+
+  @@index([variation_id])
   @@map("barcodes")
 }
 
-model ImeiNumber {
-  id          String     @id @default(cuid())
-  variationId String
-  imei        String     @unique
-  status      ImeiStatus @default(AVAILABLE)
-  soldAt      DateTime?
-  returnedAt  DateTime?
-  notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+model serial_numbers {
+  id           String        @id @default(cuid())
+  variation_id String
+  serial       String        @unique @db.VarChar(100)
+  status       serial_status @default(AVAILABLE)
+  sold_at      DateTime?     @db.Timestamptz(6)
+  returned_at  DateTime?     @db.Timestamptz(6)
+  notes        String?       @db.Text
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @updatedAt @db.Timestamptz(6)
 
-  variation ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  // Relations
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
 
-  @@map("imei_numbers")
+  @@index([variation_id, status])
+  @@map("serial_numbers")
 }
 
-model ProductBatch {
-  batch_id     String    @id @default(cuid())
-  variationId  String
-  batch_number String
-  expiry_date  DateTime?
-  stock        Int
-  created_at   DateTime  @default(now())
+model product_batches {
+  id           String    @id @default(cuid())
+  variation_id String
+  batch_number String    @db.VarChar(50)
+  expiry_date  DateTime? @db.Date
+  stock        Int       @default(0)
+  cost_price   Decimal   @db.Decimal(10, 2)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @updatedAt @db.Timestamptz(6)
 
-  variation ProductVariation @relation(fields: [variationId], references: [id])
+  // Relations
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+
+  @@unique([variation_id, batch_number])
+  @@index([expiry_date])
+  @@map("product_batches")
 }
 
-enum AttributeType {
-  SELECT
+model product_price_history {
+  id              String   @id @default(cuid())
+  variation_id    String
+  cost_price      Decimal  @db.Decimal(10, 2)
+  wholesale_price Decimal? @db.Decimal(10, 2)
+  retail_price    Decimal  @db.Decimal(10, 2)
+  effective_date  DateTime @default(now()) @db.Timestamptz(6)
+  changed_by      String?
+  reason          String?  @db.VarChar(255)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+
+  @@index([variation_id, effective_date])
+  @@map("product_price_history")
+}
+
+model product_stock_ledgers {
+  id             String           @id @default(cuid())
+  variation_id   String
+  branch_id      String?
+  quantity       Int
+  cost_price     Decimal          @db.Decimal(10, 2)
+  entry_type     stock_entry_type
+  reference_id   String?          @db.VarChar(50)
+  reference_type String?          @db.VarChar(50)
+  notes          String?          @db.Text
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+  branch    branches?          @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+
+  @@index([variation_id, created_at])
+  @@index([branch_id, created_at])
+  @@index([reference_type, reference_id])
+  @@map("product_stock_ledgers")
+}
+
+// ================== BRANCH & INVENTORY MANAGEMENT ==================
+model branches {
+  id                     String   @id @default(cuid())
+  name                   String   @db.VarChar(100)
+  code                   String   @unique @db.VarChar(10)
+  location               String?  @db.VarChar(255)
+  address                String?  @db.Text
+  phone                  String?  @unique @db.VarChar(20)
+  email                  String?  @unique @db.VarChar(255)
+  manager_name           String?  @db.VarChar(100)
+  is_active              Boolean  @default(true)
+  is_main_branch         Boolean  @default(false)
+  timezone               String   @default("UTC") @db.VarChar(50)
+  operating_hours        Json?    @default("{}")
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  sales_orders           sales_orders[]
+  from_transfer_requests stock_transfer_requests[] @relation("FromBranch")
+  to_transfer_requests   stock_transfer_requests[] @relation("ToBranch")
+  inventory              branch_inventory[]
+  storage_bins           storage_bins[]
+  stock_adjustments      stock_adjustments[]       @relation("Branch")
+  stock_ledgers          product_stock_ledgers[]
+
+  @@index([code])
+  @@map("branches")
+}
+
+model storage_bins {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(50)
+  code      String   @db.VarChar(20)
+  branch_id String
+  location  String?  @db.VarChar(100)
+  capacity  Int?
+  is_active Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  branch    branches          @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  inventory branch_inventory[]
+
+  @@unique([branch_id, code])
+  @@index([branch_id])
+  @@map("storage_bins")
+}
+
+model branch_inventory {
+  id               String   @id @default(cuid())
+  branch_id        String
+  variation_id     String
+  bin_id           String?
+  stock_quantity   Int      @default(0)
+  reserved_quantity Int     @default(0)
+  min_stock_level  Int      @default(0)
+  max_stock_level  Int?
+  last_counted_at  DateTime? @db.Timestamptz(6)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  branch    branches          @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  variation product_variations @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+  bin       storage_bins?     @relation(fields: [bin_id], references: [id], onDelete: SetNull)
+
+  @@unique([branch_id, variation_id])
+  @@index([branch_id])
+  @@index([variation_id])
+  @@index([stock_quantity])
+  @@map("branch_inventory")
+}
+
+// ================== STOCK OPERATIONS ==================
+model stock_transfer_requests {
+  id               String          @id @default(cuid())
+  request_number   String          @unique @db.VarChar(20)
+  from_branch_id   String
+  to_branch_id     String
+  requested_by     String
+  status           transfer_status @default(PENDING)
+  priority         priority_level  @default(NORMAL)
+  notes            String?         @db.Text
+  requested_at     DateTime        @default(now()) @db.Timestamptz(6)
+  approved_at      DateTime?       @db.Timestamptz(6)
+  completed_at     DateTime?       @db.Timestamptz(6)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime        @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  from_branch branches               @relation("FromBranch", fields: [from_branch_id], references: [id])
+  to_branch   branches               @relation("ToBranch", fields: [to_branch_id], references: [id])
+  requester   employees              @relation("RequestedBy", fields: [requested_by], references: [id])
+  items       stock_transfer_items[]
+  deliveries  deliveries[]
+  logs        stock_transfer_logs[]
+
+  @@index([request_number])
+  @@index([from_branch_id])
+  @@index([to_branch_id])
+  @@index([status])
+  @@map("stock_transfer_requests")
+}
+
+model stock_transfer_items {
+  id                String   @id @default(cuid())
+  transfer_request_id String
+  variation_id       String
+  quantity_requested Int
+  quantity_approved  Int?
+  quantity_dispatched Int?
+  quantity_received  Int?
+  notes             String?  @db.Text
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  transfer_request stock_transfer_requests @relation(fields: [transfer_request_id], references: [id], onDelete: Cascade)
+  variation        product_variations      @relation(fields: [variation_id], references: [id], onDelete: Cascade)
+
+  @@unique([transfer_request_id, variation_id])
+  @@map("stock_transfer_items")
+}
+
+model deliveries {
+  id                  String          @id @default(cuid())
+  delivery_number     String          @unique @db.VarChar(20)
+  transfer_request_id String
+  dispatched_by       String
+  received_by         String?
+  delivery_method     delivery_method
+  tracking_number     String?         @db.VarChar(50)
+  dispatch_time       DateTime?       @db.Timestamptz(6)
+  estimated_arrival   DateTime?       @db.Timestamptz(6)
+  received_time       DateTime?       @db.Timestamptz(6)
+  delivery_notes      String?         @db.Text
+  status              delivery_status @default(PENDING)
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  transfer_request stock_transfer_requests @relation(fields: [transfer_request_id], references: [id], onDelete: Cascade)
+  dispatcher       employees               @relation("DispatchedBy", fields: [dispatched_by], references: [id])
+  receiver         employees?              @relation("ReceivedBy", fields: [received_by], references: [id])
+
+  @@index([delivery_number])
+  @@index([transfer_request_id])
+  @@map("deliveries")
+}
+
+model stock_transfer_logs {
+  id                  String          @id @default(cuid())
+  transfer_request_id String
+  employee_id         String
+  action_type         transfer_status
+  notes               String?         @db.Text
+  metadata            Json?           @default("{}")
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  transfer_request stock_transfer_requests @relation(fields: [transfer_request_id], references: [id], onDelete: Cascade)
+  employee         employees               @relation(fields: [employee_id], references: [id])
+
+  @@index([transfer_request_id])
+  @@index([employee_id])
+  @@map("stock_transfer_logs")
+}
+
+model stock_adjustments {
+  id              String            @id @default(cuid())
+  adjustment_number String          @unique @db.VarChar(20)
+  branch_id       String
+  variation_id    String
+  quantity_before Int
+  quantity_after  Int
+  quantity_change Int
+  reason          adjustment_reason
+  notes           String?           @db.Text
+  adjusted_by     String
+  approved_by     String?
+  adjustment_date DateTime          @default(now()) @db.Timestamptz(6)
+  created_at      DateTime          @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  branch    branches          @relation("Branch", fields: [branch_id], references: [id])
+  variation product_variations @relation("ProductVariation", fields: [variation_id], references: [id])
+  adjuster  employees         @relation("AdjustedBy", fields: [adjusted_by], references: [id])
+
+  @@index([adjustment_number])
+  @@index([branch_id])
+  @@index([variation_id])
+  @@map("stock_adjustments")
+}
+
+// ================== SUPPLIER & PURCHASE MANAGEMENT ==================
+model suppliers {
+  id           String   @id @default(cuid())
+  name         String   @db.VarChar(100)
+  code         String   @unique @db.VarChar(10)
+  contact_name String?  @db.VarChar(100)
+  phone        String?  @db.VarChar(20)
+  email        String?  @db.VarChar(255)
+  address      String?  @db.Text
+  tax_number   String?  @db.VarChar(20)
+  payment_terms String? @db.VarChar(100)
+  credit_limit Decimal? @db.Decimal(12, 2)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  purchase_orders purchase_orders[]
+
+  @@index([code])
+  @@index([name])
+  @@map("suppliers")
+}
+
+model purchase_orders {
+  id             String        @id @default(cuid())
+  order_number   String        @unique @db.VarChar(20)
+  supplier_id    String
+  purchased_by   String?
+  order_date     DateTime      @default(now()) @db.Date
+  expected_date  DateTime?     @db.Date
+  received_date  DateTime?     @db.Date
+  status         order_status  @default(PENDING)
+  subtotal       Decimal       @default(0) @db.Decimal(12, 2)
+  tax_amount     Decimal       @default(0) @db.Decimal(10, 2)
+  total_amount   Decimal       @default(0) @db.Decimal(12, 2)
+  notes          String?       @db.Text
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  supplier suppliers             @relation(fields: [supplier_id], references: [id])
+  user     users?                @relation(fields: [purchased_by], references: [id])
+  items    purchase_order_items[]
+  returns  purchase_returns[]
+
+  @@index([order_number])
+  @@index([supplier_id])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+model purchase_order_items {
+  id               String   @id @default(cuid())
+  purchase_order_id String
+  variation_id     String
+  quantity_ordered Int
+  quantity_received Int     @default(0)
+  cost_price       Decimal  @db.Decimal(10, 2)
+  wholesale_price  Decimal? @db.Decimal(10, 2)
+  retail_price     Decimal? @db.Decimal(10, 2)
+  line_total       Decimal  @db.Decimal(12, 2)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  purchase_order purchase_orders    @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  variation      product_variations @relation(fields: [variation_id], references: [id])
+
+  @@unique([purchase_order_id, variation_id])
+  @@map("purchase_order_items")
+}
+
+model purchase_returns {
+  id                String   @id @default(cuid())
+  return_number     String   @unique @db.VarChar(20)
+  purchase_order_id String
+  returned_by       String
+  return_date       DateTime @default(now()) @db.Date
+  reason            String?  @db.Text
+  total_amount      Decimal  @default(0) @db.Decimal(12, 2)
+  status            return_status @default(PENDING)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  purchase_order purchase_orders        @relation(fields: [purchase_order_id], references: [id])
+  items          purchase_return_items[]
+
+  @@index([return_number])
+  @@index([purchase_order_id])
+  @@map("purchase_returns")
+}
+
+model purchase_return_items {
+  id                 String   @id @default(cuid())
+  purchase_return_id String
+  variation_id       String
+  quantity           Int
+  cost_price         Decimal  @db.Decimal(10, 2)
+  line_total         Decimal  @db.Decimal(12, 2)
+  reason             String?  @db.Text
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  purchase_return purchase_returns     @relation(fields: [purchase_return_id], references: [id], onDelete: Cascade)
+  variation       product_variations   @relation(fields: [variation_id], references: [id])
+
+  @@unique([purchase_return_id, variation_id])
+  @@map("purchase_return_items")
+}
+
+// ================== CUSTOMER & SALES MANAGEMENT ==================
+model customers {
+  id           String   @id @default(cuid())
+  customer_number String @unique @db.VarChar(20)
+  name         String   @db.VarChar(100)
+  email        String?  @unique @db.VarChar(255)
+  nic          String?  @unique @db.VarChar(20)
+  phone        String?  @unique @db.VarChar(20)
+  address      String?  @db.Text
+  city         String?  @db.VarChar(50)
+  postal_code  String?  @db.VarChar(10)
+  date_of_birth DateTime? @db.Date
+  customer_type customer_type @default(RETAIL)
+  credit_limit Decimal? @db.Decimal(12, 2)
+  outstanding_balance Decimal @default(0) @db.Decimal(12, 2)
+  loyalty_points Int    @default(0)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  sales_orders sales_orders[]
+
+  @@index([customer_number])
+  @@index([phone])
+  @@index([email])
+  @@map("customers")
+}
+
+model sales_orders {
+  id            String       @id @default(cuid())
+  order_number  String       @unique @db.VarChar(20)
+  customer_id   String
+  branch_id     String
+  order_date    DateTime     @default(now()) @db.Timestamptz(6)
+  due_date      DateTime?    @db.Date
+  status        order_status @default(PENDING)
+  payment_status payment_status @default(PENDING)
+  payment_method payment_method?
+  subtotal      Decimal      @default(0) @db.Decimal(12, 2)
+  discount_amount Decimal    @default(0) @db.Decimal(10, 2)
+  tax_amount    Decimal      @default(0) @db.Decimal(10, 2)
+  total_amount  Decimal      @default(0) @db.Decimal(12, 2)
+  paid_amount   Decimal      @default(0) @db.Decimal(12, 2)
+  notes         String?      @db.Text
+  created_at    DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime     @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  customer customers         @relation(fields: [customer_id], references: [id])
+  branch   branches          @relation(fields: [branch_id], references: [id])
+  items    sales_order_items[]
+  returns  sales_returns[]
+
+  @@index([order_number])
+  @@index([customer_id])
+  @@index([branch_id])
+  @@index([status])
+  @@index([order_date])
+  @@map("sales_orders")
+}
+
+model sales_order_items {
+  id             String   @id @default(cuid())
+  sales_order_id String
+  variation_id   String
+  quantity       Int
+  unit_price     Decimal  @db.Decimal(10, 2)
+  discount_amount Decimal @default(0) @db.Decimal(10, 2)
+  line_total     Decimal  @db.Decimal(12, 2)
+  serial_numbers String?  @db.Text // JSON array of serial numbers
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  sales_order sales_orders       @relation(fields: [sales_order_id], references: [id], onDelete: Cascade)
+  variation   product_variations @relation(fields: [variation_id], references: [id])
+
+  @@unique([sales_order_id, variation_id])
+  @@map("sales_order_items")
+}
+
+model sales_returns {
+  id             String        @id @default(cuid())
+  return_number  String        @unique @db.VarChar(20)
+  sales_order_id String
+  returned_by    String
+  return_date    DateTime      @default(now()) @db.Date
+  reason         return_reason
+  notes          String?       @db.Text
+  total_amount   Decimal       @default(0) @db.Decimal(12, 2)
+  refund_amount  Decimal       @default(0) @db.Decimal(12, 2)
+  status         return_status @default(PENDING)
+  created_at     DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime      @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  sales_order sales_orders        @relation(fields: [sales_order_id], references: [id])
+  items       sales_return_items[]
+
+  @@index([return_number])
+  @@index([sales_order_id])
+  @@map("sales_returns")
+}
+
+model sales_return_items {
+  id              String   @id @default(cuid())
+  sales_return_id String
+  variation_id    String
+  quantity        Int
+  unit_price      Decimal  @db.Decimal(10, 2)
+  line_total      Decimal  @db.Decimal(12, 2)
+  serial_numbers  String?  @db.Text // JSON array of serial numbers
+  condition       item_condition @default(GOOD)
+  notes           String?  @db.Text
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  sales_return sales_returns      @relation(fields: [sales_return_id], references: [id], onDelete: Cascade)
+  variation    product_variations @relation(fields: [variation_id], references: [id])
+
+  @@unique([sales_return_id, variation_id])
+  @@map("sales_return_items")
+}
+
+// ================== ENUMS ==================
+enum attribute_type {
   TEXT
   NUMBER
+  SELECT
+  MULTI_SELECT
   COLOR
+  BOOLEAN
+  DATE
 }
 
-enum ImeiStatus {
+enum serial_status {
   AVAILABLE
   SOLD
   RESERVED
   DEFECTIVE
   RETURNED
+  MAINTENANCE
 }
 
-enum BarcodeType {
-  EAN
-  UPC
-  QR
+enum barcode_type {
+  EAN13
+  EAN8
+  UPC_A
+  UPC_E
+  CODE128
+  CODE39
+  QR_CODE
   INTERNAL
 }
 
-// ================== INVENTORY & BRANCH ==================
-model Branch {
-  branch_id              String                 @id @default(cuid())
-  name                   String
-  code                   String                 @unique // Branch code for easy identification
-  location               String?
-  address                String?      
-  phone                  String?     @unique
-  email                  String?     @unique
-   is_active              Boolean                @default(true)
-  is_main_branch         Boolean                @default(false) // Head office flag
-  timezone               String?                @default("UTC")
-  created_at             DateTime               @default(now())
-  updated_at             DateTime               @updatedAt
-  
-
-  sales_orders           SalesOrder[]
-  from_transfer_requests StockTransferRequest[] @relation("FromBranch")
-  to_transfer_requests   StockTransferRequest[] @relation("ToBranch")
-  inventory              BranchInventory[]
-  storageBins            StorageBin[]
-  StockAdjustment        StockAdjustment[]
-
-  @@map("branches")
+enum stock_entry_type {
+  PURCHASE
+  SALE
+  RETURN_IN
+  RETURN_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT
+  DAMAGE
+  EXPIRED
 }
 
-model StorageBin {
-  bin_id   String @id @default(cuid())
-  name     String
-  branchId String
-
-  branch          Branch            @relation(fields: [branchId], references: [branch_id])
-  BranchInventory BranchInventory[]
-}
-
-model BranchInventory {
-  id            String   @id @default(uuid())
-  branchId      String
-  variationId   String
-  stock         Int
-  reservedStock Int      @default(0)
-  bin_id        String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  branch    Branch           @relation(fields: [branchId], references: [branch_id], onDelete: Cascade)
-  variation ProductVariation @relation(fields: [variationId], references: [id], onDelete: Cascade)
-  bin       StorageBin?      @relation(fields: [bin_id], references: [bin_id])
-
-  @@unique([branchId, variationId])
-  @@map("branch_inventory")
-}
-
-// ================== STOCK OPERATIONS ==================
-model StockTransferRequest {
-  request_id     Int            @id @default(autoincrement())
-  from_branch_id String
-  to_branch_id   String
-  requested_by   Int
-  requested_at   DateTime       @default(now())
-  status         TransferStatus @default(PENDING)
-
-  from_branch Branch              @relation("FromBranch", fields: [from_branch_id], references: [branch_id])
-  to_branch   Branch              @relation("ToBranch", fields: [to_branch_id], references: [branch_id])
-  requester   Employee            @relation("RequestedBy", fields: [requested_by], references: [employee_id])
-  items       StockTransferItem[]
-  deliveries  Delivery[]
-  logs        StockTransferLog[]
-}
-
-model StockTransferItem {
-  item_id     Int    @id @default(autoincrement())
-  request_id  Int
-  variationId String
-  quantity    Int
-
-  request           StockTransferRequest @relation(fields: [request_id], references: [request_id])
-  variation         ProductVariation     @relation(fields: [variationId], references: [id])
-}
-
-model Delivery {
-  delivery_id     Int            @id @default(autoincrement())
-  request_id      Int
-  dispatched_by   Int
-  delivery_method DeliveryMethod
-  dispatch_time   DateTime?
-  received_by     Int?
-  received_time   DateTime?
-  delivery_notes  String?
-
-  request    StockTransferRequest @relation(fields: [request_id], references: [request_id])
-  dispatcher Employee             @relation("DispatchedBy", fields: [dispatched_by], references: [employee_id])
-  receiver   Employee?            @relation("ReceivedBy", fields: [received_by], references: [employee_id])
-}
-
-model StockTransferLog {
-  log_id      Int            @id @default(autoincrement())
-  request_id  Int
-  employee_id Int
-  action_type TransferStatus
-  timestamp   DateTime       @default(now())
-  notes       String?
-
-  request  StockTransferRequest @relation(fields: [request_id], references: [request_id])
-  employee Employee             @relation(fields: [employee_id], references: [employee_id])
-}
-
-model StockAdjustment {
-  adjustment_id   Int              @id @default(autoincrement())
-  branch_id       String
-  variationId     String
-  quantity_change Int
-  reason          AdjustmentReason
-  notes           String?
-  adjusted_by     Int
-  adjusted_at     DateTime         @default(now())
-
-  branch    Branch           @relation(fields: [branch_id], references: [branch_id])
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-enum TransferStatus {
+enum transfer_status {
   PENDING
   APPROVED
+  REJECTED
   DISPATCHED
+  IN_TRANSIT
   RECEIVED
-  CANCELLED
-}
-
-enum AdjustmentReason {
-  DAMAGE
-  LOSS
-  EXPIRY
-  MANUAL_CORRECTION
-}
-
-enum DeliveryMethod {
-  BUS
-  SCOOTER
-  BICYCLE
-  COMPANY_PERSON
-  COURIER
-}
-
-// ================== PURCHASE & SALES ==================
-model Supplier {
-  supplier_id     Int             @id @default(autoincrement())
-  name            String
-  contact_name    String?
-  phone           String?
-  email           String?
-  address         String?
-  purchase_orders PurchaseOrder[]
-}
-
-model PurchaseOrder {
-  po_id         Int                 @id @default(autoincrement())
-  supplier_id   Int
-  purchased_by  Int?
-  purchase_date DateTime
-  supplier      Supplier            @relation(fields: [supplier_id], references: [supplier_id])
-  user          User?               @relation(fields: [purchased_by], references: [user_id])
-  items         PurchaseOrderItem[]
-}
-
-model PurchaseOrderItem {
-  po_item_id      Int    @id @default(autoincrement())
-  po_id           Int
-  variationId     String
-  quantity        Int
-  cost_price      Float
-  wholesale_price Float?
-  retail_price    Float?
-
-  order     PurchaseOrder    @relation(fields: [po_id], references: [po_id])
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-model PurchaseReturn {
-  return_id   Int      @id @default(autoincrement())
-  po_id       Int
-  returned_by Int
-  return_date DateTime @default(now())
-  reason      String?
-
-  items PurchaseReturnItem[]
-}
-
-model PurchaseReturnItem {
-  item_id     Int     @id @default(autoincrement())
-  return_id   Int
-  variationId String
-  quantity    Int
-  reason      String?
-
-  return    PurchaseReturn   @relation(fields: [return_id], references: [return_id])
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-model Customer {
-  customer_id  Int          @id @default(autoincrement())
-
-  name         String
-  email        String?       @unique
-  nic          String?       @unique
-  phone        String?       @unique
-  address      String?
-  created_at        DateTime          @default(now())
-  updated_at        DateTime          @updatedAt
-  sales_orders SalesOrder[]
-}
-
-model SalesOrder {
-  order_id     Int         @id @default(autoincrement())
-  customer_id  Int
-  branch_id    String
-  order_date   DateTime    @default(now())
-  total_amount Float
-  status       OrderStatus @default(PENDING)
-
-  customer Customer         @relation(fields: [customer_id], references: [customer_id])
-  branch   Branch           @relation(fields: [branch_id], references: [branch_id])
-  items    SalesOrderItem[]
-}
-
-model SalesOrderItem {
-  item_id     Int    @id @default(autoincrement())
-  order_id    Int
-  variationId String
-  quantity    Int
-  price       Float
-
-  order     SalesOrder       @relation(fields: [order_id], references: [order_id])
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-model SalesReturn {
-  return_id   Int      @id @default(autoincrement())
-  order_id    Int
-  returned_by Int
-  return_date DateTime @default(now())
-  reason      String?
-
-  items SalesReturnItem[]
-}
-
-model SalesReturnItem {
-  item_id     Int     @id @default(autoincrement())
-  return_id   Int
-  variationId String
-  quantity    Int
-  reason      String?
-
-  return    SalesReturn      @relation(fields: [return_id], references: [return_id])
-  variation ProductVariation @relation(fields: [variationId], references: [id])
-}
-
-enum OrderStatus {
-  PENDING
   COMPLETED
   CANCELLED
 }
 
-// ================== CATEGORY ==================
-model Category {
-  category_id   Int           @id @default(autoincrement())
-  name          String        @unique
-  description   String?
-  subcategories SubCategory[]
+enum priority_level {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
-model SubCategory {
-  subcategory_id Int     @id @default(autoincrement())
-  name           String  @unique
-  description    String?
-  category_id    Int
-
-  category Category  @relation(fields: [category_id], references: [category_id])
-  products Product[]
+enum delivery_status {
+  PENDING
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
 }
 
-model Brand {
-  brand_id    Int       @id @default(autoincrement())
-  name        String    @unique
-  code        String    @unique
-  description String?
-  products    Product[]
+enum delivery_method {
+  PICKUP
+  BUS
+  COURIER
+  COMPANY_VEHICLE
+  POSTAL_SERVICE
+  THIRD_PARTY
+}
+
+enum adjustment_reason {
+  PHYSICAL_COUNT
+  DAMAGE
+  THEFT
+  EXPIRED
+  LOST
+  FOUND
+  SYSTEM_ERROR
+  MANUAL_CORRECTION
+  WRITE_OFF
+}
+
+enum order_status {
+  DRAFT
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum payment_status {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  REFUNDED
+  CANCELLED
+}
+
+enum payment_method {
+  CASH
+  CARD
+  BANK_TRANSFER
+  CHEQUE
+  MOBILE_PAYMENT
+  CREDIT
+  STORE_CREDIT
+}
+
+enum return_status {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
+  REFUNDED
+  EXCHANGED
+}
+
+enum return_reason {
+  DEFECTIVE
+  DAMAGED
+  WRONG_ITEM
+  NOT_AS_DESCRIBED
+  CHANGE_OF_MIND
+  WARRANTY_CLAIM
+  EXPIRED
+  OTHER
+}
+
+enum item_condition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+  DEFECTIVE
+}
+
+enum customer_type {
+  RETAIL
+  WHOLESALE
+  CORPORATE
+  VIP
 }

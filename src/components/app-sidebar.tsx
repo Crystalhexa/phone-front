@@ -63,7 +63,7 @@ const data = {
       url: "/dashboard/products",
       icon: IconFolder,
       items: [
-        { title: "All Products", url: "/products/all" },
+        { title: "All Products", url: "/dashboard/products/all" },
         { title: "Categories", url: "/dashboard/products/categories", },
         { title: "Brands", url: "/dashboard/products/brands" },
         { title: "Attribute", url: "/dashboard/products/attribute" },

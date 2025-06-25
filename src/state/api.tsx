@@ -1,63 +1,7 @@
+import { CategoriesListResponse, CategoryApiResponse, CategoryFormData, DeleteCategoryResponse, GetCategoriesParams } from "@/types/category";
 import { Role } from "@/types/user";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-interface Subcategory {
-  subcategory_id: number;
-  name: string;
-  description: string;
-}
-interface AttributeValue {
-  attribute_values_id: number;
-  value: string;
 
-}
-
-interface Category {
-  category_id: number;
-  name: string;
-  description: string;
-  subcategories: Subcategory[];
-}
-
-
-interface CategoriesListResponse {
-  success: boolean;
-  data: {
-    categories: Category[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
-  message?: string;
-}
-
-interface CategoryApiResponse {
-  subcategories(subcategories: any, separator: string): string | undefined;
-  description: string;
-  name: string | undefined;
-  success: boolean;
-  data: Category;
-  message?: string;
-}
-
-interface CategoryFormData {
-  name: string;
-  description?: string;
-  subcategories?: string[];
-}
-
-interface GetCategoriesParams {
-  limit?: number;
-  offset?: number;
-  page?: number;
-  search?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-}
-
-interface DeleteCategoryResponse {
-  success: boolean;
-  message: string;
-}
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
@@ -85,7 +29,7 @@ export const api = createApi({
       providesTags: (result) =>
         result?.data?.categories
           ? [
-              ...result.data.categories.map(({ category_id }) => ({ type: 'Category' as const, id: category_id })),
+              ...result.data.categories.map(({ id }) => ({ type: 'Category' as const, id: id })),
               { type: 'Category', id: 'LIST' },
             ]
           : [{ type: 'Category', id: 'LIST' }],
@@ -215,17 +159,7 @@ export const {
   
 } = api;
 
-// Export types for use in components
-export type {
-  Category,
-  Subcategory,
-  CategoriesListResponse,
-  CategoryApiResponse,
-  CategoryFormData,
-  GetCategoriesParams,
-  AttributeValue
-  
-};
+
 
 // Custom hook for better pagination handling
 export const useGetCategoriesWithPagination = (

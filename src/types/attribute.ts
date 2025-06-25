@@ -19,6 +19,7 @@ export interface AttributeFormData {
   values: string;
 }
 
+
 export interface AttributeFormConfig {
   maxValues: number;
   maxValueLength: number;
@@ -27,4 +28,46 @@ export interface AttributeFormConfig {
   showPreview: boolean;
   enableDragDrop: boolean;
   enableAutoSave: boolean;
+}
+export interface AttributeValue {
+  id: string;
+  value: string;
+}
+
+export interface Attribute {
+  id: string;
+  name: string;
+  values: AttributeValue[];
+}
+
+export interface AttributesListResponse {
+  success: boolean;
+  data: {
+    attributes: Attribute[];
+    total: number;
+    limit: number;
+    offset: number;
+  };
+  message?: string;
+}
+
+export interface AttributeApiResponse {
+  success: boolean;
+  data: Attribute;
+  message?: string;
+}
+
+
+export interface GetAttributesParams {
+  limit?: number;
+  offset?: number;
+  page?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface DeleteAttributeResponse {
+  success: boolean;
+  message: string;
 }

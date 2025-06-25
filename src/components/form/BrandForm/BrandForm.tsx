@@ -67,7 +67,7 @@ const BrandFormComponent: React.FC<BrandFormProps> = ({
       code: "", // ← added
     },
   });
-
+console.log(isEdit, brandId);
   useEffect(() => {
     if (isEdit && brandData) {
       form.reset({
@@ -94,6 +94,7 @@ const BrandFormComponent: React.FC<BrandFormProps> = ({
       };
 
       if (isEdit && brandId) {
+        
         await updateBrand({ id: brandId, body: payload }).unwrap();
         toast.success("Brand updated successfully!");
       } else {

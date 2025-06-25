@@ -13,10 +13,10 @@ export interface TableAction {
 
 export const createAttributeColumns = (actions: TableAction[]): ColumnDef<Attribute>[] => [
   {
-    accessorKey: "attribute_id",
+    accessorKey: "id",
     header: "ID",
     cell: ({ row }) => (
-      <div className="font-medium text-gray-300">#{row.getValue("attribute_id")}</div>
+      <div className="font-medium text-gray-300">#{row.getValue("id")}</div>
     ),
   },
   {
@@ -47,7 +47,7 @@ export const createAttributeColumns = (actions: TableAction[]): ColumnDef<Attrib
       return (
         <div className="flex flex-wrap gap-1">
           {values.slice(0, 3).map((sub) => (
-            <Badge key={sub.attribute_values_id} variant="secondary">
+            <Badge key={sub.id} variant="secondary">
               {sub.value}
             </Badge>
           ))}

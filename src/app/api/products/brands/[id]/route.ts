@@ -15,23 +15,11 @@ export async function GET(
 ) {
   await initDatabase();
   const { id: idParam } = await params;
-  const id = Number(idParam);
-
-  if (isNaN(id)) {
-    return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        message: 'Invalid brand ID',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 400 }
-    );
-  }
+  const id = idParam;
 
   try {
     const result = await query(
-      `SELECT brand_id, name, code, description FROM "Brand" WHERE brand_id = $1`,
+      `SELECT id, name, code, description FROM "brands" WHERE id = $1`,
       [id]
     );
 
@@ -75,19 +63,8 @@ export async function PUT(
 ) {
   await initDatabase();
   const { id: idParam } = await params;
-  const id = Number(idParam);
+  const id = idParam;
 
-  if (isNaN(id)) {
-    return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        message: 'Invalid brand ID',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 400 }
-    );
-  }
 
   const body = await req.json();
   const parsed = brandUpdateSchema.safeParse(body);
@@ -109,10 +86,10 @@ export async function PUT(
 
   try {
     const result = await query(
-      `UPDATE "Brand"
+      `UPDATE "brands"
        SET name = $1, code = $2, description = $3
-       WHERE brand_id = $4
-       RETURNING brand_id, name, code, description`,
+       WHERE id = $4
+       RETURNING id, name, code, description`,
       [name, code, description ?? null, id]
     );
 
@@ -174,23 +151,11 @@ export async function DELETE(
 ) {
   await initDatabase();
   const { id: idParam } = await params;
-  const id = Number(idParam);
-
-  if (isNaN(id)) {
-    return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        message: 'Invalid brand ID',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 400 }
-    );
-  }
+  const id = idParam;
 
   try {
     const result = await query(
-      `DELETE FROM "Brand" WHERE brand_id = $1 RETURNING brand_id`,
+      `DELETE FROM "brands" WHERE id = $1 RETURNING id`,
       [id]
     );
 
@@ -208,7 +173,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      data: { brand_id: id },
+      data: { id: id },
       message: 'Brand deleted',
       timestamp: new Date().toISOString(),
     });

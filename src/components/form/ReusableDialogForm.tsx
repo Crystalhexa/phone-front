@@ -31,6 +31,8 @@ export function ReusableDialogForm({
   onOpenChange,
   showTrigger = true,
 }: ReusableDialogFormProps) {
+
+  console.log("formProps",formProps)
   const renderForm = () => {
     switch (formType) {
       case "category":

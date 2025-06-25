@@ -3,7 +3,7 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 // Brand interfaces
 export interface Brand {
-  brand_id: number;
+  id: number;
   code: string; // Added code field
   name: string;
   description: string;
@@ -76,7 +76,7 @@ export const brandsApi = createApi({
       providesTags: (result) =>
         result?.data?.brands
           ? [
-              ...result.data.brands.map((brand) => ({ type: 'Brand' as const, id: brand.brand_id })),
+              ...result.data.brands.map((brand) => ({ type: 'Brand' as const, id: brand.id })),
               { type: 'Brand', id: 'LIST' },
             ]
           : [{ type: 'Brand', id: 'LIST' }],

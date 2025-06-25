@@ -22,6 +22,7 @@ export const useAttributeActions = () => {
   };
 
   const handleEdit = (attribute: Attribute) => {
+    console.log("Editing attribute:", attribute);
     setSelectedAttribute(attribute);
     setIsEditDialogOpen(true);
   };

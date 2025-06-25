@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDatabase, query } from '@/lib/database/connection';
 import { z } from 'zod';
+import cuid from 'cuid';
 
 const brandSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   const sortBy = searchParams.get('sortBy') ?? 'name';
   const sortOrder = (searchParams.get('sortOrder') ?? 'asc').toLowerCase();
 
-  const validSortBy = ['name', 'brand_id', 'code'];
+  const validSortBy = ['name', 'id', 'code'];
   const validSortOrder = ['asc', 'desc'];
   const safeSortBy = validSortBy.includes(sortBy) ? sortBy : 'name';
   const safeSortOrder = validSortOrder.includes(sortOrder) ? sortOrder : 'asc';
@@ -35,14 +36,14 @@ export async function GET(request: NextRequest) {
     const queryText = `
       WITH filtered_brands AS (
         SELECT 
-          brand_id, name, code, description,
+          id, name, code, description,
           COUNT(*) OVER() AS total_count
-        FROM "Brand"
+        FROM "brands"
         WHERE name ILIKE $1 OR code ILIKE $1
         ORDER BY ${safeSortBy} ${safeSortOrder}
         LIMIT $2 OFFSET $3
       )
-      SELECT brand_id, name, code, description, total_count
+      SELECT id, name, code, description, total_count
       FROM filtered_brands
     `;
 
@@ -93,14 +94,15 @@ export async function POST(req: NextRequest) {
     const { name, code, description } = parsed.data;
 
     await initDatabase();
+    const brandId = cuid(); // generate id manually
 
     const insertQuery = `
-      INSERT INTO "Brand" (name, code, description)
-      VALUES ($1, $2, $3)
-      RETURNING brand_id, name, code, description
+      INSERT INTO "brands" (id, name, code, description)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, name, code, description
     `;
 
-    const result = await query(insertQuery, [name, code, description ?? null]);
+    const result = await query(insertQuery, [brandId, name, code, description ?? null]);
 
     return NextResponse.json({
       success: true,
