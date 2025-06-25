@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from 'react-hot-toast';
-import { Category, useDeleteCategoryMutation } from '@/state/api';
+import { useDeleteCategoryMutation } from '@/state/api';
 import { TableAction } from "./CategoryColumn";
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
+import { Category } from '@/types/category';
 
 export const useCategoryActions = () => {
   // Dialog state management
@@ -30,7 +31,8 @@ export const useCategoryActions = () => {
       return;
     }
     try {
-      await deleteCategory(category.category_id).unwrap();
+      console.log(category)
+      await deleteCategory(category.id).unwrap();
       toast.success('Category deleted successfully');
     } catch (error: any) {
       console.error('Delete error:', error);
@@ -70,7 +72,7 @@ export const useCategoryActions = () => {
         description="Update category information"
         formType="category"
         formProps={{
-         categoryId: selectedCategory?.category_id,
+         categoryId: selectedCategory?.id,
           mode: 'edit', // Read-only mode
           showExport: true,
           isEdit: true, // Read-only mode

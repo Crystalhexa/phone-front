@@ -1,4 +1,4 @@
-import { CategoriesListResponse, CategoryApiResponse, CategoryFormData, DeleteCategoryResponse, GetCategoriesParams } from "@/types/category";
+import { CategoriesListResponse, CategoryApiRequest, CategoryApiResponse, CategoryFormData, DeleteCategoryResponse, GetCategoriesParams } from "@/types/category";
 import { Role } from "@/types/user";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
@@ -82,7 +82,7 @@ export const api = createApi({
       },
     }),
 
-   addCategory: builder.mutation<CategoryApiResponse, CategoryFormData>({
+   addCategory: builder.mutation<CategoryApiResponse, CategoryApiRequest>({
   query: (body) => ({
     url: 'products/categories',
     method: 'POST',
@@ -93,7 +93,7 @@ export const api = createApi({
 
 
     // Mutation for updating an existing category
-    updateCategory: builder.mutation<CategoryApiResponse, { id: string | number; body: CategoryFormData }>({
+    updateCategory: builder.mutation<CategoryApiResponse, { id: string | number; body: CategoryApiRequest }>({
       query: ({ id, body }) => ({
         url: `products/categories/${id}`,
         method: 'PUT',

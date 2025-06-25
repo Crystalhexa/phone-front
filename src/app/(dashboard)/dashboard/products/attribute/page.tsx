@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input' // Adjust path as needed
 import { useAttributeData } from '@/components/table/AttributeTable/useAttributeData'
 import { useAttributeActions } from '@/components/table/AttributeTable/AttributeActions'
 import { createAttributeColumns } from '@/components/table/AttributeTable/AttributeColumn'
+import { AttributeTableHeader } from '@/components/table/AttributeTable/AttributeTableHeader'
 
 const AttributeTable: React.FC = () => {
   // Custom hooks
@@ -34,8 +35,8 @@ const AttributeTable: React.FC = () => {
   const headerActions = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       {/* You can keep other buttons in CategoryTableHeader */}
+      <AttributeTableHeader/>
       
-      <CategoryTableHeader />
       {/* 🔍 Search input */}
       <Input
         type="text"

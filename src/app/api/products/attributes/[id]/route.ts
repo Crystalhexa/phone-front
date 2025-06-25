@@ -76,12 +76,12 @@ async function updateAttributeInDB(attributeId: string, payload: UpdateAttribute
 }
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await initDatabase();
-    const { id: attributeId } = params;
+    const { id: attributeId } = await params;
 
     const attribute = await getAttributeById(attributeId);
     if (!attribute) {
@@ -111,16 +111,16 @@ export async function GET(
 }
 
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   let payload: UpdateAttributePayload | undefined;
 
   try {
     await initDatabase();
-    const { id: attributeId } = params;
+    const { id: attributeId } = await params;
 
-    const body = await request.json();
+    const body = await req.json();
     const parsed = attributeUpdateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({
@@ -173,12 +173,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await initDatabase();
-    const { id: attributeId } = params;
+    const { id: attributeId } = await params;
 
     await transaction(async (client) => {
       await client.query(`DELETE FROM attribute_values WHERE attribute_id = $1`, [attributeId]);

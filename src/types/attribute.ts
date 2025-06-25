@@ -18,7 +18,11 @@ export interface AttributeFormData {
   description?: string;
   values: string;
 }
-
+export interface AttributeRequestBody {
+  name: string;
+  description?: string;
+  values: string[];
+}
 
 export interface AttributeFormConfig {
   maxValues: number;

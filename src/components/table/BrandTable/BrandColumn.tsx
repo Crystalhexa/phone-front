@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ActionCell } from '../../ui/DataTable/ActionCell';
-import { Brand } from "@/lib/constants/brandConstants";
+import { Brand } from "@/state/brand";
 
 export interface TableAction {
   label: string;

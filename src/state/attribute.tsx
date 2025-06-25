@@ -1,4 +1,4 @@
-import { AttributeApiResponse, AttributeFormData, AttributesListResponse, DeleteAttributeResponse, GetAttributesParams } from "@/types/attribute";
+import { AttributeApiResponse, AttributeFormData, AttributeRequestBody, AttributesListResponse, DeleteAttributeResponse, GetAttributesParams } from "@/types/attribute";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 
@@ -34,7 +34,7 @@ export const attributesApi = createApi({
       providesTags: (result, error, id) => [{ type: "Attribute", id }],
     }),
 
-    addAttribute: builder.mutation<AttributeApiResponse, AttributeFormData>({
+    addAttribute: builder.mutation<AttributeApiResponse, AttributeRequestBody>({
       query: (body) => ({
         url: `products/attributes`,
         method: "POST",
@@ -43,7 +43,7 @@ export const attributesApi = createApi({
       invalidatesTags: [{ type: "Attribute", id: "LIST" }],
     }),
 
-    updateAttribute: builder.mutation<AttributeApiResponse, { id: string; body: AttributeFormData }>({
+    updateAttribute: builder.mutation<AttributeApiResponse, { id: string; body: AttributeRequestBody }>({
       query: ({ id, body }) => ({
         url: `products/attributes/${id}`,
         method: "PUT",

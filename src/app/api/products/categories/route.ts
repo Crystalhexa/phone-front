@@ -132,9 +132,9 @@ export async function GET(request: NextRequest) {
   const sortBy = searchParams.get('sortBy') ?? 'name';
   const sortOrder = searchParams.get('sortOrder') ?? 'asc';
 
-  const validSortBy = ['name', 'category_id'];
+  const validSortBy = ['name', 'id'];
   const validSortOrder = ['asc', 'desc'];
-  const safeSortBy = validSortBy.includes(sortBy) ? (sortBy === 'category_id' ? 'id' : sortBy) : 'name';
+  const safeSortBy = validSortBy.includes(sortBy) ? (sortBy === 'id' ? 'id' : sortBy) : 'name';
   const safeSortOrder = validSortOrder.includes(sortOrder) ? sortOrder : 'asc';
 
   try {
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
       query_text = `
         WITH filtered_categories AS (
           SELECT 
-            c.id AS category_id, 
+            c.id, 
             c.name, 
             c.description,
             COUNT(*) OVER() as total_count
@@ -157,7 +157,7 @@ export async function GET(request: NextRequest) {
           LIMIT $2 OFFSET $3
         )
         SELECT 
-          fc.category_id, 
+          fc.id, 
           fc.name, 
           fc.description,
           fc.total_count,
@@ -172,8 +172,8 @@ export async function GET(request: NextRequest) {
             '[]'::json
           ) AS subcategories
         FROM filtered_categories fc
-        LEFT JOIN "subcategories" s ON s.category_id = fc.category_id
-        GROUP BY fc.category_id, fc.name, fc.description, fc.total_count
+        LEFT JOIN "subcategories" s ON s.category_id = fc.id
+        GROUP BY fc.id, fc.name, fc.description, fc.total_count
         ORDER BY fc.name ${safeSortOrder}
       `;
     } else {
@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
         FROM filtered_categories fc
         LEFT JOIN "subcategories" s ON s.category_id = fc.category_id
         GROUP BY fc.category_id, fc.name, fc.description, fc.total_count
-        ORDER BY fc.category_id ${safeSortOrder}
+        ORDER BY fc.id ${safeSortOrder}
       `;
     }
 

@@ -65,10 +65,11 @@ async function updateCategoryInDatabase(categoryId: string, payload: UpdateCateg
   });
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) {
   try {
     await initDatabase();
-    const category = await getCategoryById(params.id);
+    const category = await getCategoryById((await params).id);
 
     if (!category) {
       return NextResponse.json({ success: false, data: null, message: 'Category not found', timestamp: new Date().toISOString() }, { status: 404 });
@@ -90,13 +91,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) {
   let payload: UpdateCategoryPayload | undefined;
   try {
     await initDatabase();
-    const categoryId = params.id;
+    const categoryId = (await params).id;
 
-    const body = await request.json();
+    const body = await req.json();
     const parsed = updateCategorySchema.safeParse(body);
 
     if (!parsed.success) {
@@ -128,10 +130,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) {
   try {
     await initDatabase();
-    const categoryId = params.id;
+    const categoryId = (await params).id;
 
     await transaction(async (client) => {
       await client.query(`DELETE FROM subcategories WHERE category_id = $1`, [categoryId]);

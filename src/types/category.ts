@@ -1,5 +1,5 @@
 export interface Category {
-  id?: string;
+  id: string;
   name: string;
   description?: string;
   subcategories: string[];
@@ -18,6 +18,11 @@ export interface CategoryFormData {
   name: string;
   description?: string;
   subcategories: string;
+}
+export interface CategoryApiRequest {
+  name: string;
+  description?: string;
+  subcategories: string[];
 }
 
 export interface CategoryFormConfig {

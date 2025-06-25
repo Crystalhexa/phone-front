@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from 'react-hot-toast';
-import { Category, useDeleteCategoryMutation } from '@/state/api';
+import {  useDeleteCategoryMutation } from '@/state/api';
 import { TableAction } from "./AttributeColumn";
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
-import { Attribute } from '@/state/attribute';
+import { Attribute } from '@/types/attribute';
+import { useDeleteAttributeMutation } from '@/state/attribute';
 
 export const useAttributeActions = () => {
   // Dialog state management
@@ -13,7 +14,7 @@ export const useAttributeActions = () => {
   const [selectedAttribute, setSelectedAttribute] = useState<Attribute | null>(null);
 
   // Mutation hooks
-  const [deleteAttribute, { isLoading: isDeleting }] = useDeleteCategoryMutation();
+  const [deleteAttribute, { isLoading: isDeleting }] = useDeleteAttributeMutation();
 
   // Action handlers
   const handleView = (attribute: Attribute) => {

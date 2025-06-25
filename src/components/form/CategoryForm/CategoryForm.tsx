@@ -100,7 +100,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
     form.reset({
       name: categoryData.data.name,
       description: categoryData.data.description || '',
-      subcategories: categoryData.data.subcategories.join(config.separator),
+        subcategories: categoryData.data.subcategories.join(config.separator),
     });
   }
 }, [isEdit, categoryData, form, config.separator]);

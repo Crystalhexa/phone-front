@@ -116,6 +116,7 @@ const AttributeFormComponent: React.FC<AttributeFormProps> = ({
 
       const attributePayload = {
         name: values.name,
+        description: values.description || '',
         values: valuesArray,
       };
 
