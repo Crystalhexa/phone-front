@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Button } from '@/components/ui/button';
+import {Moon, Sun} from 'lucide-react';
 import { FormActions } from '@/components/form/productForm/FormAction';
 import { InventoryWarrantySection } from '@/components/form/productForm/InventoryWarrantySection';
 import { PricingSection } from '@/components/form/productForm/PricingSection';
@@ -12,73 +14,18 @@ import { AttributeSelectionSection } from '@/components/form/productForm/Attribu
 import { VariableProductSection } from '@/components/form/productForm/VariableProductSection';
 import { BasicInfoSection } from '@/components/form/productForm/BasicInfoSection';
 import { StatusMessage } from '@/components/form/productForm/StatusMessage';
-import { z } from 'zod';
-import { useAttributeData } from '@/components/table/AttributeTable/useAttributeData';
 
-// Define the product schema using zod
-const productSchema = z.object({
-  name: z.string().min(1, "Product name is required"),
-  categoryId: z.string().min(1, "Category is required"),
-  subcategoryId: z.string().optional(),
-  brandId: z.string().optional(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
-  stockQuantity: z.number().min(0),
-  lowStockThreshold: z.number().min(0),
-  costPrice: z.number().min(0),
-  wholesalePrice: z.number().optional(),
-  retailPrice: z.number().min(0),
-  isVariable: z.boolean(),
-  selectedAttributes: z.array(z.string()).optional(),
-  variations: z.array(z.any()).optional(),
-  // Add other fields as needed
-});
-
-// Type definitions
-type VariationData = {
-  id: string;
-  attributes: { [key: string]: string };
-  sku: string;
-  costPrice: number;
-  wholesalePrice?: number;
-  retailPrice: number;
-  stockQuantity: number;
-  lowStockThreshold: number;
-  barcode?: string;
-  weight?: number;
-  dimensions?: {
-    length: number;
-    width: number;
-    height: number;
-  };
-};
-
-type ProductFormData = {
-  name: string;
-  categoryId: string;
-  subcategoryId?: string;
-  brandId?: string;
-  sku?: string;
-  barcode?: string;
-  stockQuantity: number;
-  lowStockThreshold: number;
-  costPrice: number;
-  wholesalePrice?: number;
-  retailPrice: number;
-  isVariable: boolean;
-  selectedAttributes?: string[];
-  variations?: VariationData[];
-  // Add other fields as needed
-};
 
 // Main Component
 export default function VariableProductForm() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [categories] = useState(mockCategories);
   const [brands] = useState(mockBrands);
   const [subcategories, setSubcategories] = useState<{ id: string; name: string }[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [submitStatus, setSubmitStatus] = useState('');
   const [isVariable, setIsVariable] = useState(false);
+  const [selectedAttributes, setSelectedAttributes] = useState<string[]>([]);
   const [variations, setVariations] = useState<VariationData[]>([]);
 
   const {
@@ -125,7 +72,11 @@ export default function VariableProductForm() {
     }
   }, [watchedName, setValue, isVariable]);
 
-
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode);
+    document.documentElement.classList.toggle('dark');
+  };
 
   // Handle variable product toggle
   const handleVariableToggle = (checked: boolean) => {
@@ -139,8 +90,56 @@ export default function VariableProductForm() {
     }
   };
 
+  // Handle attribute selection
+  const handleAttributeChange = (attributeId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedAttributes([...selectedAttributes, attributeId]);
+    } else {
+      setSelectedAttributes(selectedAttributes.filter(id => id !== attributeId));
+    }
+  };
 
+  // Generate variations based on selected attributes
+  const generateVariations = () => {
+    if (selectedAttributes.length === 0) return;
 
+    const selectedAttrs = mockAttributes.filter(attr => selectedAttributes.includes(attr.id));
+    const combinations = generateCombinations(selectedAttrs);
+    
+    const newVariations: VariationData[] = combinations.map((combo, index) => {
+      const attributes: { [key: string]: string } = {};
+      combo.forEach((attr, i) => {
+        attributes[selectedAttrs[i].name] = attr;
+      });
+
+      const variationId = `var-${Date.now()}-${index}`;
+      const baseSku = watchedName ? 
+        watchedName.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '-').substring(0, 10) : 
+        'PROD';
+      const variationSku = `${baseSku.toUpperCase()}-${Object.values(attributes).join('-').toUpperCase()}`;
+
+      return {
+        id: variationId,
+        attributes,
+        sku: variationSku,
+        costPrice: 0,
+        wholesalePrice: 0,
+        retailPrice: 0,
+        stockQuantity: 0,
+        lowStockThreshold: 5,
+        barcode: '',
+        weight: 0,
+        dimensions: {
+          length: 0,
+          width: 0,
+          height: 0
+        }
+      };
+    });
+
+    setVariations(newVariations);
+    setValue('variations', newVariations);
+  };
 
   // Generate all combinations of attribute values
   const generateCombinations = (attributes: any[]) => {
@@ -156,7 +155,7 @@ export default function VariableProductForm() {
         combinations.push([value, ...combo]);
       });
     });
-    
+
     return combinations;
   };
 
@@ -191,14 +190,15 @@ export default function VariableProductForm() {
     setValue('barcode', barcode);
   };
 
+  // Form submission
   const onSubmit = async (data: ProductFormData) => {
     try {
       setSubmitStatus('');
       console.log('Form data:', data);
-
+      
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 2000));
-
+      
       setSubmitStatus('success');
       setTimeout(() => setSubmitStatus(''), 5000);
     } catch (error) {
@@ -215,80 +215,9 @@ export default function VariableProductForm() {
     setVariations([]);
     setSubmitStatus('');
   };
-  const [selectedAttributes, setSelectedAttributes] = useState<AddedAttributes>({});
-  // Type definitions based on API response
-  interface AttributeValue {
-    id: string;
-    value: string;
-  }
-
-  interface Attribute {
-    id: string;
-    name: string;
-    description: string;
-    values: AttributeValue[];
-  }
-
-  interface ApiResponse {
-    success: boolean;
-    data: {
-      attributes: Attribute[];
-      total: number;
-      limit: number;
-      offset: number;
-    };
-    message: string;
-    timestamp: string;
-  }
-
-  interface SelectedAttributeValue {
-    id: string;
-    value: string;
-  }
-
-  interface AddedAttributes {
-    [attributeId: string]: SelectedAttributeValue[];
-  }
-
-  interface FormSectionProps {
-    icon: React.ComponentType<{ className?: string }>;
-    title: string;
-    children: React.ReactNode;
-  }
-
-  interface AttributeSelectionSectionProps {
-    attributes: Attribute[]; // Attributes from API
-    selectedAttributes: AddedAttributes;
-    onAttributeChange: (attributeId: string, values: SelectedAttributeValue[]) => void;
-    onGenerateVariations: () => void;
-  }
-
-
-  const {
-    data,
-    isLoading,
-    handleSearch,
-    searchTerm,
-    error,
-    currentPage,
-    pageSize,
-    totalPages,
-    setCurrentPage,
-    handlePageSizeChange,
-  } = useAttributeData()
-  const handleAttributeChange = (attributeId: string, values: SelectedAttributeValue[]) => {
-    setSelectedAttributes((prev) => ({
-      ...prev,
-      [attributeId]: values
-    }));
-  };
-
-  const handleGenerateVariations = () => {
-    console.log("Generating variations...", selectedAttributes);
-  };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 'dark bg-gray-900' : 'bg-gray-50'}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-6xl mx-auto p-6">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -296,6 +225,14 @@ export default function VariableProductForm() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Add New Product</h1>
             <p className="text-gray-600 dark:text-gray-400 mt-2">Create a new product with detailed information and variations</p>
           </div>
+          <Button
+            onClick={toggleDarkMode}
+            variant="outline"
+            size="icon"
+            className="border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
         </div>
 
         {/* Status Message */}
@@ -303,20 +240,36 @@ export default function VariableProductForm() {
 
         {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-
-          <VariableProductSection
-            register={register}
-            isVariable={isVariable}
-            onVariableToggle={handleVariableToggle}
-          />
           <BasicInfoSection register={register} errors={errors} />
+          
+          <VariableProductSection 
+            register={register} 
+            isVariable={isVariable} 
+            onVariableToggle={handleVariableToggle} 
+          />
 
+          {isVariable && (
+            <AttributeSelectionSection
+              selectedAttributes={selectedAttributes}
+              onAttributeChange={handleAttributeChange}
+              onGenerateVariations={generateVariations}
+            />
+          )}
+
+          {isVariable && variations.length > 0 && (
+            <VariationsSection
+              variations={variations}
+              onUpdateVariation={updateVariation}
+              onDeleteVariation={deleteVariation}
+              selectedAttributes={selectedAttributes}
+            />
+          )}
 
           <CategoryBrandSection
             categories={categories}
             subcategories={subcategories}
             brands={brands}
-            setValue={(field: string, value: any) => setValue(field as any, value)}
+            setValue={setValue}
             watchedCategory={watchedCategory}
             errors={errors}
           />
@@ -330,38 +283,14 @@ export default function VariableProductForm() {
             isVariable={isVariable}
           />
 
-          {!isVariable && (
-            <PricingSection register={register} errors={errors} isVariable={isVariable} />
-          )}
+          <PricingSection register={register} errors={errors} isVariable={isVariable} />
+          
+          <InventoryWarrantySection register={register} errors={errors} isVariable={isVariable} />
 
-          {!isVariable && (
-            <InventoryWarrantySection register={register} errors={errors} isVariable={isVariable} />
-          )}
-
-          {isVariable && (
-            <AttributeSelectionSection
-              attributes={data?.data.attributes}
-              selectedAttributes={selectedAttributes}
-              onAttributeChange={handleAttributeChange}
-              onGenerateVariations={handleGenerateVariations}
-              searchTerm={searchTerm}
-              onSearch={handleSearch}
-            />
-
-          )}
-
-          {isVariable && variations.length > 0 && (
-            <VariationsSection
-              variations={variations}
-              onUpdateVariation={updateVariation}
-              onDeleteVariation={deleteVariation}
-              selectedAttributes={selectedAttributes}
-            />
-          )}
-          <FormActions
-            isSubmitting={isSubmitting}
-            onSubmit={handleSubmit(onSubmit)}
-            onReset={resetForm}
+          <FormActions 
+            isSubmitting={isSubmitting} 
+            onSubmit={handleSubmit(onSubmit)} 
+            onReset={resetForm} 
           />
         </form>
       </div>
