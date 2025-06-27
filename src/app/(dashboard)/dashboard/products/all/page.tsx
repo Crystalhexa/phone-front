@@ -15,7 +15,6 @@ import { z } from 'zod';
 import { useAttributeData } from '@/components/table/AttributeTable/useAttributeData';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { CategoryBrandSection } from '@/components/form/productForm/CategoryBrandSection';
-import { ca } from 'date-fns/locale';
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 
 // 🧪 Validation Schema
@@ -90,23 +89,7 @@ export default function VariableProductForm() {
       variations: [],
     },
   });
-
-  // 👁️ Watch fields
-  const watchedCategory = watch('categoryId');
-  const watchedName = watch('name');
-
-
-  useEffect(() => {
-    if (watchedName && !isVariable) {
-      const sku = watchedName
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, '-')
-        .substring(0, 20)
-        .toUpperCase();
-      setValue('sku', sku);
-    }
-  }, [watchedName, setValue, isVariable]);
+  
 
   // 🔍 Attribute Hook
   const {
@@ -132,9 +115,31 @@ export default function VariableProductForm() {
   const categories = categoryApi?.data?.categories || [];
   const brands = brandApi?.data?.brands || [];
 
+    // 👁️ Watch fields
+  const watchedName = watch('name');
+  const watchedCategoryId = watch('categoryId');
+  const watchedSubcategoryId = watch('subcategoryId');
+  const watchedBrandId = watch('brandId');
+const categoryName = categories.find(c => c.id === watchedCategoryId)?.name || '';
+const brandName = brands.find(b => b.id === watchedBrandId)?.name || '';
+
+
+useEffect(() => {
+  if (!isVariable && watchedName && categoryName) {
+    const rawParts = [watchedName, categoryName, brandName];
+    const cleaned = rawParts
+      .filter(Boolean)
+      .map(part => part.toLowerCase().replace(/[^a-z0-9]+/g, '').substring(0, 8)); // Trim/clean for uniformity
+
+    const sku = cleaned.join('-').toUpperCase();
+    setValue('sku', sku);
+  }
+}, [watchedName, categoryName, brandName, isVariable, setValue]);
+
+
   const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
   const subcategories =
-    selectedCategory?.subcategories?.map((sub:any) => ({
+    selectedCategory?.subcategories?.map((sub: any) => ({
       id: sub.subcategory_id,
       name: sub.name,
     })) || [];
@@ -181,44 +186,54 @@ export default function VariableProductForm() {
     setSelectedAttributes(prev => ({ ...prev, [attributeId]: values }));
   };
 
-  const handleGenerateVariations = () => {
-    console.log("Generating variations...", selectedAttributes);
+const handleGenerateVariations = () => {
+  console.log("Generating variations...", selectedAttributes);
 
-    const attributeEntries = Object.entries(selectedAttributes);
+  const attributeEntries = Object.entries(selectedAttributes);
+  if (attributeEntries.length === 0) return;
 
-    if (attributeEntries.length === 0) return;
+  const cartesian = (arr: AttributeValue[][]): AttributeValue[][] => {
+    return arr.reduce<AttributeValue[][]>(
+      (acc, curr) =>
+        acc.flatMap(a => curr.map(b => [...a, b])),
+      [[]]
+    );
+  };
 
-    const cartesian = (arr: AttributeValue[][]): AttributeValue[][] => {
-      return arr.reduce<AttributeValue[][]>(
-        (acc, curr) =>
-          acc.flatMap(a => curr.map(b => [...a, b])),
-        [[]]
-      );
-    };
+  const attributeCombinations = cartesian(attributeEntries.map(([, values]) => values));
 
-    const attributeCombinations = cartesian(attributeEntries.map(([, values]) => values));
-
-    const newVariations: VariationData[] = attributeCombinations.map((combo, index) => {
-      const attributes: Record<string, string> = {};
-      combo.forEach((value, i) => {
-        const attributeId = attributeEntries[i][0];
-        attributes[attributeId] = value.id;
-      });
-
-      return {
-        id: `variation-${Date.now()}-${index}`,
-        attributes,
-        sku: `${watchedName || 'VAR'}-${index + 1}`,
-        costPrice: 0,
-        retailPrice: 0,
-        stockQuantity: 0,
-        lowStockThreshold: 5,
-      };
+  const newVariations: VariationData[] = attributeCombinations.map((combo, index) => {
+    const attributes: Record<string, string> = {};
+    combo.forEach((value, i) => {
+      const attributeId = attributeEntries[i][0];
+      attributes[attributeId] = value.id;
     });
 
-    setVariations(newVariations);
-    setValue('variations', newVariations);
-  };
+    const skuBase = watchedName
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-') // slugify
+      .substring(0, 20) || 'VAR';
+
+    const variationPart = combo
+      .map(val => val.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 10))
+      .join('-');
+
+    const fullSKU = `${skuBase}-${variationPart}`.toUpperCase();
+
+    return {
+      id: `variation-${Date.now()}-${index}`,
+      attributes,
+      sku: fullSKU,
+      costPrice: 0,
+      retailPrice: 0,
+      stockQuantity: 0,
+      lowStockThreshold: 5,
+    };
+  });
+
+  setVariations(newVariations);
+  setValue('variations', newVariations);
+};
 
 
   const resetForm = () => {
@@ -228,7 +243,13 @@ export default function VariableProductForm() {
     setVariations([]);
     setSubmitStatus('');
   };
-
+const handleAttributeRemove = (attributeId: string) => {
+  setSelectedAttributes(prev => {
+    const newAttributes = { ...prev };
+    delete newAttributes[attributeId];
+    return newAttributes;
+  });
+};
   const onSubmit = async (data: ProductFormData) => {
     console.log('janath')
     try {
@@ -269,7 +290,7 @@ export default function VariableProductForm() {
             categories={categories}
             subcategories={subcategories}
             brands={brands}
-            setValue={setValue}
+            setValue={(field: string, value: any) => setValue(field as any, value)}
             watchedCategory={selectedCategoryId}
             errors={errors}
             onCategoryChange={(id) => {
@@ -291,6 +312,7 @@ export default function VariableProductForm() {
             selectedAttributes={selectedAttributes}
             onAttributeChange={handleAttributeChange}
             onGenerateVariations={handleGenerateVariations}
+              onAttributeRemove={handleAttributeRemove} // Add this
             searchTerm={attributeSearchTerm}
             onSearch={handleAttributeSearch}
           />)}

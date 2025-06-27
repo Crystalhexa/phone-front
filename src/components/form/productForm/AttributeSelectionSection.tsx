@@ -3,39 +3,10 @@ import { Label } from "@/components/ui/label";
 import { Settings, Shuffle, Plus, X, Check, Trash2, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-
-// Type definitions based on API response
-interface AttributeValue {
-  id: string;
-  value: string;
-}
- 
-interface Attribute {
-  id: string;
-  name: string;
-  description: string;
-  values: AttributeValue[];
-}
-
-interface ApiResponse {
-  success: boolean;
-  data: {
-    attributes: Attribute[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
-  message: string;
-  timestamp: string;
-}
-
-interface SelectedAttributeValue {
-  id: string;
-  value: string;
-}
+import { Attribute, AttributeValue } from "@/types/attribute";
 
 interface AddedAttributes {
-  [attributeId: string]: SelectedAttributeValue[];
+  [attributeId: string]: AttributeValue[];
 }
 
 interface FormSectionProps {
@@ -47,7 +18,9 @@ interface FormSectionProps {
 interface AttributeSelectionSectionProps {
   attributes: Attribute[];
   selectedAttributes: AddedAttributes;
-  onAttributeChange: (attributeId: string, values: SelectedAttributeValue[]) => void;
+  onAttributeChange: (attributeId: string, values: AttributeValue[]) => void;
+    onAttributeRemove?: (attributeId: string) => void;
+
   onGenerateVariations: () => void;
   searchTerm: string;
   onSearch: (term: string) => void;
@@ -67,6 +40,7 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
   attributes,
   selectedAttributes,
   onAttributeChange,
+   onAttributeRemove,
   onGenerateVariations,
   searchTerm,
   onSearch
@@ -75,24 +49,21 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
   const [addedAttributes, setAddedAttributes] = useState<AddedAttributes>(selectedAttributes);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [activeAttributeId, setActiveAttributeId] = useState<string>("");
-  const [tempSelectedValues, setTempSelectedValues] = useState<SelectedAttributeValue[]>([]);
+  const [tempSelectedValues, setTempSelectedValues] = useState<AttributeValue[]>([]);
   const [showValueDropdown, setShowValueDropdown] = useState<boolean>(false);
 
-  // Sync internal state with props
   useEffect(() => {
     setAddedAttributes(selectedAttributes);
   }, [selectedAttributes]);
+
+  useEffect(() => {
+    if (!showDropdown) onSearch("");
+  }, [showDropdown]);
 
   const handleAttributeSelect = (attributeId: string): void => {
     setSelectedAttributeId(attributeId);
     setShowDropdown(false);
   };
-  
-  useEffect(() => {
-    if (!showDropdown) {
-      onSearch(""); // Reset when closed
-    }
-  }, [showDropdown]);
 
   const handleAddAttribute = (): void => {
     if (selectedAttributeId && !addedAttributes[selectedAttributeId]) {
@@ -103,13 +74,11 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
   };
 
   const handleValueSelect = (attributeValue: AttributeValue): void => {
-    const selectedValue: SelectedAttributeValue = {
+    const selectedValue: AttributeValue = {
       id: attributeValue.id,
       value: attributeValue.value
     };
-    
-    const isAlreadySelected = tempSelectedValues.some(v => v.id === attributeValue.id);
-    if (!isAlreadySelected) {
+    if (!tempSelectedValues.some(v => v.id === selectedValue.id)) {
       setTempSelectedValues(prev => [...prev, selectedValue]);
     }
     setShowValueDropdown(false);
@@ -122,25 +91,16 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
   const handleSelectAll = (): void => {
     const attribute = attributes.find(attr => attr.id === activeAttributeId);
     if (attribute) {
-      const allValues: SelectedAttributeValue[] = attribute.values.map(v => ({
-        id: v.id,
-        value: v.value
-      }));
-      setTempSelectedValues(allValues);
+      setTempSelectedValues(attribute.values.map(v => ({ id: v.id, value: v.value })));
     }
   };
 
-  const handleClearAll = (): void => {
-    setTempSelectedValues([]);
-  };
+  const handleClearAll = (): void => setTempSelectedValues([]);
 
   const handleSaveValues = (): void => {
     if (activeAttributeId && tempSelectedValues.length > 0) {
-      const newAddedAttributes = {
-        ...addedAttributes,
-        [activeAttributeId]: tempSelectedValues
-      };
-      setAddedAttributes(newAddedAttributes);
+      const newAttrs = { ...addedAttributes, [activeAttributeId]: tempSelectedValues };
+      setAddedAttributes(newAttrs);
       onAttributeChange(activeAttributeId, tempSelectedValues);
       setActiveAttributeId("");
       setTempSelectedValues([]);
@@ -148,85 +108,89 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
   };
 
   const handleRemoveAttribute = (attributeId: string): void => {
-    const newAttrs = { ...addedAttributes };
-    delete newAttrs[attributeId];
-    setAddedAttributes(newAttrs);
-    onAttributeChange(attributeId, []);
+    // Cancel any active editing of this attribute
+    if (activeAttributeId === attributeId) {
+      handleCancelEdit();
+    }
+    setSelectedAttributeId("");
+    
+    // Use the dedicated remove function if available, otherwise fall back to setting empty array
+    if (onAttributeRemove) {
+      onAttributeRemove(attributeId);
+    } else {
+      // This is a fallback - ideally the parent should handle complete removal
+      onAttributeChange(attributeId, []);
+    }
   };
-
-  const handleEditAttribute = (attributeId: string): void => {
-    const currentValues = addedAttributes[attributeId];
-    const attributeValues = Array.isArray(currentValues) ? currentValues : [];
+const handleCancelEdit = (): void => {
+    setActiveAttributeId("");
+    setTempSelectedValues([]);
+    setShowValueDropdown(false);
+  };
+   const handleEditAttribute = (attributeId: string): void => {
     setActiveAttributeId(attributeId);
-    setTempSelectedValues(attributeValues);
+    setTempSelectedValues([...(selectedAttributes[attributeId] || [])]);
+    setShowValueDropdown(false);
   };
 
-  const selectedAttribute: Attribute | undefined = attributes.find(attr => attr.id === selectedAttributeId);
-  const activeAttribute: Attribute | undefined = attributes.find(attr => attr.id === activeAttributeId);
-  const availableAttributes: Attribute[] = attributes.filter(attr => !addedAttributes[attr.id]);
+  const selectedAttribute = attributes.find(attr => attr.id === selectedAttributeId);
+  const activeAttribute = attributes.find(attr => attr.id === activeAttributeId);
+  const availableAttributes = attributes.filter(attr => !addedAttributes[attr.id]);
 
   return (
     <FormSection icon={Settings} title="Product Attributes">
       <div className="space-y-4">
-        {/* Add Attribute Dropdown */}
+        {/* Attribute dropdown */}
         <div className="relative">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-left flex items-center justify-between hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
-            >
-              <span className="text-gray-700 dark:text-gray-300">
-                {selectedAttributeId ? selectedAttribute?.name : "Select Attribute"}
-              </span>
-              <ChevronDown className="h-4 w-4 text-gray-500" />
-            </button>
-            
-            {showDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                {/* Search Input */}
-                <div className="p-2 border-b border-gray-200 dark:border-gray-600">
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => onSearch(e.target.value)}
-                    placeholder="Search attributes..."
-                    className="w-full px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded"
-                  />
-                </div>
+          <button
+            type="button"
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-left flex items-center justify-between"
+          >
+            <span className="text-gray-700 dark:text-gray-300">
+              {selectedAttributeId ? selectedAttribute?.name : "Select Attribute"}
+            </span>
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          </button>
 
-                {/* Filtered Attributes */}
-                {availableAttributes
-                  .filter((attr) =>
-                    attr.name.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map((attribute) => (
-                    <button
-                      key={attribute.id}
-                      type="button"
-                      onClick={() => handleAttributeSelect(attribute.id)}
-                      className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
-                    >
-                      <div>
-                        <div className="text-sm font-medium">{attribute.name}</div>
-                        {attribute.description && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {attribute.description}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-
-                {availableAttributes.length === 0 && (
-                  <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
-                    No more attributes available
-                  </div>
-                )}
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+              <div className="p-2 border-b border-gray-200 dark:border-gray-600">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => onSearch(e.target.value)}
+                  placeholder="Search attributes..."
+                  className="w-full px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded"
+                />
               </div>
-            )}
-          </div>
-          
+
+              {availableAttributes
+                .filter(attr => attr.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                .map(attribute => (
+                  <button
+                    key={attribute.id}
+                    type="button"
+                    onClick={() => handleAttributeSelect(attribute.id)}
+                    className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
+                  >
+                    <div>
+                      <div className="text-sm font-medium">{attribute.name}</div>
+                      {attribute.description && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {attribute.description}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+              ))}
+              {availableAttributes.length === 0 && (
+                <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                  No more attributes available
+                </div>
+              )}
+            </div>
+          )}
           {selectedAttributeId && (
             <Button
               type="button"
@@ -234,31 +198,29 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
               onClick={handleAddAttribute}
               className="mt-2 bg-blue-600 hover:bg-blue-700 text-white text-xs"
             >
-              <Plus className="h-3 w-3 mr-1" />
-              Add Attribute
+              <Plus className="h-3 w-3 mr-1" /> Add Attribute
             </Button>
           )}
         </div>
 
-        {/* Active Attribute Value Selection */}
+        {/* Value selection UI */}
         {activeAttributeId && (
           <div className="border border-blue-200 dark:border-blue-700 rounded-lg p-3 bg-blue-50 dark:bg-blue-900/20">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+            <h4 className="text-sm font-medium mb-2 text-gray-900 dark:text-gray-100">
               Configure: {activeAttribute?.name}
             </h4>
-            
-            {/* Value Input Field */}
+
             <div className="relative mb-2">
               <div
                 onClick={() => setShowValueDropdown(!showValueDropdown)}
-                className="min-h-[32px] p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 cursor-pointer flex flex-wrap gap-1 items-center"
+                className="min-h-[32px] p-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 cursor-pointer flex flex-wrap gap-1"
               >
-                {tempSelectedValues.map((selectedValue) => (
+                {tempSelectedValues.map(selectedValue => (
                   <Badge
                     key={selectedValue.id}
                     variant="secondary"
-                    className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-700"
-                    onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+                    className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700"
+                    onClick={(e) => {
                       e.stopPropagation();
                       handleRemoveTempValue(selectedValue.id);
                     }}
@@ -271,52 +233,33 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
                   {tempSelectedValues.length === 0 ? "Click to select values" : ""}
                 </span>
               </div>
-              
+
               {showValueDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
-                  {activeAttribute?.values.map((attributeValue) => {
-                    const isSelected = tempSelectedValues.some(v => v.id === attributeValue.id);
-                    return (
-                      <button
-                        key={attributeValue.id}
-                        type="button"
-                        onClick={() => handleValueSelect(attributeValue)}
-                        disabled={isSelected}
-                        className="w-full px-3 py-1.5 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {attributeValue.value}
-                      </button>
-                    );
-                  })}
+                  {activeAttribute?.values.map(attributeValue => (
+                    <button
+                      key={attributeValue.id}
+                      type="button"
+                      onClick={() => handleValueSelect(attributeValue)}
+                      disabled={tempSelectedValues.some(v => v.id === attributeValue.id)}
+                      className="w-full px-3 py-1.5 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 disabled:opacity-50"
+                    >
+                      {attributeValue.value}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-            
-            {/* Control Buttons */}
+
             <div className="flex gap-2 mb-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleSelectAll}
-                className="text-xs px-2 py-1 h-7"
-              >
-                <Check className="h-3 w-3 mr-1" />
-                Select All
+              <Button type="button" size="sm" variant="outline" onClick={handleSelectAll} className="text-xs px-2 py-1 h-7">
+                <Check className="h-3 w-3 mr-1" /> Select All
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleClearAll}
-                className="text-xs px-2 py-1 h-7"
-              >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Clear
+              <Button type="button" size="sm" variant="outline" onClick={handleClearAll} className="text-xs px-2 py-1 h-7">
+                <Trash2 className="h-3 w-3 mr-1" /> Clear
               </Button>
             </div>
-            
-            {/* Save Button */}
+
             <Button
               type="button"
               size="sm"
@@ -324,19 +267,17 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
               disabled={tempSelectedValues.length === 0}
               className="bg-green-600 hover:bg-green-700 text-white text-xs"
             >
-              <Plus className="h-3 w-3 mr-1" />
-              Save Attribute
+              <Plus className="h-3 w-3 mr-1" /> Save Attribute
             </Button>
           </div>
         )}
 
-        {/* Added Attributes Display */}
+        {/* List of added attributes */}
         {Object.keys(addedAttributes).length > 0 && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">Added Attributes:</h4>
             {Object.entries(addedAttributes).map(([attributeId, values]) => {
               const attribute = attributes.find(attr => attr.id === attributeId);
-              const attributeValues = Array.isArray(values) ? values : [];
               return (
                 <div key={attributeId} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
@@ -365,14 +306,12 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {Array.isArray(attributeValues) && attributeValues.length > 0 ? attributeValues.map((selectedValue) => (
-                      <Badge key={selectedValue.id} variant="outline" className="text-xs px-1.5 py-0.5">
-                        {selectedValue.value}
+                    {values.length > 0 ? values.map(val => (
+                      <Badge key={val.id} variant="outline" className="text-xs px-1.5 py-0.5">
+                        {val.value}
                       </Badge>
                     )) : (
-                      <span className="text-gray-500 dark:text-gray-400 text-xs">
-                        No values selected
-                      </span>
+                      <span className="text-gray-500 dark:text-gray-400 text-xs">No values selected</span>
                     )}
                   </div>
                 </div>
@@ -380,8 +319,8 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
             })}
           </div>
         )}
-        
-        {/* Generate Variations Button */}
+
+        {/* Generate variations */}
         {Object.keys(addedAttributes).length > 0 && (
           <div className="flex justify-end pt-3 border-t border-gray-200 dark:border-gray-600">
             <Button
@@ -390,8 +329,7 @@ export const AttributeSelectionSection: React.FC<AttributeSelectionSectionProps>
               onClick={onGenerateVariations}
               className="bg-green-600 hover:bg-green-700 text-white text-xs"
             >
-              <Shuffle className="h-3 w-3 mr-1" />
-              Generate Variations
+              <Shuffle className="h-3 w-3 mr-1" /> Generate Variations
             </Button>
           </div>
         )}

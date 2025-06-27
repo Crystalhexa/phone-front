@@ -35,11 +35,11 @@ export const VariationsSection = ({
   onDeleteVariation: (index: number) => void;
   selectedAttributes: AddedAttributes;
 }) => {
-  console.log(variations)
+ 
   const getAttributeLabel = (attributeId: string, valueId: string) => {
     const values = selectedAttributes[attributeId];
     const match = values?.find(v => v.id === valueId);
-    return match?.value || valueId;
+    return match?.value||'Unknown';
   };
 
   return (
@@ -68,9 +68,7 @@ export const VariationsSection = ({
                     <td className="p-2">
                       <div className="flex flex-wrap gap-1">
                         {Object.entries(variation.attributes).map(([attrId, valueId]) => (
-                          <Badge key={attrId} variant="secondary" className="text-xs">
-                            {attrId}: {getAttributeLabel(attrId, valueId)}
-                          </Badge>
+                           <h1>{getAttributeLabel(attrId, valueId)}</h1>
                         ))}
                       </div>
                     </td>
