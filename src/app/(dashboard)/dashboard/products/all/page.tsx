@@ -352,7 +352,7 @@ export default function VariableProductForm() {
         }
       };
 
-      const response = await fetch('/api/products', {
+      const response = await fetch('/api/products/all', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
