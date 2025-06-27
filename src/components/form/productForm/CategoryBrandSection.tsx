@@ -1,8 +1,15 @@
 import { Settings } from "lucide-react";
 import { FormSection } from "./FormSection";
 import { FormField } from "./FormField";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Brand } from "@/state/brand";
 
 type Option = {
   id: string;
@@ -13,10 +20,11 @@ type Option = {
 type Props = {
   categories: Option[];
   subcategories: Option[];
-  brands: Option[];
+  brands: Brand[];
   setValue: (field: string, value: any) => void;
   watchedCategory: string | null;
   errors: Record<string, { message?: string }>;
+  onCategoryChange?: (categoryId: string) => void;
 };
 
 export const CategoryBrandSection = ({
@@ -25,14 +33,19 @@ export const CategoryBrandSection = ({
   brands,
   setValue,
   watchedCategory,
-  errors
+  errors,
+  onCategoryChange,
 }: Props) => (
   <FormSection icon={Settings} title="Category & Brand">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      
       {/* Category */}
       <FormField label="Category" required error={errors.categoryId?.message}>
-        <Select onValueChange={(value) => setValue('categoryId', value)}>
+        <Select
+          onValueChange={(value) => {
+            setValue("categoryId", value);
+            onCategoryChange?.(value); // notify parent
+          }}
+        >
           <SelectTrigger className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600">
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
@@ -51,9 +64,13 @@ export const CategoryBrandSection = ({
       </FormField>
 
       {/* Subcategory */}
-      <FormField label="Subcategory" required error={errors.subcategoryId?.message}>
+      <FormField
+        label="Subcategory"
+        required
+        error={errors.subcategoryId?.message}
+      >
         <Select
-          onValueChange={(value) => setValue('subcategoryId', value)}
+          onValueChange={(value) => setValue("subcategoryId", value)}
           disabled={!watchedCategory}
         >
           <SelectTrigger className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600">
@@ -75,7 +92,7 @@ export const CategoryBrandSection = ({
 
       {/* Brand */}
       <FormField label="Brand" required error={errors.brandId?.message}>
-        <Select onValueChange={(value) => setValue('brandId', value)}>
+        <Select onValueChange={(value) => setValue("brandId", value)}>
           <SelectTrigger className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600">
             <SelectValue placeholder="Select brand" />
           </SelectTrigger>
@@ -88,7 +105,10 @@ export const CategoryBrandSection = ({
               >
                 <div className="flex items-center gap-2">
                   {brand.code && (
-                    <Badge variant="outline" className="text-xs border border-gray-300 dark:border-gray-600">
+                    <Badge
+                      variant="outline"
+                      className="text-xs border border-gray-300 dark:border-gray-600"
+                    >
                       {brand.code}
                     </Badge>
                   )}
@@ -99,7 +119,6 @@ export const CategoryBrandSection = ({
           </SelectContent>
         </Select>
       </FormField>
-
     </div>
   </FormSection>
 );

@@ -6,7 +6,6 @@ import { FormActions } from '@/components/form/productForm/FormAction';
 import { InventoryWarrantySection } from '@/components/form/productForm/InventoryWarrantySection';
 import { PricingSection } from '@/components/form/productForm/PricingSection';
 import { ProductCodesSection } from '@/components/form/productForm/ProductCodesSection';
-import { CategoryBrandSection } from '@/components/form/productForm/CategoryBrandSection';
 import { VariationsSection } from '@/components/form/productForm/VariationsSection';
 import { AttributeSelectionSection } from '@/components/form/productForm/AttributeSelectionSection';
 import { VariableProductSection } from '@/components/form/productForm/VariableProductSection';
@@ -14,8 +13,12 @@ import { BasicInfoSection } from '@/components/form/productForm/BasicInfoSection
 import { StatusMessage } from '@/components/form/productForm/StatusMessage';
 import { z } from 'zod';
 import { useAttributeData } from '@/components/table/AttributeTable/useAttributeData';
+import { useBrandData } from '@/components/table/BrandTable/useBrandData';
+import { CategoryBrandSection } from '@/components/form/productForm/CategoryBrandSection';
+import { ca } from 'date-fns/locale';
+import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 
-// Define the product schema using zod
+// 🧪 Validation Schema
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   categoryId: z.string().min(1, "Category is required"),
@@ -31,10 +34,9 @@ const productSchema = z.object({
   isVariable: z.boolean(),
   selectedAttributes: z.array(z.string()).optional(),
   variations: z.array(z.any()).optional(),
-  // Add other fields as needed
 });
 
-// Type definitions
+// 🧾 Types
 type VariationData = {
   id: string;
   attributes: { [key: string]: string };
@@ -53,41 +55,29 @@ type VariationData = {
   };
 };
 
-type ProductFormData = {
-  name: string;
-  categoryId: string;
-  subcategoryId?: string;
-  brandId?: string;
-  sku?: string;
-  barcode?: string;
-  stockQuantity: number;
-  lowStockThreshold: number;
-  costPrice: number;
-  wholesalePrice?: number;
-  retailPrice: number;
-  isVariable: boolean;
-  selectedAttributes?: string[];
-  variations?: VariationData[];
-  // Add other fields as needed
-};
+type ProductFormData = z.infer<typeof productSchema>;
 
-// Main Component
+type AttributeValue = { id: string; value: string };
+type AddedAttributes = { [attributeId: string]: AttributeValue[] };
+
 export default function VariableProductForm() {
-  const [categories] = useState(mockCategories);
-  const [brands] = useState(mockBrands);
-  const [subcategories, setSubcategories] = useState<{ id: string; name: string }[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState('');
+  // 🔄 UI + App State
   const [isVariable, setIsVariable] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
   const [variations, setVariations] = useState<VariationData[]>([]);
+  const [selectedAttributes, setSelectedAttributes] = useState<AddedAttributes>({});
 
+
+
+  // 🧾 Form setup
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
     setValue,
     watch,
-    reset
+    reset,
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
     defaultValues: {
@@ -97,22 +87,15 @@ export default function VariableProductForm() {
       retailPrice: 0,
       isVariable: false,
       selectedAttributes: [],
-      variations: []
-    }
+      variations: [],
+    },
   });
 
+  // 👁️ Watch fields
   const watchedCategory = watch('categoryId');
   const watchedName = watch('name');
 
-  // Update subcategories when category changes
-  useEffect(() => {
-    if (watchedCategory) {
-      setSubcategories(mockSubcategories[watchedCategory] || []);
-      setValue('subcategoryId', '');
-    }
-  }, [watchedCategory, setValue]);
 
-  // Auto-generate SKU from product name
   useEffect(() => {
     if (watchedName && !isVariable) {
       const sku = watchedName
@@ -125,200 +108,174 @@ export default function VariableProductForm() {
     }
   }, [watchedName, setValue, isVariable]);
 
+  // 🔍 Attribute Hook
+  const {
+    data: attributeData,
+    handleSearch: handleAttributeSearch,
+    searchTerm: attributeSearchTerm,
+  } = useAttributeData();
+
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+
+  const {
+    data: brandApi,
+    handleSearch: handleBrandSearch,
+    searchTerm: brandSearchTerm,
+  } = useBrandData();
+
+  const {
+    data: categoryApi,
+    handleSearch: handleCategorySearch,
+    searchTerm: categorySearchTerm,
+  } = useCategoryData();
+
+  const categories = categoryApi?.data?.categories || [];
+  const brands = brandApi?.data?.brands || [];
+
+  const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+  const subcategories =
+    selectedCategory?.subcategories?.map((sub:any) => ({
+      id: sub.subcategory_id,
+      name: sub.name,
+    })) || [];
 
 
-  // Handle variable product toggle
+  // 📦 Handlers
   const handleVariableToggle = (checked: boolean) => {
     setIsVariable(checked);
     setValue('isVariable', checked);
     if (!checked) {
-      setSelectedAttributes([]);
+      setSelectedAttributes({});
       setVariations([]);
       setValue('selectedAttributes', []);
       setValue('variations', []);
     }
   };
 
-
-
-
-  // Generate all combinations of attribute values
-  const generateCombinations = (attributes: any[]) => {
-    if (attributes.length === 0) return [];
-    if (attributes.length === 1) return attributes[0].values.map((v: string) => [v]);
-
-    const [first, ...rest] = attributes;
-    const restCombos = generateCombinations(rest);
-    const combinations: string[][] = [];
-
-    first.values.forEach((value: string) => {
-      restCombos.forEach((combo: string[]) => {
-        combinations.push([value, ...combo]);
-      });
-    });
-    
-    return combinations;
-  };
-
-  // Update variation
-  const updateVariation = (index: number, field: string, value: any) => {
-    const updatedVariations = [...variations];
-    updatedVariations[index] = { ...updatedVariations[index], [field]: value };
-    setVariations(updatedVariations);
-    setValue('variations', updatedVariations);
-  };
-
-  // Delete variation
-  const deleteVariation = (index: number) => {
-    const updatedVariations = variations.filter((_, i) => i !== index);
-    setVariations(updatedVariations);
-    setValue('variations', updatedVariations);
-  };
-
-  // Simulate barcode scanning
   const simulateBarcodeScan = () => {
     setIsScanning(true);
     setTimeout(() => {
-      const mockBarcode = `${Date.now()}`.substring(0, 12);
-      setValue('barcode', mockBarcode);
+      setValue('barcode', `${Date.now()}`.substring(0, 12));
       setIsScanning(false);
     }, 2000);
   };
 
-  // Generate custom barcode
   const generateCustomBarcode = () => {
-    const barcode = Math.random().toString().substring(2, 14);
-    setValue('barcode', barcode);
+    setValue('barcode', Math.random().toString().substring(2, 14));
   };
 
-  const onSubmit = async (data: ProductFormData) => {
-    try {
-      setSubmitStatus('');
-      console.log('Form data:', data);
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      setSubmitStatus('success');
-      setTimeout(() => setSubmitStatus(''), 5000);
-    } catch (error) {
-      setSubmitStatus('error');
-      setTimeout(() => setSubmitStatus(''), 5000);
-    }
+  const updateVariation = (index: number, field: string, value: any) => {
+    const updated = [...variations];
+    updated[index] = { ...updated[index], [field]: value };
+    setVariations(updated);
+    setValue('variations', updated);
   };
 
-  // Reset form
-  const resetForm = () => {
-    reset();
-    setIsVariable(false);
-    setSelectedAttributes([]);
-    setVariations([]);
-    setSubmitStatus('');
+  const deleteVariation = (index: number) => {
+    const updated = variations.filter((_, i) => i !== index);
+    setVariations(updated);
+    setValue('variations', updated);
   };
-  const [selectedAttributes, setSelectedAttributes] = useState<AddedAttributes>({});
-  // Type definitions based on API response
-  interface AttributeValue {
-    id: string;
-    value: string;
-  }
 
-  interface Attribute {
-    id: string;
-    name: string;
-    description: string;
-    values: AttributeValue[];
-  }
-
-  interface ApiResponse {
-    success: boolean;
-    data: {
-      attributes: Attribute[];
-      total: number;
-      limit: number;
-      offset: number;
-    };
-    message: string;
-    timestamp: string;
-  }
-
-  interface SelectedAttributeValue {
-    id: string;
-    value: string;
-  }
-
-  interface AddedAttributes {
-    [attributeId: string]: SelectedAttributeValue[];
-  }
-
-  interface FormSectionProps {
-    icon: React.ComponentType<{ className?: string }>;
-    title: string;
-    children: React.ReactNode;
-  }
-
-  interface AttributeSelectionSectionProps {
-    attributes: Attribute[]; // Attributes from API
-    selectedAttributes: AddedAttributes;
-    onAttributeChange: (attributeId: string, values: SelectedAttributeValue[]) => void;
-    onGenerateVariations: () => void;
-  }
-
-
-  const {
-    data,
-    isLoading,
-    handleSearch,
-    searchTerm,
-    error,
-    currentPage,
-    pageSize,
-    totalPages,
-    setCurrentPage,
-    handlePageSizeChange,
-  } = useAttributeData()
-  const handleAttributeChange = (attributeId: string, values: SelectedAttributeValue[]) => {
-    setSelectedAttributes((prev) => ({
-      ...prev,
-      [attributeId]: values
-    }));
+  const handleAttributeChange = (attributeId: string, values: AttributeValue[]) => {
+    setSelectedAttributes(prev => ({ ...prev, [attributeId]: values }));
   };
 
   const handleGenerateVariations = () => {
     console.log("Generating variations...", selectedAttributes);
+
+    const attributeEntries = Object.entries(selectedAttributes);
+
+    if (attributeEntries.length === 0) return;
+
+    const cartesian = (arr: AttributeValue[][]): AttributeValue[][] => {
+      return arr.reduce<AttributeValue[][]>(
+        (acc, curr) =>
+          acc.flatMap(a => curr.map(b => [...a, b])),
+        [[]]
+      );
+    };
+
+    const attributeCombinations = cartesian(attributeEntries.map(([, values]) => values));
+
+    const newVariations: VariationData[] = attributeCombinations.map((combo, index) => {
+      const attributes: Record<string, string> = {};
+      combo.forEach((value, i) => {
+        const attributeId = attributeEntries[i][0];
+        attributes[attributeId] = value.id;
+      });
+
+      return {
+        id: `variation-${Date.now()}-${index}`,
+        attributes,
+        sku: `${watchedName || 'VAR'}-${index + 1}`,
+        costPrice: 0,
+        retailPrice: 0,
+        stockQuantity: 0,
+        lowStockThreshold: 5,
+      };
+    });
+
+    setVariations(newVariations);
+    setValue('variations', newVariations);
   };
 
+
+  const resetForm = () => {
+    reset();
+    setIsVariable(false);
+    setSelectedAttributes({});
+    setVariations([]);
+    setSubmitStatus('');
+  };
+
+  const onSubmit = async (data: ProductFormData) => {
+    console.log('janath')
+    try {
+      setSubmitStatus('');
+      console.log('Form data:', data);
+      await new Promise(res => setTimeout(res, 2000));
+      setSubmitStatus('success');
+    } catch {
+      setSubmitStatus('error');
+    } finally {
+      setTimeout(() => setSubmitStatus(''), 5000);
+    }
+  };
+
+  // 🧱 UI
   return (
-    <div className={`min-h-screen transition-colors duration-300 'dark bg-gray-900' : 'bg-gray-50'}`}>
+    <div>
       <div className="max-w-6xl mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Add New Product</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Create a new product with detailed information and variations</p>
-          </div>
+        {/* 🔖 Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Add New Product</h1>
+          <p className="text-gray-600 dark:text-gray-400">Create a product with variations and detailed info</p>
         </div>
 
-        {/* Status Message */}
+        {/* 🔔 Status */}
         <StatusMessage status={submitStatus} />
 
-        {/* Form */}
+        {/* 📝 Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-
           <VariableProductSection
             register={register}
             isVariable={isVariable}
             onVariableToggle={handleVariableToggle}
           />
+
           <BasicInfoSection register={register} errors={errors} />
-
-
           <CategoryBrandSection
             categories={categories}
             subcategories={subcategories}
             brands={brands}
-            setValue={(field: string, value: any) => setValue(field as any, value)}
-            watchedCategory={watchedCategory}
+            setValue={setValue}
+            watchedCategory={selectedCategoryId}
             errors={errors}
+            onCategoryChange={(id) => {
+              setSelectedCategoryId(id);
+              setValue("subcategoryId", ""); // Reset subcategory
+            }}
           />
 
           <ProductCodesSection
@@ -329,26 +286,17 @@ export default function VariableProductForm() {
             generateCustomBarcode={generateCustomBarcode}
             isVariable={isVariable}
           />
+          {attributeData && isVariable && (<AttributeSelectionSection
+            attributes={attributeData?.data.attributes}
+            selectedAttributes={selectedAttributes}
+            onAttributeChange={handleAttributeChange}
+            onGenerateVariations={handleGenerateVariations}
+            searchTerm={attributeSearchTerm}
+            onSearch={handleAttributeSearch}
+          />)}
+          {!isVariable && <PricingSection register={register} errors={errors} />}
+          {!isVariable && <InventoryWarrantySection register={register} errors={errors} />}
 
-          {!isVariable && (
-            <PricingSection register={register} errors={errors} isVariable={isVariable} />
-          )}
-
-          {!isVariable && (
-            <InventoryWarrantySection register={register} errors={errors} isVariable={isVariable} />
-          )}
-
-          {isVariable && (
-            <AttributeSelectionSection
-              attributes={data?.data.attributes}
-              selectedAttributes={selectedAttributes}
-              onAttributeChange={handleAttributeChange}
-              onGenerateVariations={handleGenerateVariations}
-              searchTerm={searchTerm}
-              onSearch={handleSearch}
-            />
-
-          )}
 
           {isVariable && variations.length > 0 && (
             <VariationsSection
@@ -358,6 +306,7 @@ export default function VariableProductForm() {
               selectedAttributes={selectedAttributes}
             />
           )}
+
           <FormActions
             isSubmitting={isSubmitting}
             onSubmit={handleSubmit(onSubmit)}

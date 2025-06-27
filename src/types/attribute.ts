@@ -41,6 +41,7 @@ export interface AttributeValue {
 export interface Attribute {
   id: string;
   name: string;
+  description?: string;
   values: AttributeValue[];
 }
 

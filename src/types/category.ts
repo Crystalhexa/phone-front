@@ -36,7 +36,7 @@ export interface CategoryFormConfig {
 }
 
 export interface AttributeValue {
-  id: number;
+  id: string;
   value: string;
 }
 

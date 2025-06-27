@@ -1,31 +1,45 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge, Trash2 } from "lucide-react";
+import { Badge, Edit2, Trash2 } from "lucide-react";
 import { FormSection } from "./FormSection";
 
-// Example mockAttributes definition; replace with your actual attributes source or import
-const mockAttributes = [
-  { id: "color", name: "Color" },
-  { id: "size", name: "Size" },
-  // Add more attributes as needed
-];
+type VariationData = {
+  id: string;
+  attributes: { [key: string]: string };
+  sku: string;
+  costPrice: number;
+  wholesalePrice?: number;
+  retailPrice: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  barcode?: string;
+  weight?: number;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
+};
 
-export // Variations Management Section
-const VariationsSection = ({ 
-  variations, 
-  onUpdateVariation, 
-  onDeleteVariation, 
-  selectedAttributes 
-}: { 
-  variations: VariationData[]; 
-  onUpdateVariation: (index: number, field: string, value: any) => void; 
-  onDeleteVariation: (index: number) => void; 
-  selectedAttributes: string[]; 
+type AttributeValue = { id: string; value: string };
+type AddedAttributes = { [attributeId: string]: AttributeValue[] };
+
+export const VariationsSection = ({
+  variations,
+  onUpdateVariation,
+  onDeleteVariation,
+  selectedAttributes,
+}: {
+  variations: VariationData[];
+  onUpdateVariation: (index: number, field: string, value: any) => void;
+  onDeleteVariation: (index: number) => void;
+  selectedAttributes: AddedAttributes;
 }) => {
-  const getAttributeNames = () => {
-    return mockAttributes
-      .filter(attr => selectedAttributes.includes(attr.id))
-      .map(attr => attr.name);
+  console.log(variations)
+  const getAttributeLabel = (attributeId: string, valueId: string) => {
+    const values = selectedAttributes[attributeId];
+    const match = values?.find(v => v.id === valueId);
+    return match?.value || valueId;
   };
 
   return (
@@ -53,9 +67,9 @@ const VariationsSection = ({
                   <tr key={variation.id} className="border-b border-gray-100 dark:border-gray-700">
                     <td className="p-2">
                       <div className="flex flex-wrap gap-1">
-                        {Object.entries(variation.attributes).map(([attrName, value]) => (
-                          <Badge key={attrName} variant="secondary" className="text-xs">
-                            {attrName}: {value}
+                        {Object.entries(variation.attributes).map(([attrId, valueId]) => (
+                          <Badge key={attrId} variant="secondary" className="text-xs">
+                            {attrId}: {getAttributeLabel(attrId, valueId)}
                           </Badge>
                         ))}
                       </div>
@@ -63,7 +77,7 @@ const VariationsSection = ({
                     <td className="p-2">
                       <Input
                         value={variation.sku}
-                        onChange={(e) => onUpdateVariation(index, 'sku', e.target.value)}
+                        onChange={(e) => onUpdateVariation(index, "sku", e.target.value)}
                         className="w-24 text-sm"
                         placeholder="SKU"
                       />
@@ -73,7 +87,9 @@ const VariationsSection = ({
                         type="number"
                         step="0.01"
                         value={variation.costPrice}
-                        onChange={(e) => onUpdateVariation(index, 'costPrice', parseFloat(e.target.value) || 0)}
+                        onChange={(e) =>
+                          onUpdateVariation(index, "costPrice", parseFloat(e.target.value) || 0)
+                        }
                         className="w-24 text-sm"
                         placeholder="0.00"
                       />
@@ -83,7 +99,9 @@ const VariationsSection = ({
                         type="number"
                         step="0.01"
                         value={variation.retailPrice}
-                        onChange={(e) => onUpdateVariation(index, 'retailPrice', parseFloat(e.target.value) || 0)}
+                        onChange={(e) =>
+                          onUpdateVariation(index, "retailPrice", parseFloat(e.target.value) || 0)
+                        }
                         className="w-24 text-sm"
                         placeholder="0.00"
                       />
@@ -92,7 +110,9 @@ const VariationsSection = ({
                       <Input
                         type="number"
                         value={variation.stockQuantity}
-                        onChange={(e) => onUpdateVariation(index, 'stockQuantity', parseInt(e.target.value) || 0)}
+                        onChange={(e) =>
+                          onUpdateVariation(index, "stockQuantity", parseInt(e.target.value) || 0)
+                        }
                         className="w-20 text-sm"
                         placeholder="0"
                       />
