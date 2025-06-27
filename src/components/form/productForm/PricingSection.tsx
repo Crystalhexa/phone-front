@@ -19,8 +19,7 @@ const PricingSection = ({ register, errors, isVariable }: any) => {
             className="bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
           />
         </FormField>
-
-        <FormField label="Wholesale Price" error={errors.wholesalePrice?.message}>
+   <FormField label="Wholesale Price" required error={errors.wholesalePrice?.message}>
           <Input
             type="number"
             step="0.01"
