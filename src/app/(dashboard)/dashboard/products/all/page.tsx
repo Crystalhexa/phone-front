@@ -23,7 +23,7 @@ const variationSchema = z.object({
   attributes: z.record(z.string()),
   sku: z.string().min(1, "SKU is required"),
   costPrice: z.number().min(0, "Cost price must be positive"),
-  wholesalePrice: z.number().min(0).optional(),
+  wholesalePrice: z.number().optional(),
   retailPrice: z.number().min(0, "Retail price must be positive"),
   stockQuantity: z.number().min(0, "Stock quantity must be positive"),
   lowStockThreshold: z.number().min(0, "Low stock threshold must be positive"),
@@ -47,7 +47,7 @@ const productSchema = z.object({
   stockQuantity: z.number().min(0).optional(),
   lowStockThreshold: z.number().min(0).optional(),
   costPrice: z.number().min(0).optional(),
-  wholesalePrice: z.number().min(0).optional(),
+  wholesalePrice: z.number().optional(),
   retailPrice: z.number().min(0).optional(),
   warrantyPeriod: z.number().min(0).optional(),
   isVariable: z.boolean().optional(),
@@ -57,9 +57,6 @@ const productSchema = z.object({
   // For simple products, require pricing fields
   if (!data.isVariable) {
     return data.retailPrice !== undefined && data.retailPrice > 0;
-  }
-   if (!data.isVariable) {
-    return data.wholesalePrice !== undefined && data.wholesalePrice > 0;
   }
   // For variable products, require variations
   if (data.isVariable) {
@@ -303,7 +300,7 @@ export default function VariableProductForm() {
 
   // 📤 Submit Handler
   const onSubmit = async (data: ProductFormData) => {
-    console.log("jana")
+    console.log(data)
     try {
       setSubmitStatus('submitting');
 
@@ -379,14 +376,14 @@ export default function VariableProductForm() {
     }
   };
 
-  // 🧱 UI Render
+  // 🧱 UI
   return (
     <div>
       <div className="max-w-6xl mx-auto p-6">
         {/* 🔖 Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Add New Product</h1>
-          <p className="text-gray-600 dark:text-gray-400">Create a simple or variable product with detailed information</p>
+          <p className="text-gray-600 dark:text-gray-400">Create a product with variations and detailed info</p>
         </div>
 
         {/* 🔔 Status */}
@@ -394,17 +391,14 @@ export default function VariableProductForm() {
 
         {/* 📝 Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-          {/* Variable Product Toggle */}
           <VariableProductSection
             register={register}
             isVariable={isVariable}
             onVariableToggle={handleVariableToggle}
           />
 
-          {/* Basic Product Information */}
           <BasicInfoSection register={register} errors={errors} />
-
-          {/* Category & Brand Selection */}
+          
           <CategoryBrandSection
             categories={categories}
             subcategories={subcategories}
@@ -414,12 +408,10 @@ export default function VariableProductForm() {
             errors={errors}
             onCategoryChange={(id) => {
               setSelectedCategoryId(id);
-              setValue("categoryId", id);
               setValue("subcategoryId", "");
             }}
           />
 
-          {/* Product Codes (SKU, Barcode) */}
           <ProductCodesSection
             register={register}
             errors={errors}
@@ -429,10 +421,9 @@ export default function VariableProductForm() {
             isVariable={isVariable}
           />
 
-          {/* Attribute Selection (Only for Variable Products) */}
           {attributeData && isVariable && (
             <AttributeSelectionSection
-              attributes={attributeData?.data?.attributes || []}
+              attributes={attributeData?.data.attributes}
               selectedAttributes={selectedAttributes}
               onAttributeChange={handleAttributeChange}
               onGenerateVariations={handleGenerateVariations}
@@ -441,24 +432,18 @@ export default function VariableProductForm() {
             />
           )}
 
-          {/* Pricing Section (Only for Simple Products) */}
           {!isVariable && <PricingSection register={register} errors={errors} />}
-
-          {/* Inventory & Warranty (Only for Simple Products) */}
           {!isVariable && <InventoryWarrantySection register={register} errors={errors} />}
 
-          {/* Variations Section (Only for Variable Products with Variations) */}
           {isVariable && variations.length > 0 && (
             <VariationsSection
               variations={variations}
               onUpdateVariation={updateVariation}
               onDeleteVariation={deleteVariation}
               selectedAttributes={selectedAttributes}
-              errors={errors.variations as any}
             />
           )}
 
-          {/* Form Actions */}
           <FormActions
             isSubmitting={isSubmitting}
             onSubmit={handleSubmit(onSubmit)}
