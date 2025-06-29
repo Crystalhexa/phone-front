@@ -9,8 +9,8 @@ const employeeSchema = z.object({
   employee_number: z.string().min(1),
   name: z.string().min(1),
   email: z.string().email(),
-  phone: z.string().optional().nullable(),
-  nic: z.string().optional().nullable(),
+  phone: z.string().transform(val => val.trim() === '' ? null : val.trim()).optional().nullable(),
+  nic: z.string().transform(val => val.trim() === '' ? null : val.trim()).optional().nullable(),
   gender: z.string().optional().nullable(),
   position: z.string().optional().nullable(),
   department: z.string().optional().nullable(),
@@ -100,8 +100,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json<ApiResponse>({
         success: false,
         data: null,
-        message: `Duplicate entry: ${field} already exists.`,
-        errors: [detail],
+        message: [detail].length > 0 ? `${detail}`:"The provided data conflicts with existing records.",
         timestamp: new Date().toISOString()
       }, { status: 409 }) // Conflict
     }
