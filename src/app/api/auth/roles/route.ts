@@ -1,54 +1,87 @@
-// app/api/roles/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { withPermission } from '@/lib/middleware/auth'
-import { query } from '@/lib/database/connection'
-import { ROLE_PERMISSIONS } from '@/lib/role-permisions'
+import { NextRequest, NextResponse } from "next/server";
+import { RoleService } from "@/lib/services/roleService";
+import { CreateRoleRequest } from "@/types/role";
+import { ApiResponse, initDatabase } from "@/lib/database/connection";
 
-export const POST = withPermission('ROLE_CREATE')(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+  await initDatabase();
+  const roles = await RoleService.getAllRoles();
+
+  return NextResponse.json({
+    success: true,
+    data: roles,
+    message: "Roles retrieved successfully",
+    timestamp: new Date().toISOString(),
+  } satisfies ApiResponse);
+}
+
+export async function POST(req: NextRequest) {
+  await initDatabase();
+  const body = await req.json();
+  const { name, description, is_active, permission_ids }: CreateRoleRequest = body;
+
+  if (!name || !name.trim()) {
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: "Role name is required",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!Array.isArray(permission_ids)) {
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: "Permission IDs must be an array",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
+  }
+
   try {
-    const { name, description, permissionSet } = await req.json()
+    const newRole = await RoleService.createRole({
+      name: name.trim(),
+      description: description?.trim(),
+      is_active: is_active ?? true,
+      permission_ids,
+    });
 
-     if (!ROLE_PERMISSIONS[permissionSet as keyof typeof ROLE_PERMISSIONS]) {
+    return NextResponse.json(
+      {
+        success: true,
+        data: newRole,
+        message: "Role created successfully",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    if (error.message?.includes("duplicate key")) {
       return NextResponse.json(
-        { error: 'Invalid permission set' },
-        { status: 400 }
+        {
+          success: false,
+          data: null,
+          message: "Role name already exists",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 409 }
       );
     }
-
-    const permissions = ROLE_PERMISSIONS[permissionSet as keyof typeof ROLE_PERMISSIONS];
-
-    const insertQuery = `
-      INSERT INTO roles (name, description, permissions)
-      VALUES ($1, $2, $3)
-      RETURNING *
-    `
-
-    const result = await query(insertQuery, [name, description, JSON.stringify(permissions)])
-    const role = result.rows[0]
-
-    return NextResponse.json({ message: 'Role created successfully', role })
-  } catch (err) {
-    console.error('❌ Role creation failed:', err)
-    return NextResponse.json({ error: 'Failed to create role' }, { status: 500 })
+    console.error("POST /roles error", error);
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: "Internal server error",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
-})
-
-export const GET = withPermission('ROLE_READ')(async (_req: NextRequest) => {
-  try {
-    const selectQuery = `
-      SELECT id, name, description, permissions, created_at, updated_at
-      FROM roles
-      ORDER BY created_at DESC
-    `
-
-    const result = await query(selectQuery)
-
-    return NextResponse.json({
-      message: 'Roles fetched successfully',
-      roles: result.rows,
-    })
-  } catch (err) {
-    console.error('❌ Failed to fetch roles:', err)
-    return NextResponse.json({ error: 'Failed to fetch roles' }, { status: 500 })
-  }
-})
+}

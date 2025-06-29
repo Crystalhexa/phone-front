@@ -3,7 +3,7 @@ export interface Props {
   isEdit?: boolean
 }
 export interface Role  {
-  role_id: number
+  id: number
   name: string
 }
 

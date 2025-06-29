@@ -14,7 +14,7 @@ const MAX_RETRIES = 5
 const RETRY_DELAY_MS = 2000
 let pool: Pool
 
-const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/inventory_db'
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:janath@localhost:5432/phone?schema=public"
 const fallbackConnectionString = process.env.DATABASE_URL_FALLBACK
 
 async function createPool(): Promise<Pool> {

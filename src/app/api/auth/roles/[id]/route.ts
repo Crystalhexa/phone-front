@@ -1,110 +1,131 @@
-// app/api/roles/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { withPermission } from '@/lib/middleware/auth'
-import { query } from '@/lib/database/connection'
-import { ROLE_PERMISSIONS } from '@/lib/role-permisions'
-import z from 'zod'
+import { NextRequest, NextResponse } from 'next/server';
+import { RoleService } from '@/lib/services/roleService';
+import { UpdateRoleRequest } from '@/types/role';
+import { ApiResponse, initDatabase } from '@/lib/database/connection';
 
-const updateSchema = z.object({
-  name: z.string().min(1).max(50).optional(),
-  description: z.string().optional(),
-  permissions: z.record(z.boolean()).optional(),
-  is_active: z.boolean().optional()
-})
-
-export const GET = withPermission("ROLE_READ")(async (req: NextRequest, { params }: { params: { id: string } }) => {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const roleRes = await query(
-      `SELECT r.*, json_agg(json_build_object('id', u.id, 'username', u.username, 'email', u.email, 'is_active', u.is_active)) AS users
-       FROM roles r
-       LEFT JOIN users u ON u.role_id = r.id
-       WHERE r.id = $1
-       GROUP BY r.id`,
-      [params.id]
-    )
+    await initDatabase();
+    const id = params.id;
 
-    if (roleRes.rowCount === 0) {
-      return NextResponse.json({ error: 'Role not found' }, { status: 404 })
+    const role = await RoleService.getRoleById(id);
+    if (!role) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Role not found',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ role: roleRes.rows[0] })
-  } catch (err) {
-    console.error('❌ Get role failed:', err)
-    return NextResponse.json({ error: 'Failed to fetch role' }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      data: role,
+      message: 'Role retrieved successfully',
+      timestamp: new Date().toISOString(),
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    console.error('GET /roles/[id] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: error.message || 'Internal server error',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
-})
+}
 
-export const PUT = withPermission("ROLE_UPDATE")(async (req: NextRequest, { params }: { params: { id: string } }) => {
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const data = updateSchema.parse(await req.json())
-    const { id } = params
+    await initDatabase();
+    const id = params.id;
+    const body = (await req.json()) as UpdateRoleRequest;
 
-    // Check if name exists
-    if (data.name) {
-      const exists = await query(`SELECT id FROM roles WHERE name = $1 AND id != $2`, [data.name, id])
-      if ((exists.rowCount ?? 0) > 0) {
-        return NextResponse.json({ error: 'Role with this name already exists' }, { status: 400 })
-      }
+    const updatedRole = await RoleService.updateRole(id, body);
+    if (!updatedRole) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Role not found',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
     }
 
-    const fields = []
-    const values = []
-    let i = 1
-
-    for (const key in data) {
-      fields.push(`${key} = $${i}`)
-      values.push(
-        key === 'permissions'
-          ? JSON.stringify(data[key as keyof typeof data])
-          : data[key as keyof typeof data]
-      )
-      i++
+    return NextResponse.json({
+      success: true,
+      data: updatedRole,
+      message: 'Role updated successfully',
+      timestamp: new Date().toISOString(),
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    if (error.message.includes('duplicate key')) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Role name already exists',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 409 }
+      );
     }
 
-    values.push(id)
-
-    const updateQuery = `
-      UPDATE roles
-      SET ${fields.join(', ')}, updated_at = NOW()
-      WHERE id = $${i}
-      RETURNING *`
-
-    const result = await query(updateQuery, values)
-
-    if (result.rowCount === 0) {
-      return NextResponse.json({ error: 'Role not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ message: 'Role updated successfully', role: result.rows[0] })
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Validation failed', details: err.errors }, { status: 400 })
-    }
-    console.error('❌ Update role failed:', err)
-    return NextResponse.json({ error: 'Failed to update role' }, { status: 500 })
+    console.error('PUT /roles/[id] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: error.message || 'Internal server error',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
-})
+}
 
-export const DELETE = withPermission("ROLE_DELETE")(async (req: NextRequest, { params }: { params: { id: string } }) => {
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const { id } = params
+    await initDatabase();
+    const id = params.id;
 
-    const userCount = await query(`SELECT COUNT(*) FROM users WHERE role_id = $1`, [id])
-    if (parseInt(userCount.rows[0].count) > 0) {
-      return NextResponse.json({
-        error: 'Cannot delete role with assigned users. Please reassign users first.'
-      }, { status: 400 })
+    const deleted = await RoleService.deleteRole(id);
+    if (!deleted) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Role not found',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
     }
 
-    const result = await query(`DELETE FROM roles WHERE id = $1 RETURNING *`, [id])
-
-    if (result.rowCount === 0) {
-      return NextResponse.json({ error: 'Role not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ message: 'Role deleted successfully' })
-  } catch (err) {
-    console.error('❌ Delete role failed:', err)
-    return NextResponse.json({ error: 'Failed to delete role' }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      data: { id },
+      message: 'Role deleted successfully',
+      timestamp: new Date().toISOString(),
+    } satisfies ApiResponse);
+  } catch (error: any) {
+    console.error('DELETE /roles/[id] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: error.message || 'Internal server error',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
-})
+}

@@ -9,6 +9,7 @@ import globalReducer from "@/state";
 import { api } from "@/state/api";
 import { brandsApi } from "./brand";
 import { attributesApi } from "./attribute";
+import { rolesApi } from "./role";
 
 /* REDUX STORE */
 const rootReducer = combineReducers({
@@ -16,6 +17,7 @@ const rootReducer = combineReducers({
   [api.reducerPath]: api.reducer,
    [brandsApi.reducerPath]: brandsApi.reducer,
    [attributesApi.reducerPath]: attributesApi.reducer,
+   [rolesApi.reducerPath]: rolesApi.reducer,
 });
 
 export const makeStore = () => {
@@ -26,6 +28,7 @@ export const makeStore = () => {
         .concat(api.middleware)
         .concat(brandsApi.middleware)
         .concat(attributesApi.middleware)
+        .concat(rolesApi.middleware),
   });
 };
 /* REDUX TYPES */

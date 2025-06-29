@@ -16,7 +16,7 @@ model users {
   is_active     Boolean             @default(true)
   role_id       String?
   created_at    DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime            @updatedAt @db.Timestamptz(6)
+  updated_at    DateTime            @default(now()) @db.Timestamptz(6)
   
   // Relations
   role            roles?               @relation(fields: [role_id], references: [id], onDelete: SetNull)
@@ -28,20 +28,51 @@ model users {
   @@map("users")
 }
 
+model permission_groups {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?
+  permissions permission[]
+
+  @@map("permission_groups")
+}
+
+model permission {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  group_id     String
+  group       permission_groups @relation(fields: [group_id], references: [id])
+  roles       role_permissions[]
+
+  @@map("permissions")
+}
+
 model roles {
-  id          String   @id @default(cuid())
-  name        String   @unique @db.VarChar(50)
-  description String?  @db.Text
-  permissions Json?    @default("{}")
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
-  
-  // Relations
-  users users[]
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  is_active   Boolean        @default(true)
+  created_at  DateTime       @default(now())
+  updated_at  DateTime        @default(now())
+  permissions role_permissions[]
+  users       users[]
 
   @@map("roles")
 }
+
+model role_permissions {
+  id           String      @id @default(cuid())
+  role_id       String
+  permission_id String
+
+  role         roles       @relation(fields: [role_id], references: [id])
+  permission   permission @relation(fields: [permission_id], references: [id])
+
+  @@unique([role_id, permission_id])
+  @@map("role_permissions")
+}
+
 
 model notifications {
   id         String   @id @default(cuid())
@@ -90,10 +121,12 @@ model employees {
   gender          gender?
   position        String?   @db.VarChar(100)
   department      String?   @db.VarChar(50)
+  date_of_birth   DateTime? // <- New field
+  hire_date       DateTime? // <- New field
   is_active       Boolean   @default(true)
   user_id         String?   @unique
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
   
   // Relations
   user                    users?                   @relation(fields: [user_id], references: [id], onDelete: SetNull)
@@ -107,6 +140,7 @@ model employees {
   @@index([email])
   @@map("employees")
 }
+
 
 enum gender {
   MALE
