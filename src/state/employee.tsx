@@ -56,14 +56,14 @@ export const employeeApi = createApi({
 
         // ✅ Get single user
         getUserById: builder.query<GetUserByIdResponse, string>({
-            query: (id) => `users/${id}`,
+            query: (id) => `auth/employee/${id}`,
             providesTags: (result, error, id) => [{ type: 'User', id }],
         }),
 
         // ✅ Update user
         updateUser: builder.mutation<UpdateUserResponse, { id: string; body: UpdateUserRequest }>({
             query: ({ id, body }) => ({
-                url: `users/${id}`,
+                url: `auth/employee/${id}`,
                 method: 'PUT',
                 body,
             }),
@@ -100,7 +100,6 @@ export const useGetUsersWithPagination = (
   pageSize: number = 10,
   filters?: Omit<GetUsersParams, 'page' | 'limit'>
 ) => {
-    console.log('useGetUsersWithPagination called with:', { page, pageSize, filters })
   const query = useGetUsersQuery({
     page,
     limit: pageSize,

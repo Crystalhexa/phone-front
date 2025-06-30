@@ -18,7 +18,7 @@ export const useEmployeeActions = () => {
 
   const handleEdit = (employee: CreateUserRequest) => {
     
-    redirect(`/dashboard/user/employees/update/${employee.id}`);
+    redirect(`/dashboard/user/employees/update/${employee.user_id}`);
   };
 
   const handleDelete = async (brand: Brand) => {
@@ -52,32 +52,9 @@ export const useEmployeeActions = () => {
     },
   ];
 
-
-  const EditDialog = () => (
-    isEditDialogOpen ? (
-      <ReusableDialogForm
-        showTrigger={false}
-        triggerLabel="Edit Category" // This won't be used since we're controlling the dialog
-        title={`Edit Brand: ${selectedBrand?.name}`}
-        description="Update brand information"
-        formType="brand"
-        formProps={{
-          brandId: selectedBrand?.id,
-          mode: 'edit', // Read-only mode
-          showExport: true,
-          isEdit: true, // Read-only mode
-          onClose: () => setIsViewDialogOpen(false)
-        }}
-        open={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-      />
-    ) : null
-  );
-
   return {
     tableActions,
     isDeleting,
-    EditDialog,
     isViewDialogOpen,
     isEditDialogOpen,
     selectedBrand,

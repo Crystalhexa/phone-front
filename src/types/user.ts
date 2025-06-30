@@ -27,7 +27,7 @@ export interface EmployeeFormData {
 }
 
 export interface CreateUserRequest {
-  id:string;
+  user_id?:string;
   username: string;
   email: string;
   password_hash: string;
@@ -68,7 +68,14 @@ export interface UserListItem {
     name: string
     employee_number: string
     email: string
-    phone?: string
+    phone?: string,
+    nic?: string,
+    gender?: "MALE"|"FEMALE"|"OTHER",
+    position?: string,
+    department?: string,
+    date_of_birth?: Date;
+    hire_date ?: Date;
+    is_active: boolean;
   }
 }
 

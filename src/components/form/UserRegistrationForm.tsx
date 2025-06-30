@@ -1,6 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { useRouter, redirect } from 'next/navigation'
+
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -11,9 +12,14 @@ import CustomFormField, { FormFieldType } from '../form/CustomFormField'
 import SubmitButton from '../form/SubmitButton'
 import { useGetRolesQuery } from '@/state/api'
 import { Props, RolesApiResponse } from '@/types/roles'
-import { useCreateUserMutation, useUpdateUserMutation } from '@/state/employee'
+import {
+  useCreateUserMutation,
+  useGetUserByIdQuery,
+  useUpdateUserMutation,
+} from '@/state/employee'
 
 const userSchema = z.object({
+  user_id: z.string().optional(),
   username: z.string().min(1, 'Username is required'),
   email: z.string().email('Invalid email'),
   password_hash: z.string().min(6, 'Password must be at least 6 characters'),
@@ -36,31 +42,7 @@ const userSchema = z.object({
 
 export type UserFormData = z.infer<typeof userSchema>
 
-interface UserWithEmployee {
-  id: string
-  username: string
-  email: string
-  is_active: boolean
-  role_id: string
-  employee?: {
-    id: string
-    employee_number: string
-    name: string
-    email: string
-    phone?: string
-    nic?: string
-    gender?: 'MALE' | 'FEMALE' | 'OTHER'
-    position?: string
-    department?: string
-    date_of_birth?: string  
-    hire_date?: string
-    is_active: boolean
-  }
-}
-
 const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
-  const [loading, setLoading] = useState<boolean>(isEdit)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   const { data: rolesData, isLoading: rolesLoading } = useGetRolesQuery() as {
@@ -92,110 +74,92 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
     },
   })
 
-  // Generate employee number automatically
+  const { data, isLoading } = useGetUserByIdQuery(userId ?? '', { skip: !isEdit || !userId })
+
+  const generateEmployeeNumber = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0')
+    return `EMP${year}${month}${random}`
+  }
+
+  // Set generated employee number for new user
   useEffect(() => {
     if (!isEdit) {
-      const generateEmployeeNumber = () => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = String(now.getMonth() + 1).padStart(2, '0')
-        const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0')
-        return `EMP${year}${month}${random}`
-      }
-      
       form.setValue('employee.employee_number', generateEmployeeNumber())
     }
   }, [isEdit, form])
 
-  // Fetch user data for editing
+  // Populate form for editing
   useEffect(() => {
-    if (!isEdit || !userId) return
-
-    const fetchUser = async () => {
-      try {
-        const res = await fetch(`/api/employee/${userId}`)
-        if (!res.ok) throw new Error('Failed to fetch user')
-        const data: UserWithEmployee = await res.json()
-
-        const formatted: UserFormData = {
-          username: data.username,
-          email: data.email,
-          password_hash: '', // Don't populate password for security
-          is_active: data.is_active,
-          role_id: data.role_id,
-          employee: {
-            employee_number: data.employee?.employee_number || '',
-            name: data.employee?.name || '',
-            email: data.employee?.email || data.email,
-            phone: data.employee?.phone || '',
-            nic: data.employee?.nic || '',
-            gender: data.employee?.gender || 'MALE',
-            position: data.employee?.position || '',
-            department: data.employee?.department || '',
-            date_of_birth: data.employee?.date_of_birth ? new Date(data.employee.date_of_birth) : new Date(),
-            hire_date: data.employee?.hire_date ? new Date(data.employee.hire_date) : new Date(),
-            is_active: data.employee?.is_active ?? true,
-          },
-        }
-
-        form.reset(formatted)
-      } catch (err) {
-        setError('Error loading user data')
-        console.error('Error fetching user:', err)
-      } finally {
-        setLoading(false)
-      }
+    if (isEdit && data?.data) {
+      const user = data.data
+      console.log(user)
+      form.reset({
+        username: user.username,
+        email: user.email,
+        password_hash: '',
+        is_active: user.is_active,
+        role_id: user.role_id,
+        employee: {
+          employee_number: user.employee?.employee_number || '',
+          name: user.employee?.name || '',
+          email: user.employee?.email || user.email,
+          phone: user.employee?.phone || '',
+          nic: user.employee?.nic || '',
+          gender: user.employee?.gender || 'MALE',
+          position: user.employee?.position || '',
+          department: user.employee?.department || '',
+          date_of_birth: user.employee?.date_of_birth
+            ? new Date(user.employee.date_of_birth)
+            : new Date(),
+          hire_date: user.employee?.hire_date
+            ? new Date(user.employee.hire_date)
+            : new Date(),
+          is_active: user.employee?.is_active ?? true,
+        },
+      })
     }
-
-    fetchUser()
-  }, [isEdit, userId, form])
+  }, [isEdit, data, form])
 
   const handleBack = () => {
     router.push('/dashboard/user/employees')
   }
 
   const [createUser, { isLoading: creating }] = useCreateUserMutation()
-const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
+  const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
 
-
- const handleSubmit = async (data: UserFormData) => {
-  try {
-    let result
-    if (isEdit && userId) {
-      result = await updateUser({ id: userId, body: data }).unwrap()
-      toast.success('User updated successfully!')
-      router.push('/dashboard/user/employees')
-    } else {
-      result = await createUser(data).unwrap()
-      toast.success('User created successfully!')
-
-      form.reset()
-
-      // Generate new employee number
-      const generateEmployeeNumber = () => {
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = String(now.getMonth() + 1).padStart(2, '0')
-        const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0')
-        return `EMP${year}${month}${random}`
+  const handleSubmit = async (data: UserFormData) => {
+    try {
+      if (isEdit && userId) {
+        await updateUser({ id: userId, body: data }).unwrap()
+        toast.success('User updated successfully!')
+        router.push('/dashboard/user/employees')
+      } else {
+        await createUser(data).unwrap()
+        toast.success('User created successfully!')
+        form.reset()
+        form.setValue('employee.employee_number', generateEmployeeNumber())
       }
-
-      form.setValue('employee.employee_number', generateEmployeeNumber())
+    } catch (err: any) {
+      const message = err?.data?.message || err?.message || 'Submission failed'
+      toast.error(`User ${isEdit ? 'update' : 'creation'} failed! ${message}`)
     }
-  } catch (err: any) {
-    console.error('Submission error:', err)
-    const message = err?.data?.message || err?.message || 'Submission failed'
-    toast.error(`User ${isEdit ? 'update' : 'creation'} failed! ${message}`)
   }
-}
 
-
-  if (loading) return <p className="text-center py-10">Loading user data...</p>
+  if (isEdit && isLoading) {
+    return <p className="text-center py-10">Loading user data...</p>
+  }
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-screen-xl mx-auto">
       <div className="mb-6">
-        <button onClick={handleBack} type="button" className="text-blue-500 flex items-center text-lg hover:text-blue-600 transition-colors">
+        <button
+          onClick={handleBack}
+          type="button"
+          className="text-blue-500 flex items-center text-lg hover:text-blue-600 transition-colors"
+        >
           <ArrowLeft className="mr-2" />
           Back
         </button>
@@ -203,7 +167,6 @@ const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
-          {/* User Details Section */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white">
               {isEdit ? 'Edit User Account' : 'Create User Account'}
@@ -232,7 +195,7 @@ const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
                 fieldType={FormFieldType.PASSWORD}
                 placeholder="••••••••"
                 required={!isEdit}
-                description={isEdit ? "Leave blank to keep current password" : undefined}
+                description={isEdit ? 'Leave blank to keep current password' : undefined}
               />
               <CustomFormField
                 control={form.control}
@@ -260,7 +223,6 @@ const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
 
           <hr className="border-gray-300 dark:border-gray-700" />
 
-          {/* Employee Details Section */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -350,16 +312,9 @@ const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
             </div>
           </div>
 
-          {error && (
-            <div className="text-red-600 bg-red-100 border border-red-300 rounded-md p-3">
-              {error}
-            </div>
-          )}
-
           <div className="pt-4">
-            
             <SubmitButton
-              isLoading={form.formState.isSubmitting}
+              isLoading={form.formState.isSubmitting || creating || updating}
               className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-md transition disabled:opacity-50"
             >
               {isEdit ? 'Update User & Employee' : 'Create User & Employee'}

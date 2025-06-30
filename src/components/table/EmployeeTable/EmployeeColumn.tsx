@@ -1,6 +1,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from '@/components/ui/badge';
 import { ActionCell } from '../../ui/DataTable/ActionCell';
+import { UserListItem } from "@/types/user";
 
 interface Employee {
   id: string;
@@ -19,7 +20,7 @@ export interface TableAction {
   onClick: (row: any) => void;
   variant?: 'default' | 'destructive';
 }
-export const createEmployeeColumns = (actions: TableAction[]): ColumnDef<Employee>[] => [
+export const createEmployeeColumns = (actions: TableAction[]): ColumnDef<UserListItem>[] => [
   {
     accessorKey: "employee_number",
     header: "Employee No.",
