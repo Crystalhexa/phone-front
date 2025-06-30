@@ -17,7 +17,6 @@ export const useEmployeeActions = () => {
   const [deleteBrand, { isLoading: isDeleting }] = useDeleteBrandMutation();
 
   const handleEdit = (employee: CreateUserRequest) => {
-    
     redirect(`/dashboard/user/employees/update/${employee.user_id}`);
   };
 

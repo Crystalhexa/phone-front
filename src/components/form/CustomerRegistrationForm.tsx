@@ -110,7 +110,7 @@ const CustomerFormErrorFallback: React.FC<{ error: Error; resetErrorBoundary: ()
 
 const CustomerFormHeader: React.FC<{ isEdit: boolean; title?: string }> = ({ isEdit, title }) => (
   <div className="mb-6">
-    <h1 className="text-2xl font-bold text-gray-900">
+    <h1 className="text-xl font-bold text-gray-800 dark:text-white">
       {title || (isEdit ? 'Edit Customer' : 'Register New Customer')}
     </h1>
     <p className="text-gray-600 mt-2">
@@ -148,16 +148,6 @@ const CustomerFormActions: React.FC<{
         {isLoading ? 'Saving...' : (isEdit ? 'Update Customer' : 'Register Customer')}
       </button>
     </div>
-    {showExport && onExport && (
-      <button
-        type="button"
-        onClick={onExport}
-        disabled={isLoading}
-        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50"
-      >
-        Export Data
-      </button>
-    )}
   </div>
 );
 
@@ -296,7 +286,7 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
     toast.success('Customer data exported successfully!');
   };
   const handleBack = () => {
-    router.push('/dashboard/user/employees')
+    router.push('/dashboard/customers')
   }
 
   // Handle loading states
@@ -325,24 +315,24 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
 
   return (
     <div className="p-4 sm:p-6 md:p-8 max-w-screen-xl mx-auto">
-          <div className="mb-6">
-            <button
-              onClick={handleBack}
-              type="button"
-              className="text-blue-500 flex items-center text-lg hover:text-blue-600 transition-colors"
-            >
-              <ArrowLeft className="mr-2" />
-              Back
-            </button>
-          </div>
+      <div className="mb-6">
+        <button
+          onClick={handleBack}
+          type="button"
+          className="text-blue-500 flex items-center text-lg hover:text-blue-600 transition-colors"
+        >
+          <ArrowLeft className="mr-2" />
+          Back
+        </button>
+      </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 ">
           {/* Header */}
           <CustomerFormHeader isEdit={isEdit} title={title} />
 
           {/* Basic Information Section */}
-              <div className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Basic Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
@@ -374,8 +364,8 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
           </div>
 
           {/* Contact Information Section */}
-           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Contact Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
@@ -404,7 +394,7 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
               />
             </div>
             <CustomFormField
-              fieldType={FormFieldType.TEXTAREA}
+              fieldType={FormFieldType.INPUT}
               control={form.control}
               name="address"
               label="Address"
@@ -415,9 +405,9 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
 
           {/* Financial Information Section */}
           {(config.showCreditLimit || config.showLoyaltyPoints) && (
-  <div className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-white">Financial Information</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {config.showCreditLimit && (
                   <CustomFormField
                     fieldType={FormFieldType.INPUT}
@@ -463,7 +453,7 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
           />
         </form>
       </Form>
-</div>
+    </div>
   );
 };
 
