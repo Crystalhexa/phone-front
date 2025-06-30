@@ -3,10 +3,12 @@ import { RoleService } from '@/lib/services/roleService';
 import { UpdateRoleRequest } from '@/types/role';
 import { ApiResponse, initDatabase } from '@/lib/database/connection';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  try {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {  try {
     await initDatabase();
-    const id = params.id;
+    const id = (await params).id;
 
     const role = await RoleService.getRoleById(id);
     if (!role) {
@@ -41,10 +43,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  try {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {  try {
     await initDatabase();
-    const id = params.id;
+    const id = (await params).id;
     const body = (await req.json()) as UpdateRoleRequest;
 
     const updatedRole = await RoleService.updateRole(id, body);
@@ -92,10 +96,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  try {
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {  try {
     await initDatabase();
-    const id = params.id;
+    const id = (await params).id;
 
     const deleted = await RoleService.deleteRole(id);
     if (!deleted) {

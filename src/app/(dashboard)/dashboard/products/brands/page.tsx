@@ -1,5 +1,4 @@
 "use client"
-
 import React from 'react'
 import { DataTable } from '@/components/ui/DataTable/DataTable'
 import { useBrandData } from '@/components/table/BrandTable/useBrandData'

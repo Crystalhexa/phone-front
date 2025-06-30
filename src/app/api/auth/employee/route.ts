@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { ApiResponse, initDatabase, transaction } from '@/lib/database/connection'
+import { ApiResponse, initDatabase, query, transaction } from '@/lib/database/connection'
 import cuid from 'cuid'
 
 // ========= Zod Schemas =========
@@ -28,6 +28,67 @@ const userSchema = z.object({
   employee: employeeSchema
 })
 
+// GET all users with employees
+export async function GET(req: NextRequest) {
+  await initDatabase()
+
+  const { searchParams } = new URL(req.url)
+
+  const page = parseInt(searchParams.get('page') || '1')
+  const limit = parseInt(searchParams.get('limit') || '10')
+  const offset = (page - 1) * limit
+  const search = searchParams.get('search')?.trim()
+  const sortBy = searchParams.get('sortBy') || 'e.name'
+  const sortOrder = searchParams.get('sortOrder')?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'
+
+  try {
+    // Get total count
+    const totalQuery = await query(`
+      SELECT COUNT(*) FROM users u
+      JOIN employees e ON e.user_id = u.id
+      ${search ? `WHERE e.name ILIKE $1 OR e.email ILIKE $1` : ''}
+    `, search ? [`%${search}%`] : [])
+
+    const total = parseInt(totalQuery.rows[0].count)
+
+    // Get paginated data
+    const dataQuery = await query(`
+      SELECT 
+        u.id as user_id, u.username, u.email as user_email, u.is_active as user_active, u.role_id,
+        e.id as employee_id, e.employee_number, e.name, e.email, e.phone, e.nic, e.gender, e.position,
+        e.department, e.date_of_birth, e.hire_date, e.is_active as employee_active
+      FROM users u
+      JOIN employees e ON e.user_id = u.id
+      ${search ? `WHERE e.name ILIKE $1 OR e.email ILIKE $1` : ''}
+      ORDER BY ${sortBy} ${sortOrder}
+      LIMIT $${search ? 2 : 1} OFFSET $${search ? 3 : 2}
+    `, search ? [`%${search}%`, limit, offset] : [limit, offset])
+
+    return NextResponse.json<ApiResponse>({
+      success: true,
+      data: {
+        users: dataQuery.rows,
+        total,
+        page,
+        limit,
+      },
+      message: 'Users fetched successfully',
+      timestamp: new Date().toISOString()
+    }, { status: 200 })
+
+  } catch (err: any) {
+    console.error('❌ GET /users error:', err)
+    return NextResponse.json<ApiResponse>({
+      success: false,
+      data: null,
+      message: 'Failed to fetch users',
+      errors: err.message,
+      timestamp: new Date().toISOString()
+    }, { status: 500 })
+  }
+}
+
+// POST create new user with employee
 export async function POST(req: NextRequest) {
   await initDatabase()
 
@@ -69,24 +130,23 @@ export async function POST(req: NextRequest) {
         ]
       )
 
-      return NextResponse.json<ApiResponse>({
-        success: true,
-        data: {
-          user_id: userId,
-          employee_id: employeeId
-        },
-        message: 'User and employee created successfully',
-        timestamp: new Date().toISOString()
-      }, { status: 201 })
+      return {
+        user_id: userId,
+        employee_id: employeeId
+      }
     })
 
-    return result
+    return NextResponse.json<ApiResponse>({
+      success: true,
+      data: result,
+      message: 'User and employee created successfully',
+      timestamp: new Date().toISOString()
+    }, { status: 201 })
 
   } catch (err: any) {
     console.error('❌ POST /users error:', err)
 
-    // Unique constraint violation
-    if (err.code === '23505') {
+    if (err.code === '23505') {  // Unique constraint violation
       const detail = err.detail || ''
       let field = 'a unique field'
 
@@ -100,16 +160,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json<ApiResponse>({
         success: false,
         data: null,
-        message: [detail].length > 0 ? `${detail}`:"The provided data conflicts with existing records.",
+        message: `Conflict on field: ${field}. ${detail}`,
         timestamp: new Date().toISOString()
-      }, { status: 409 }) // Conflict
+      }, { status: 409 })
     }
 
     return NextResponse.json<ApiResponse>({
       success: false,
       data: null,
-      message: err?.message || 'Internal Server Error',
-      errors: err?.issues || null,
+      message: err.message || 'Internal Server Error',
+      errors: err.issues || null,
       timestamp: new Date().toISOString()
     }, { status: 500 })
   }

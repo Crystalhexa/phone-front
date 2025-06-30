@@ -13,22 +13,29 @@ export const createBrandColumns = (actions: TableAction[]): ColumnDef<Brand>[] =
   {
     accessorKey: "code",
     header: "Code",
+    size: 100,
     cell: ({ row }) => (
-      <div className="font-medium text-gray-300">#{row.getValue("code")}</div>
+      <div className="font-medium text-gray-300 w-[100px] truncate">
+        #{row.getValue("code")}
+      </div>
     ),
   },
   {
     accessorKey: "name",
     header: "Brand Name",
+    size: 200,
     cell: ({ row }) => (
-      <div className="font-medium text-white">{row.getValue("name")}</div>
+      <div className="font-medium text-white w-[200px] truncate">
+        {row.getValue("name")}
+      </div>
     ),
   },
   {
     accessorKey: "description",
     header: "Description",
+    size: 300,
     cell: ({ row }) => (
-      <div className="text-gray-400 max-w-xs truncate">
+      <div className="text-gray-400 max-w-[300px] truncate">
         {row.getValue("description") || "No description"}
       </div>
     ),
@@ -36,6 +43,11 @@ export const createBrandColumns = (actions: TableAction[]): ColumnDef<Brand>[] =
   {
     id: "actions",
     header: "Actions",
-    cell: ({ row }) => <ActionCell actions={actions} row={row.original} />,
+    size: 150,
+    cell: ({ row }) => (
+      <div className="w-[150px]">
+        <ActionCell actions={actions} row={row.original} />
+      </div>
+    ),
   },
 ];

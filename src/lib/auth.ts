@@ -1,9 +1,9 @@
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { query } from './database/connection';
 
 const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET!;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '7d';
 
 export interface JWTPayload {
   userId: string;
@@ -22,8 +22,9 @@ export class AuthService {
     return bcrypt.compare(password, hash);
   }
 
-  static generateToken(payload: JWTPayload): string {
-    return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+   static generateToken(payload: JWTPayload): string {
+    const options: SignOptions = { expiresIn: JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] };
+    return jwt.sign(payload, JWT_SECRET, options);
   }
 
   static verifyToken(token: string): JWTPayload | null {

@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter, redirect } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -7,12 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { z } from 'zod'
 import { ArrowLeft } from 'lucide-react'
-
 import { Form } from '../ui/form'
 import CustomFormField, { FormFieldType } from '../form/CustomFormField'
 import SubmitButton from '../form/SubmitButton'
 import { useGetRolesQuery } from '@/state/api'
 import { Props, RolesApiResponse } from '@/types/roles'
+import { useCreateUserMutation, useUpdateUserMutation } from '@/state/employee'
 
 const userSchema = z.object({
   username: z.string().min(1, 'Username is required'),
@@ -155,44 +154,41 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
     router.push('/dashboard/user/employees')
   }
 
-  const handleSubmit = async (data: UserFormData) => {
-    const url = isEdit ? `/api/auth/employee/${userId}` : '/api/auth/employee'
-    const method = isEdit ? 'PUT' : 'POST'
+  const [createUser, { isLoading: creating }] = useCreateUserMutation()
+const [updateUser, { isLoading: updating }] = useUpdateUserMutation()
 
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
 
-      const result = await res.json()
+ const handleSubmit = async (data: UserFormData) => {
+  try {
+    let result
+    if (isEdit && userId) {
+      result = await updateUser({ id: userId, body: data }).unwrap()
+      toast.success('User updated successfully!')
+      router.push('/dashboard/user/employees')
+    } else {
+      result = await createUser(data).unwrap()
+      toast.success('User created successfully!')
 
-      if (!res.ok) {
-        toast.error(`User ${isEdit ? 'updated' : 'created'} unsuccessfully! ${result.message}`)
-      } else if (result.success) {
-      toast.success(`User ${isEdit ? 'updated' : 'created'} successfully!`)
+      form.reset()
+
+      // Generate new employee number
+      const generateEmployeeNumber = () => {
+        const now = new Date()
+        const year = now.getFullYear()
+        const month = String(now.getMonth() + 1).padStart(2, '0')
+        const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0')
+        return `EMP${year}${month}${random}`
       }
 
-      if (!isEdit) {
-        form.reset()
-        // Generate new employee number for next user
-        const generateEmployeeNumber = () => {
-          const now = new Date()
-          const year = now.getFullYear()
-          const month = String(now.getMonth() + 1).padStart(2, '0')
-          const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0')
-          return `EMP${year}${month}${random}`
-        }
-        form.setValue('employee.employee_number', generateEmployeeNumber())
-      } else {
-        router.push('/dashboard/user/employees')
-      }
-    } catch (err: any) {
-      toast.error(err.message || 'Submission failed')
-      console.error('Submission error:', err)
+      form.setValue('employee.employee_number', generateEmployeeNumber())
     }
+  } catch (err: any) {
+    console.error('Submission error:', err)
+    const message = err?.data?.message || err?.message || 'Submission failed'
+    toast.error(`User ${isEdit ? 'update' : 'creation'} failed! ${message}`)
   }
+}
+
 
   if (loading) return <p className="text-center py-10">Loading user data...</p>
 
@@ -361,6 +357,7 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
           )}
 
           <div className="pt-4">
+            
             <SubmitButton
               isLoading={form.formState.isSubmitting}
               className="w-full py-3 text-lg font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-md transition disabled:opacity-50"

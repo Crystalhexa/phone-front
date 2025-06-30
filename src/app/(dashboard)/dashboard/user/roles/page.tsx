@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Edit, Trash2, Shield, Loader2, AlertCircle } from 'lucide-react';
-import { CreateRoleRequest, UpdateRoleRequest, RoleWithPermissions, Permission } from '@/types/role';
+import {RoleWithPermissions, Permission } from '@/types/role';
 import { useCreateRoleMutation, useDeleteRoleMutation, useGetAllPermissionsQuery, useGetAllRolesQuery, useUpdateRoleMutation } from '@/state/role';
 
 interface RoleFormData {
@@ -248,12 +248,12 @@ export default function RoleManagementWithAPI() {
   const error = rolesError ? 'Failed to load roles.' : null;
 
 
-  const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(null);
+  const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | undefined>(undefined);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   const handleCreateRole = () => {
-    setSelectedRole(null);
+    setSelectedRole(undefined);
     setIsDialogOpen(true);
   };
 
@@ -271,7 +271,7 @@ export default function RoleManagementWithAPI() {
         await createRole(data).unwrap();
       }
       setIsDialogOpen(false);
-      setSelectedRole(null);
+      setSelectedRole(undefined);
       refetchRoles(); // optional, but ensures sync
     } catch (err) {
       console.error('Error saving role:', err);
