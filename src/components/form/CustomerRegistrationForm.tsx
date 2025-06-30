@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,8 +6,10 @@ import { toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 import { z } from 'zod';
 import { Form } from '../ui/form';
-import CustomFormField, { FormFieldType } from './common/CustomFormField';
+import CustomFormField, { FormFieldType } from '../form/CustomFormField'
 import { useAddCustomerMutation, useGetCustomerByIdQuery, useUpdateCustomerMutation } from '@/state/customer';
+import { ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 // Customer form data type
 interface CustomerFormData {
@@ -58,7 +59,7 @@ const createCustomerSchema = (config: CustomerFormConfig) => {
       .max(255, "Email must be at most 255 characters")
       .optional()
       .or(z.literal("")),
-    nic: config.requireNIC 
+    nic: config.requireNIC
       ? z.string().min(1, "NIC is required").max(20, "NIC must be at most 20 characters")
       : z.string().max(20, "NIC must be at most 20 characters").optional(),
     phone: config.requirePhone
@@ -189,6 +190,7 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
     ...DEFAULT_CUSTOMER_CONFIG,
     ...userConfig,
   }), [userConfig]);
+  const router = useRouter()
 
   const customerSchema = useMemo(() => createCustomerSchema(config), [config]);
 
@@ -293,6 +295,9 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
 
     toast.success('Customer data exported successfully!');
   };
+  const handleBack = () => {
+    router.push('/dashboard/user/employees')
+  }
 
   // Handle loading states
   if (isEdit && isCustomerLoading) {
@@ -319,16 +324,26 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
   const isLoading = isAddingCustomer || isUpdatingCustomer;
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-2 sm:p-4">
+    <div className="p-4 sm:p-6 md:p-8 max-w-screen-xl mx-auto">
+          <div className="mb-6">
+            <button
+              onClick={handleBack}
+              type="button"
+              className="text-blue-500 flex items-center text-lg hover:text-blue-600 transition-colors"
+            >
+              <ArrowLeft className="mr-2" />
+              Back
+            </button>
+          </div>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 ">
+          {/* Header */}
           <CustomerFormHeader isEdit={isEdit} title={title} />
 
           {/* Basic Information Section */}
-          <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
@@ -338,7 +353,6 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
                 disabled={isLoading}
                 required
               />
-
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
@@ -348,23 +362,21 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
                 disabled={isLoading}
                 required
               />
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="email"
+                label="Email"
+                placeholder="Enter email address"
+                disabled={isLoading}
+              />
             </div>
-
-            <CustomFormField
-              fieldType={FormFieldType.INPUT}
-              control={form.control}
-              name="email"
-              label="Email"
-              placeholder="Enter email address"
-              disabled={isLoading}
-            />
           </div>
 
           {/* Contact Information Section */}
-          <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900">Contact Information</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           <div className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
@@ -374,7 +386,6 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
                 disabled={isLoading}
                 required={config.requirePhone}
               />
-
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
@@ -384,8 +395,14 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
                 disabled={isLoading}
                 required={config.requireNIC}
               />
+              <CustomFormField
+                fieldType={FormFieldType.INPUT}
+                control={form.control}
+                name="date_of_birth"
+                label="Date of Birth"
+                disabled={isLoading}
+              />
             </div>
-
             <CustomFormField
               fieldType={FormFieldType.TEXTAREA}
               control={form.control}
@@ -394,22 +411,13 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
               placeholder="Enter full address"
               disabled={isLoading}
             />
-
-            <CustomFormField
-              fieldType={FormFieldType.INPUT}
-              control={form.control}
-              name="date_of_birth"
-              label="Date of Birth"
-              disabled={isLoading}
-            />
           </div>
 
           {/* Financial Information Section */}
           {(config.showCreditLimit || config.showLoyaltyPoints) && (
-            <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-              <h3 className="text-lg font-semibold text-gray-900">Financial Information</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">Employee Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {config.showCreditLimit && (
                   <CustomFormField
                     fieldType={FormFieldType.INPUT}
@@ -418,10 +426,8 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
                     label="Credit Limit"
                     placeholder="Enter credit limit"
                     disabled={isLoading}
-                    
                   />
                 )}
-
                 <CustomFormField
                   fieldType={FormFieldType.INPUT}
                   control={form.control}
@@ -429,36 +435,22 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
                   label="Outstanding Balance"
                   placeholder="Enter outstanding balance"
                   disabled={isLoading}
-                
                 />
+                {config.showLoyaltyPoints && (
+                  <CustomFormField
+                    fieldType={FormFieldType.INPUT}
+                    control={form.control}
+                    name="loyalty_points"
+                    label="Loyalty Points"
+                    placeholder="Enter loyalty points"
+                    disabled={isLoading}
+                  />
+                )}
               </div>
-
-              {config.showLoyaltyPoints && (
-                <CustomFormField
-                  fieldType={FormFieldType.INPUT}
-                  control={form.control}
-                  name="loyalty_points"
-                  label="Loyalty Points"
-                  placeholder="Enter loyalty points"
-                  disabled={isLoading}
-                
-                />
-              )}
             </div>
           )}
 
           {/* Status Section */}
-          <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900">Status</h3>
-            
-            <CustomFormField
-              fieldType={FormFieldType.CHECKBOX}
-              control={form.control}
-              name="is_active"
-              label="Active Customer"
-              disabled={isLoading}
-            />
-          </div>
 
           {/* Form Actions */}
           <CustomerFormActions
@@ -471,7 +463,7 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
           />
         </form>
       </Form>
-    </div>
+</div>
   );
 };
 
