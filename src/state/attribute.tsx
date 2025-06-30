@@ -1,8 +1,6 @@
 import { AttributeApiResponse, AttributeFormData, AttributeRequestBody, AttributesListResponse, DeleteAttributeResponse, GetAttributesParams } from "@/types/attribute";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
-
-
 export const attributesApi = createApi({
   reducerPath: "attributesApi",
   baseQuery: fetchBaseQuery({ baseUrl: "/api" }),

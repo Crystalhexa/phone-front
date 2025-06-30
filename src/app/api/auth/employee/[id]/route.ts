@@ -24,8 +24,12 @@ const updateSchema = z.object({
     is_active: z.boolean()
   })
 })
-export async function GET(request: NextRequest, context: { params: { id: string } }) {
-  const { id } = context.params
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+        const { id: idParam } = await params;
+  const id = idParam;
   await initDatabase()
 
   try {
@@ -76,9 +80,13 @@ export async function GET(request: NextRequest, context: { params: { id: string 
 
 
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  await initDatabase()
-
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+    await initDatabase()
+  const { id: idParam } = await params;
+  const id = idParam;
   try {
     const body = updateSchema.parse(await req.json())
     const { employee } = body
@@ -94,7 +102,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         body.email,
         body.is_active,
         body.role_id,
-        params.id
+        id
       ])
 
       await client.query(
@@ -115,7 +123,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           employee.date_of_birth,
           employee.hire_date,
           employee.is_active,
-          params.id
+          id
         ]
       )
     })
@@ -127,13 +135,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {  
   await initDatabase()
-
+  const { id: idParam } = await params;
+  const id = idParam;
   try {
     await transaction(async client => {
-      await client.query('DELETE FROM employees WHERE user_id = $1', [params.id])
-      await client.query('DELETE FROM users WHERE id = $1', [params.id])
+      await client.query('DELETE FROM employees WHERE user_id = $1', [id])
+      await client.query('DELETE FROM users WHERE id = $1', [id])
     })
 
     return NextResponse.json({ success: true, message: 'User deleted successfully' })

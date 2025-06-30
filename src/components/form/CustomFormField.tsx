@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { Control, FieldPath, FieldValues } from "react-hook-form";
 import {
   Select,
@@ -24,6 +23,7 @@ import PhoneInput from "react-phone-number-input";
 import { E164Number } from "libphonenumber-js/core";
 import { DatePicker } from "../date-picker";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 export enum FormFieldType {
   INPUT = "input",
