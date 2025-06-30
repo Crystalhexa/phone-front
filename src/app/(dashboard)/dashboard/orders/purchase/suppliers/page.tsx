@@ -28,7 +28,7 @@ const page = () => {
   }, []);
 
   const handleAddEmployee = ()=>{
-    redirect('/dashboard/user/employees/register')
+    redirect('/dashboard/orders/purchase/suppliers/register')
   }
 
   return (
