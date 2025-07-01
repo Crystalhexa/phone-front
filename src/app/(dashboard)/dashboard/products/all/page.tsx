@@ -20,27 +20,27 @@ import { useCategoryData } from '@/components/table/CategoryTable/useCategoryDat
 // 🧪 Enhanced Validation Schema
 const variationSchema = z.object({
   id: z.string(),
-  attributes: z.record(z.string()),
-  sku: z.string().min(1, "SKU is required"),
+  attributes: z.record(z.string()).refine((attrs) => {
+    // Ensure at least one attribute is selected for each variation
+    return Object.keys(attrs).length > 0;
+  }, {
+    message: "Each variation must have at least one attribute combination"
+  }),
+  name: z.string().min(1, "Variation name is required"),
+  sku: z.string().min(1, "SKU is required for each variation"),
+  barcode: z.string().min(1, "Barcode is required for each variation"),
   costPrice: z.number().min(0, "Cost price must be positive"),
   wholesalePrice: z.number().optional(),
   retailPrice: z.number().min(0, "Retail price must be positive"),
   stockQuantity: z.number().min(0, "Stock quantity must be positive"),
   lowStockThreshold: z.number().min(0, "Low stock threshold must be positive"),
-  barcode: z.string().optional(),
-  weight: z.number().optional(),
-  dimensions: z.object({
-    length: z.number(),
-    width: z.number(),
-    height: z.number(),
-  }).optional(),
 });
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   description: z.string().optional(),
   categoryId: z.string().min(1, "Category is required"),
-  subcategoryId: z.string().optional(),
+  subcategoryId: z.string().min(1, "Subcategory is required"), // Always required
   brandId: z.string().optional(),
   sku: z.string().optional(),
   barcode: z.string().optional(),
@@ -54,17 +54,31 @@ const productSchema = z.object({
   selectedAttributes: z.array(z.string()).optional(),
   variations: z.array(variationSchema).optional(),
 }).refine((data) => {
-  // For simple products, require pricing fields
+  // For simple (non-variable) products
   if (!data.isVariable) {
-    return data.retailPrice !== undefined && data.retailPrice > 0;
+    // Required: name, barcode, subcategoryId (already handled above)
+    return data.barcode && data.barcode.length > 0;
   }
-  // For variable products, require variations
+  
+  // For variable products
   if (data.isVariable) {
-    return data.variations && data.variations.length > 0;
+    // Must have variations with proper attributes and required fields
+    if (!data.variations || data.variations.length === 0) {
+      return false;
+    }
+    
+    // Each variation must have: name, barcode, sku, subcategoryId, and attribute combination
+    return data.variations.every(variation => 
+      variation.name && 
+      variation.barcode && 
+      variation.sku && 
+      Object.keys(variation.attributes).length > 0
+    );
   }
+  
   return true;
 }, {
-  message: "Invalid product configuration",
+  message: "Please ensure all required fields are filled correctly",
   path: ["root"]
 });
 
@@ -72,19 +86,14 @@ const productSchema = z.object({
 type VariationData = {
   id: string;
   attributes: { [key: string]: string };
+  name: string; // Added name field
   sku: string;
   costPrice: number;
   wholesalePrice?: number;
   retailPrice: number;
   stockQuantity: number;
   lowStockThreshold: number;
-  barcode?: string;
-  weight?: number;
-  dimensions?: {
-    length: number;
-    width: number;
-    height: number;
-  };
+  barcode: string; // Made required
 };
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -98,6 +107,7 @@ const DEFAULT_VALUES: Partial<ProductFormData> = {
   lowStockThreshold: 5,
   costPrice: 0,
   retailPrice: 0,
+  wholesalePrice:0,
   isVariable: false,
   selectedAttributes: [],
   variations: [],
@@ -197,13 +207,17 @@ export default function VariableProductForm() {
   const simulateBarcodeScan = () => {
     setIsScanning(true);
     setTimeout(() => {
-      setValue('barcode', `${Date.now()}`.substring(0, 12));
+      const newBarcode = `${Date.now()}`.substring(0, 12);
+      setValue('barcode', newBarcode);
       setIsScanning(false);
+      trigger('barcode'); // Trigger validation for barcode
     }, 2000);
   };
 
   const generateCustomBarcode = () => {
-    setValue('barcode', Math.random().toString().substring(2, 14));
+    const newBarcode = Math.random().toString().substring(2, 14);
+    setValue('barcode', newBarcode);
+    trigger('barcode'); // Trigger validation for barcode
   };
 
   const updateVariation = (index: number, field: string, value: any) => {
@@ -231,6 +245,10 @@ export default function VariableProductForm() {
       }
       return { ...prev, [attributeId]: values };
     });
+  };
+
+  const generateVariationBarcode = () => {
+    return Math.random().toString().substring(2, 14);
   };
 
   const handleGenerateVariations = () => {
@@ -268,10 +286,16 @@ export default function VariableProductForm() {
 
       const fullSKU = `${skuBase}-${variationPart}`.toUpperCase();
 
+      // Generate variation name based on product name and attributes
+      const attributeString = combo.map(val => val.value).join(' / ');
+      const variationName = `${watchedName} - ${attributeString}`;
+
       return {
         id: `variation-${Date.now()}-${index}`,
         attributes,
+        name: variationName, // Required field
         sku: fullSKU,
+        barcode: generateVariationBarcode(), // Required field
         costPrice: 0,
         retailPrice: 0,
         stockQuantity: 0,
@@ -300,7 +324,33 @@ export default function VariableProductForm() {
 
   // 📤 Submit Handler
   const onSubmit = async (data: ProductFormData) => {
-    console.log(data)
+    console.log('Form submission data:', data);
+    
+    // Additional client-side validation
+    if (!isVariable && !data.barcode) {
+      setSubmitStatus('error');
+      alert('Barcode is required for non-variable products');
+      return;
+    }
+
+    if (isVariable && (!data.variations || data.variations.length === 0)) {
+      setSubmitStatus('error');
+      alert('At least one variation is required for variable products');
+      return;
+    }
+
+    if (isVariable && data.variations) {
+      const invalidVariations = data.variations.filter(v => 
+        !v.name || !v.barcode || !v.sku || Object.keys(v.attributes).length === 0
+      );
+      
+      if (invalidVariations.length > 0) {
+        setSubmitStatus('error');
+        alert('All variations must have name, barcode, SKU, and attribute combinations');
+        return;
+      }
+    }
+
     try {
       setSubmitStatus('submitting');
 
@@ -308,7 +358,7 @@ export default function VariableProductForm() {
       const payload = {
         name: data.name!,
         description: data.description || null,
-        subcategory_id: data.subcategoryId || null,
+        subcategory_id: data.subcategoryId!, // Required field
         brand_id: data.brandId || null,
         is_variable: data.isVariable || false,
         attributes: data.isVariable 
@@ -319,18 +369,14 @@ export default function VariableProductForm() {
         variations: data.isVariable && data.variations
           ? data.variations.map(variation => ({
               sku: variation.sku,
-              name: data.name!,
+              name: variation.name, // Required for variations
               cost_price: variation.costPrice,
               wholesale_price: variation.wholesalePrice || null,
               retail_price: variation.retailPrice,
               stock_quantity: variation.stockQuantity,
               low_stock_threshold: variation.lowStockThreshold,
               warranty_period: data.warrantyPeriod || null,
-              barcode: variation.barcode || null,
-              weight: variation.weight || null,
-              length: variation.dimensions?.length || null,
-              width: variation.dimensions?.width || null,
-              height: variation.dimensions?.height || null,
+              barcode: variation.barcode, // Required for variations
               attributes: Object.entries(variation.attributes).map(([attrId, attrValueId]) => ({
                 attribute_id: attrId,
                 attribute_value_id: attrValueId,
@@ -345,7 +391,7 @@ export default function VariableProductForm() {
           stock_quantity: data.stockQuantity || 0,
           low_stock_threshold: data.lowStockThreshold || 5,
           warranty_period: data.warrantyPeriod || null,
-          barcode: data.barcode || null,
+          barcode: data.barcode || null, // Required for non-variable products
         }
       };
 
@@ -384,6 +430,20 @@ export default function VariableProductForm() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Add New Product</h1>
           <p className="text-gray-600 dark:text-gray-400">Create a product with variations and detailed info</p>
+          
+          {/* Required Fields Info */}
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Required Fields:</h3>
+            {!isVariable ? (
+              <p className="text-blue-800 dark:text-blue-200 text-sm">
+                <strong>Non-Variable Product:</strong> Product Name, Barcode, Subcategory
+              </p>
+            ) : (
+              <p className="text-blue-800 dark:text-blue-200 text-sm">
+                <strong>Variable Product:</strong> Product Name, Subcategory, and for each variation: Name, Barcode, SKU, Attribute Combination
+              </p>
+            )}
+          </div>
         </div>
 
         {/* 🔔 Status */}

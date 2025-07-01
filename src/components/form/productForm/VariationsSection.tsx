@@ -78,7 +78,6 @@ export const VariationsSection = ({
                   <th className="text-left p-2 font-medium text-gray-900 dark:text-gray-100">Stock</th>
                   <th className="text-left p-2 font-medium text-gray-900 dark:text-gray-100">Low Stock</th>
                   <th className="text-left p-2 font-medium text-gray-900 dark:text-gray-100">Barcode</th>
-                  <th className="text-left p-2 font-medium text-gray-900 dark:text-gray-100">Weight</th>
                   <th className="text-left p-2 font-medium text-gray-900 dark:text-gray-100">Actions</th>
                 </tr>
               </thead>
@@ -212,24 +211,7 @@ export const VariationsSection = ({
                       )}
                     </td>
 
-                    {/* Weight */}
-                    <td className="p-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={variation.weight || ''}
-                        onChange={(e) =>
-                          onUpdateVariation(index, "weight", e.target.value ? parseFloat(e.target.value) : undefined)
-                        }
-                        className="w-24 text-sm"
-                        placeholder="kg"
-                      />
-                      {errors?.[index]?.weight && (
-                        <p className="text-xs text-red-500 mt-1">{errors[index]?.weight?.message}</p>
-                      )}
-                    </td>
-
+        
                     {/* Delete Button */}
                     <td className="p-2">
                       <Button
