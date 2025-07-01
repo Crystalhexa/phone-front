@@ -19,6 +19,7 @@ export const useCategoryData = () => {
     sortOrder: 'asc'
   });
 
+  console.log(data, isLoading, error, totalPages);
   // Handle search with debouncing
   const handleSearch = (value: string) => {
     setSearchTerm(value);

@@ -25,12 +25,14 @@ const corsHeaders = {
 
 // --- GET: Get Customer by ID ---
 export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await initDatabase();
-    const result = await query('SELECT * FROM customers WHERE id = $1', [params.id]);
+      const { id: idParam } = await params;
+  const id = idParam;
+    const result = await query('SELECT * FROM customers WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
       return NextResponse.json(
@@ -56,8 +58,10 @@ export async function GET(
 // --- PUT: Update Customer ---
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id: idParam } = await params;
+  const id = idParam;
   try {
     await initDatabase();
     const json = await req.json();
@@ -95,7 +99,7 @@ export async function PUT(
         data.outstanding_balance,
         data.loyalty_points,
         data.is_active,
-        params.id,
+        id,
       ];
 
       const res = await client.query(updateQuery, values);
@@ -122,12 +126,14 @@ export async function PUT(
 
 // --- DELETE: Remove Customer ---
 export async function DELETE(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id: idParam } = await params;
+  const id = idParam;
   try {
     await initDatabase();
-    const res = await query('DELETE FROM customers WHERE id = $1 RETURNING *', [params.id]);
+    const res = await query('DELETE FROM customers WHERE id = $1 RETURNING *', [id]);
 
     if (res.rows.length === 0) {
       return NextResponse.json({ success: false, message: 'Customer not found' }, { status: 404 });

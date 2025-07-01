@@ -22,11 +22,16 @@ const corsHeaders = {
 };
 
 // GET /api/suppliers/[id]
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
-  try {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+       const { id: idParam } = await params;
+  const id = idParam;
     await initDatabase();
 
-    const result = await query(`SELECT * FROM suppliers WHERE id = $1`, [params.id]);
+    const result = await query(`SELECT * FROM suppliers WHERE id = $1`, [id]);
 
     if (result.rowCount === 0) {
       return NextResponse.json({
@@ -54,8 +59,14 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
 }
 
 // PUT /api/suppliers/[id]
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  await initDatabase();
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+
+  const { id: idParam } = await params;
+  const id = idParam;
+    await initDatabase();
 
   try {
     const json = await req.json();
@@ -88,7 +99,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         data.sales_rep_name ?? null,
         data.sales_rep_phone ?? null,
         data.is_active,
-        params.id,
+        id,
       ];
 
       const result = await client.query(updateQuery, values);
@@ -120,13 +131,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE /api/suppliers/[id] — Soft delete
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
-  await initDatabase();
+export async function DELETE(
+  _: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: idParam } = await params;
+  const id = idParam;  await initDatabase();
 
   try {
     const result = await query(
       `UPDATE suppliers SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [params.id]
+      [id]
     );
 
     if (result.rowCount === 0) {
