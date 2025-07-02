@@ -1,84 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { withRateLimit } from '@/lib/middleware/rate-limit';
-import { ProductService } from '@/lib/services/ProductService';
-import { ProductValidator } from '@/lib/validations/ProductValidator';
-import { ApiError } from '@/lib/type/api';
-import { CreateProductRequest } from '@/lib/type/product';
-import { createSuccessResponse, handleApiError } from '@/lib/utils/apiHelpers';
-import { logger } from '@/lib/utils/logger';
-import { validateRequestBody } from '@/lib/utils/validation';
-
 /**
- * POST /api/products
- * Creates a new product with variations
- */
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  const startTime = Date.now();
-  const requestId = crypto.randomUUID();
-  
-  try {
-    logger.info('Product creation started', { requestId });
-
-    // Apply middleware
-    // const authResult = await withAuth(request);
-    // if (!authResult.success) {
-    //   return handleApiError(new ApiError('Unauthorized', 401, 'AUTH_REQUIRED'), requestId);
-    // }
-
-    const rateLimitResult = await withRateLimit(request, 'create_product', 10, 60); // 10 requests per minute
-    if (!rateLimitResult.success) {
-      return handleApiError(new ApiError('Rate limit exceeded', 429, 'RATE_LIMIT'), requestId);
-    }
-
-    // Validate request body
-    const validationResult = await validateRequestBody<CreateProductRequest>(
-      request,
-      ProductValidator.createProductSchema
-    );
-
-    if (!validationResult.success) {
-      return handleApiError(validationResult.error, requestId);
-    }
-
-    // Create product using service
-    const productService = new ProductService();
-    const result = await productService.createProduct(validationResult.data!, {
-      requestId,
-    });
-
-    const duration = Date.now() - startTime;
-    logger.info('Product created successfully', { 
-      requestId, 
-      productId: result.productId, 
-      duration 
-    });
-
-    return createSuccessResponse(
-      result,
-      'Product created successfully',
-      201,
-      requestId
-    );
-
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    logger.error('Product creation failed', { 
-      requestId, 
-      error: error instanceof Error ? error.message : 'Unknown error',
-      duration 
-    });
-
-    return handleApiError(error, requestId);
-  }
-}
-
-/**
- * GET /api/products
+ * GET /api/products - DEBUG VERSION
  * Retrieves products with pagination and search
  */
 
 import { initDatabase, query } from '@/lib/database/connection';
 import { z } from 'zod';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Zod schema for query parameters validation
 const queryParamsSchema = z.object({
@@ -107,9 +34,13 @@ const corsHeaders = {
 // GET handler — list products with flexible filtering and includes
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔍 Starting product fetch...');
+    
     await initDatabase();
+    console.log('✅ Database initialized');
 
     const { searchParams } = new URL(request.url);
+    console.log('📝 Raw search params:', Object.fromEntries(searchParams.entries()));
     
     // Parse and validate query parameters
     const params = queryParamsSchema.parse({
@@ -129,9 +60,45 @@ export async function GET(request: NextRequest) {
       price_max: searchParams.get('price_max'),
     });
 
-    const offset = (params.page - 1) * params.limit;
+    console.log('✅ Parsed params:', params);
 
-    // Build base query
+    const offset = (params.page - 1) * params.limit;
+    console.log(`📊 Pagination: limit=${params.limit}, offset=${offset}`);
+
+    // First, let's check if we have any products at all
+    const countQuery = 'SELECT COUNT(*) as total FROM products';
+    const countResult = await query(countQuery, []);
+    const totalProducts = parseInt(countResult.rows[0].total);
+    console.log(`📈 Total products in database: ${totalProducts}`);
+
+    if (totalProducts === 0) {
+      console.log('⚠️ No products found in database');
+      return NextResponse.json({
+        success: true,
+        data: {
+          products: [],
+          total: 0,
+          limit: params.limit,
+          page: params.page,
+          totalPages: 0,
+          filters: {
+            search: params.search,
+            category_id: params.category_id,
+            subcategory_id: params.subcategory_id,
+            brand_id: params.brand_id,
+            stock_filter: params.stock_filter,
+            price_range: {
+              min: params.price_min,
+              max: params.price_max
+            }
+          }
+        },
+        message: 'No products found in database',
+        timestamp: new Date().toISOString(),
+      }, { headers: corsHeaders });
+    }
+
+    // Build base query with better error handling
     let baseQuery = `
       WITH filtered_products AS (
         SELECT DISTINCT
@@ -142,12 +109,12 @@ export async function GET(request: NextRequest) {
           p.brand_id,
           p.created_at, 
           p.updated_at,
-          s.name as subcategory_name,
-          c.id as category_id,
-          c.name as category_name,
-          b.name as brand_name,
-          b.code as brand_code,
-          b.logo_url as brand_logo,
+          COALESCE(s.name, 'No Subcategory') as subcategory_name,
+          COALESCE(c.id, '') as category_id,
+          COALESCE(c.name, 'No Category') as category_name,
+          COALESCE(b.name, 'No Brand') as brand_name,
+          COALESCE(b.code, '') as brand_code,
+          COALESCE(b.logo_url, '') as brand_logo,
           COUNT(*) OVER() AS total_count
         FROM products p
         LEFT JOIN subcategories s ON p.subcategory_id = s.id
@@ -166,11 +133,12 @@ export async function GET(request: NextRequest) {
       whereConditions.push(`(
         p.name ILIKE $${paramCount} OR 
         p.description ILIKE $${paramCount} OR 
-        b.name ILIKE $${paramCount} OR 
-        s.name ILIKE $${paramCount} OR
-        c.name ILIKE $${paramCount}
+        COALESCE(b.name, '') ILIKE $${paramCount} OR 
+        COALESCE(s.name, '') ILIKE $${paramCount} OR
+        COALESCE(c.name, '') ILIKE $${paramCount}
       )`);
       queryParams.push(`%${params.search}%`);
+      console.log(`🔍 Search filter: "${params.search}"`);
     }
 
     // Category filter
@@ -178,6 +146,7 @@ export async function GET(request: NextRequest) {
       paramCount++;
       whereConditions.push(`c.id = $${paramCount}`);
       queryParams.push(params.category_id);
+      console.log(`📂 Category filter: ${params.category_id}`);
     }
 
     // Subcategory filter
@@ -185,6 +154,7 @@ export async function GET(request: NextRequest) {
       paramCount++;
       whereConditions.push(`p.subcategory_id = $${paramCount}`);
       queryParams.push(params.subcategory_id);
+      console.log(`📁 Subcategory filter: ${params.subcategory_id}`);
     }
 
     // Brand filter
@@ -192,53 +162,65 @@ export async function GET(request: NextRequest) {
       paramCount++;
       whereConditions.push(`p.brand_id = $${paramCount}`);
       queryParams.push(params.brand_id);
+      console.log(`🏷️ Brand filter: ${params.brand_id}`);
     }
 
     // Stock filter (requires joining with variations)
+    let hasVariationJoin = false;
     if (params.stock_filter !== 'all') {
       baseQuery += ` LEFT JOIN product_variations pv ON p.id = pv.product_id`;
+      hasVariationJoin = true;
       
       switch (params.stock_filter) {
         case 'in_stock':
-          whereConditions.push(`pv.stock_quantity > pv.low_stock_threshold`);
+          whereConditions.push(`pv.stock_quantity > COALESCE(pv.low_stock_threshold, 0)`);
           break;
         case 'low_stock':
-          whereConditions.push(`pv.stock_quantity > 0 AND pv.stock_quantity <= pv.low_stock_threshold`);
+          whereConditions.push(`pv.stock_quantity > 0 AND pv.stock_quantity <= COALESCE(pv.low_stock_threshold, 0)`);
           break;
         case 'out_of_stock':
-          whereConditions.push(`pv.stock_quantity = 0`);
+          whereConditions.push(`COALESCE(pv.stock_quantity, 0) = 0`);
           break;
       }
+      console.log(`📦 Stock filter: ${params.stock_filter}`);
     }
 
     // Price filter (requires joining with variations)
     if (params.price_min !== undefined || params.price_max !== undefined) {
-      if (!params.stock_filter || params.stock_filter === 'all') {
+      if (!hasVariationJoin) {
         baseQuery += ` LEFT JOIN product_variations pv ON p.id = pv.product_id`;
+        hasVariationJoin = true;
       }
       
       if (params.price_min !== undefined) {
         paramCount++;
-        whereConditions.push(`pv.retail_price >= $${paramCount}`);
+        whereConditions.push(`COALESCE(pv.retail_price, 0) >= $${paramCount}`);
         queryParams.push(params.price_min);
+        console.log(`💰 Min price filter: ${params.price_min}`);
       }
       
       if (params.price_max !== undefined) {
         paramCount++;
-        whereConditions.push(`pv.retail_price <= $${paramCount}`);
+        whereConditions.push(`COALESCE(pv.retail_price, 0) <= $${paramCount}`);
         queryParams.push(params.price_max);
+        console.log(`💰 Max price filter: ${params.price_max}`);
       }
     }
 
     // Add WHERE clause if conditions exist
     if (whereConditions.length > 0) {
       baseQuery += ` WHERE ${whereConditions.join(' AND ')}`;
+      console.log(`🔍 WHERE conditions: ${whereConditions.join(' AND ')}`);
     }
 
+    // Validate sortBy column exists
+    const validSortColumns = ['name', 'id', 'created_at', 'updated_at'];
+    const sortColumn = validSortColumns.includes(params.sortBy) ? params.sortBy : 'name';
+    
     // Add ORDER BY and pagination
     paramCount += 2;
     baseQuery += `
-        ORDER BY p.${params.sortBy} ${params.sortOrder}
+        ORDER BY p.${sortColumn} ${params.sortOrder}
         LIMIT $${paramCount - 1} OFFSET $${paramCount}
       )
       SELECT * FROM filtered_products
@@ -246,18 +228,28 @@ export async function GET(request: NextRequest) {
 
     queryParams.push(params.limit, offset);
 
+    console.log('🔍 Final query:', baseQuery);
+    console.log('🔍 Query params:', queryParams);
+
     // Execute main query
     const result = await query(baseQuery, queryParams);
+    console.log(`📊 Query returned ${result.rows.length} rows`);
+
     const products = result.rows;
     const total = products.length > 0 ? parseInt(products[0].total_count, 10) : 0;
+
+    console.log(`📈 Total filtered products: ${total}`);
 
     // Clean up the total_count from results
     const cleanProducts = products.map(({ total_count, ...rest }) => rest);
 
     // Fetch additional data if requested
     if (params.include_variations === 'true' || params.include_attributes === 'true' || params.include_stock === 'true') {
+      console.log('🔄 Enriching product data...');
       await enrichProductData(cleanProducts, params);
     }
+
+    console.log('✅ Final products:', cleanProducts);
 
     return NextResponse.json({
       success: true,
@@ -277,6 +269,12 @@ export async function GET(request: NextRequest) {
             min: params.price_min,
             max: params.price_max
           }
+        },
+        debug: {
+          totalProductsInDB: totalProducts,
+          hasFilters: whereConditions.length > 0,
+          appliedFilters: whereConditions,
+          queryParams: queryParams
         }
       },
       message: 'Products retrieved successfully',
@@ -284,9 +282,11 @@ export async function GET(request: NextRequest) {
     }, { headers: corsHeaders });
 
   } catch (error: any) {
-    console.error('Product fetch error:', error);
+    console.error('❌ Product fetch error:', error);
+    console.error('❌ Error stack:', error.stack);
     
     if (error instanceof z.ZodError) {
+      console.error('❌ Zod validation errors:', error.errors);
       return NextResponse.json({
         success: false,
         message: 'Invalid query parameters',
@@ -310,10 +310,16 @@ export async function GET(request: NextRequest) {
 async function enrichProductData(products: any[], params: any) {
   const productIds = products.map(p => p.id);
   
-  if (productIds.length === 0) return;
+  if (productIds.length === 0) {
+    console.log('⚠️ No products to enrich');
+    return;
+  }
+
+  console.log(`🔄 Enriching ${productIds.length} products...`);
 
   // Fetch variations if requested
   if (params.include_variations === 'true') {
+    console.log('📸 Fetching variations...');
     const variationsQuery = `
       SELECT 
         pv.*,
@@ -347,20 +353,27 @@ async function enrichProductData(products: any[], params: any) {
       ORDER BY pv.created_at
     `;
 
-    const variationsResult = await query(variationsQuery, [productIds]);
-    const variationsByProduct = variationsResult.rows.reduce((acc, variation) => {
-      if (!acc[variation.product_id]) acc[variation.product_id] = [];
-      acc[variation.product_id].push(variation);
-      return acc;
-    }, {});
+    try {
+      const variationsResult = await query(variationsQuery, [productIds]);
+      console.log(`📸 Found ${variationsResult.rows.length} variations`);
+      
+      const variationsByProduct = variationsResult.rows.reduce((acc, variation) => {
+        if (!acc[variation.product_id]) acc[variation.product_id] = [];
+        acc[variation.product_id].push(variation);
+        return acc;
+      }, {});
 
-    products.forEach(product => {
-      product.variations = variationsByProduct[product.id] || [];
-    });
+      products.forEach(product => {
+        product.variations = variationsByProduct[product.id] || [];
+      });
+    } catch (error) {
+      console.error('❌ Error fetching variations:', error);
+    }
   }
 
   // Fetch attributes if requested
   if (params.include_attributes === 'true') {
+    console.log('🏷️ Fetching attributes...');
     const attributesQuery = `
       SELECT 
         pa.product_id,
@@ -377,68 +390,80 @@ async function enrichProductData(products: any[], params: any) {
       GROUP BY pa.product_id
     `;
 
-    const attributesResult = await query(attributesQuery, [productIds]);
-    const attributesByProduct = attributesResult.rows.reduce((acc, item) => {
-      acc[item.product_id] = item.attributes;
-      return acc;
-    }, {});
+    try {
+      const attributesResult = await query(attributesQuery, [productIds]);
+      console.log(`🏷️ Found attributes for ${attributesResult.rows.length} products`);
+      
+      const attributesByProduct = attributesResult.rows.reduce((acc, item) => {
+        acc[item.product_id] = item.attributes;
+        return acc;
+      }, {});
 
-    products.forEach(product => {
-      product.attributes = attributesByProduct[product.id] || [];
-    });
+      products.forEach(product => {
+        product.attributes = attributesByProduct[product.id] || [];
+      });
+    } catch (error) {
+      console.error('❌ Error fetching attributes:', error);
+    }
   }
 
   // Fetch stock information if requested
   if (params.include_stock === 'true') {
+    console.log('📦 Fetching stock info...');
     const stockQuery = `
       SELECT 
         pv.product_id,
-        SUM(pv.stock_quantity) as total_stock,
-        MIN(pv.stock_quantity) as min_variation_stock,
-        MAX(pv.stock_quantity) as max_variation_stock,
-        AVG(pv.retail_price) as avg_price,
-        MIN(pv.retail_price) as min_price,
-        MAX(pv.retail_price) as max_price,
+        SUM(COALESCE(pv.stock_quantity, 0)) as total_stock,
+        MIN(COALESCE(pv.stock_quantity, 0)) as min_variation_stock,
+        MAX(COALESCE(pv.stock_quantity, 0)) as max_variation_stock,
+        AVG(COALESCE(pv.retail_price, 0)) as avg_price,
+        MIN(COALESCE(pv.retail_price, 0)) as min_price,
+        MAX(COALESCE(pv.retail_price, 0)) as max_price,
         COUNT(pv.id) as variation_count,
-        COUNT(CASE WHEN pv.stock_quantity = 0 THEN 1 END) as out_of_stock_variations,
-        COUNT(CASE WHEN pv.stock_quantity <= pv.low_stock_threshold AND pv.stock_quantity > 0 THEN 1 END) as low_stock_variations
+        COUNT(CASE WHEN COALESCE(pv.stock_quantity, 0) = 0 THEN 1 END) as out_of_stock_variations,
+        COUNT(CASE WHEN COALESCE(pv.stock_quantity, 0) <= COALESCE(pv.low_stock_threshold, 0) AND COALESCE(pv.stock_quantity, 0) > 0 THEN 1 END) as low_stock_variations
       FROM product_variations pv
       WHERE pv.product_id = ANY($1)
       GROUP BY pv.product_id
     `;
 
-    const stockResult = await query(stockQuery, [productIds]);
-    const stockByProduct = stockResult.rows.reduce((acc, item) => {
-      acc[item.product_id] = {
-        total_stock: parseInt(item.total_stock),
-        min_variation_stock: parseInt(item.min_variation_stock),
-        max_variation_stock: parseInt(item.max_variation_stock),
-        avg_price: parseFloat(item.avg_price),
-        min_price: parseFloat(item.min_price),
-        max_price: parseFloat(item.max_price),
-        variation_count: parseInt(item.variation_count),
-        out_of_stock_variations: parseInt(item.out_of_stock_variations),
-        low_stock_variations: parseInt(item.low_stock_variations),
-        stock_status: getStockStatus(item)
-      };
-      return acc;
-    }, {});
+    try {
+      const stockResult = await query(stockQuery, [productIds]);
+      console.log(`📦 Found stock info for ${stockResult.rows.length} products`);
+      
+      const stockByProduct = stockResult.rows.reduce((acc, item) => {
+        acc[item.product_id] = {
+          total_stock: parseInt(item.total_stock) || 0,
+          min_variation_stock: parseInt(item.min_variation_stock) || 0,
+          max_variation_stock: parseInt(item.max_variation_stock) || 0,
+          avg_price: parseFloat(item.avg_price) || 0,
+          min_price: parseFloat(item.min_price) || 0,
+          max_price: parseFloat(item.max_price) || 0,
+          variation_count: parseInt(item.variation_count) || 0,
+          out_of_stock_variations: parseInt(item.out_of_stock_variations) || 0,
+          low_stock_variations: parseInt(item.low_stock_variations) || 0,
+          stock_status: getStockStatus(item)
+        };
+        return acc;
+      }, {});
 
-    products.forEach(product => {
-      product.stock_info = stockByProduct[product.id] || null;
-    });
+      products.forEach(product => {
+        product.stock_info = stockByProduct[product.id] || null;
+      });
+    } catch (error) {
+      console.error('❌ Error fetching stock info:', error);
+    }
   }
 }
 
 // Helper function to determine stock status
 function getStockStatus(stockData: any): string {
-  const totalStock = parseInt(stockData.total_stock);
-  const outOfStockVariations = parseInt(stockData.out_of_stock_variations);
-  const lowStockVariations = parseInt(stockData.low_stock_variations);
-  const variationCount = parseInt(stockData.variation_count);
+  const totalStock = parseInt(stockData.total_stock) || 0;
+  const outOfStockVariations = parseInt(stockData.out_of_stock_variations) || 0;
+  const lowStockVariations = parseInt(stockData.low_stock_variations) || 0;
+  const variationCount = parseInt(stockData.variation_count) || 0;
 
-  if (totalStock === 0) return 'OUT_OF_STOCK';
-  if (outOfStockVariations === variationCount) return 'OUT_OF_STOCK';
+  if (totalStock === 0 || outOfStockVariations === variationCount) return 'OUT_OF_STOCK';
   if (lowStockVariations > 0) return 'LOW_STOCK';
   return 'IN_STOCK';
 }
