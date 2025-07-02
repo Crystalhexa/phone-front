@@ -19,6 +19,8 @@ import { useCategoryData } from '@/components/table/CategoryTable/useCategoryDat
 import { description } from '@/components/chart-area-interactive';
 
 import { toast } from 'sonner';
+import { ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 
 // 🧪 Enhanced Validation Schema
@@ -444,6 +446,7 @@ export default function VariableProductForm() {
       setTimeout(() => setSubmitStatus(''), 3000);
     }
   };
+const router = useRouter();
 
   // 🧱 UI
   return (
@@ -451,6 +454,16 @@ export default function VariableProductForm() {
       <div className="max-w-6xl mx-auto p-6">
         {/* 🔖 Header */}
         <div className="mb-8">
+          <div className="mb-6">
+        <button
+           onClick={() => router.push('/dashboard/products/all')}
+          type="button"
+          className="text-blue-500 flex items-center text-lg hover:text-blue-600 transition-colors"
+        >
+          <ArrowLeft className="mr-2" />
+          Back
+        </button>
+      </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Add New Product</h1>
           <p className="text-gray-600 dark:text-gray-400">Create a product with variations and detailed info</p>
           

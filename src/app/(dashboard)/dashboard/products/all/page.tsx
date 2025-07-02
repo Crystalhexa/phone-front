@@ -1,4 +1,5 @@
 "use client"
+import { useRouter } from 'next/navigation';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Table,
@@ -444,20 +445,24 @@ const ProductsTable: React.FC = () => {
     name: brand.name,
     code: brand.code,
   }));
+    const router = useRouter();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Products Management</h1>
-        <div className="flex gap-2">
-          <Button onClick={resetFilters} variant="outline">
-            Reset Filters
-          </Button>
-          <Button onClick={() => fetchProducts()}>
-            Refresh
-          </Button>
-        </div>
+     <div className="flex justify-between items-center">
+      <h1 className="text-3xl font-bold">Products Management</h1>
+      <div className="flex gap-2">
+        <Button onClick={resetFilters} variant="outline">
+          Reset Filters
+        </Button>
+        <Button onClick={() => fetchProducts()}>
+          Refresh
+        </Button>
+        <Button onClick={() => router.push('/dashboard/products/all/register')}>
+          Add New Product
+        </Button>
       </div>
+    </div>
 
       {/* Filters Section */}
       <Card>
@@ -616,7 +621,7 @@ const ProductsTable: React.FC = () => {
             </TableHeader>
             <TableBody>
               {products.map((product) => (
-                <TableRow key={product.id} className="hover:bg-gray-50">
+                <TableRow key={product.id} className="hover:bg-gray-900">
                   <TableCell>
                     <div>
                       <div className="font-medium">{product.name}</div>
@@ -681,12 +686,9 @@ const ProductsTable: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline">
+                    <div className="flex">
+                      <Button size="sm" variant="outline"  onClick={() => router.push('/dashboard/products/all/view/' + product.id)}>
                         View Details
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        Edit
                       </Button>
                     </div>
                   </TableCell>

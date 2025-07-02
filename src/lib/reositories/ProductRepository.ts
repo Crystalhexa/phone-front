@@ -36,6 +36,7 @@ export class ProductRepository {
       if (data.is_variable && data.variations) {
         await this.insertVariations(productId, data.variations, transaction, context);
       } else if (data.default_variation) {
+        
         await this.insertDefaultVariation(productId, data.name, data.default_variation, transaction, context);
       }
 
