@@ -1,11 +1,11 @@
-import { CategoriesListResponse, CategoryApiRequest, CategoryApiResponse, CategoryFormData, DeleteCategoryResponse, GetCategoriesParams } from "@/types/category";
-import { Role } from "@/types/user";
+import { CategoriesListResponse, CategoryApiRequest, CategoryApiResponse,DeleteCategoryResponse, GetCategoriesParams, GetSubCategoriesParams } from "@/types/category";
+import { SubcategoryFormData, SubcategoryListResponse,SubcategoryResponse } from "@/types/subcategory";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
-    baseUrl:'/api',
+    baseUrl: '/api',
   }),
   tagTypes: ["Category"],
   endpoints: (builder) => ({
@@ -13,25 +13,25 @@ export const api = createApi({
     getAllCategories: builder.query<CategoriesListResponse, GetCategoriesParams>({
       query: (params = {} as GetCategoriesParams) => {
         const searchParams = new URLSearchParams();
-        
+
         // Handle pagination
         if (params.limit) searchParams.append('limit', params.limit.toString());
         if (params.offset) searchParams.append('offset', params.offset.toString());
         if (params.page) searchParams.append('page', params.page.toString());
-        
+
         // Handle search and sorting
         if (params.search) searchParams.append('search', params.search);
         if (params.sortBy) searchParams.append('sortBy', params.sortBy);
         if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
-        
+
         return `products/categories?${searchParams.toString()}`;
       },
       providesTags: (result) =>
         result?.data?.categories
           ? [
-              ...result.data.categories.map(({ id }) => ({ type: 'Category' as const, id: id })),
-              { type: 'Category', id: 'LIST' },
-            ]
+            ...result.data.categories.map(({ id }) => ({ type: 'Category' as const, id: id })),
+            { type: 'Category', id: 'LIST' },
+          ]
           : [{ type: 'Category', id: 'LIST' }],
       // Transform the response to match your component's expected format
       transformResponse: (response: CategoriesListResponse) => {
@@ -82,14 +82,14 @@ export const api = createApi({
       },
     }),
 
-   addCategory: builder.mutation<CategoryApiResponse, CategoryApiRequest>({
-  query: (body) => ({
-    url: 'products/categories',
-    method: 'POST',
-    body,
-  }),
-  invalidatesTags: [{ type: 'Category', id: 'LIST' }],
-}),
+    addCategory: builder.mutation<CategoryApiResponse, CategoryApiRequest>({
+      query: (body) => ({
+        url: 'products/categories',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'Category', id: 'LIST' }],
+    }),
 
 
     // Mutation for updating an existing category
@@ -100,7 +100,7 @@ export const api = createApi({
         body,
       }),
       invalidatesTags: (result, error, { id }) => [
-        { type: 'Category', id }, 
+        { type: 'Category', id },
         { type: 'Category', id: 'LIST' }
       ],
       transformResponse: (response: CategoryApiResponse) => {
@@ -118,7 +118,7 @@ export const api = createApi({
         method: 'DELETE',
       }),
       invalidatesTags: (result, error, id) => [
-        { type: 'Category', id }, 
+        { type: 'Category', id },
         { type: 'Category', id: 'LIST' }
       ],
       transformResponse: (response: DeleteCategoryResponse) => {
@@ -129,22 +129,87 @@ export const api = createApi({
       },
     }),
 
-    // Bulk operations
-    bulkDeleteCategories: builder.mutation<DeleteCategoryResponse, (string | number)[]>({
-      query: (ids) => ({
-        url: 'categories/bulk-delete',
-        method: 'DELETE',
-        body: { ids },
+    getSubcategoriesByCategoryId: builder.query<SubcategoryListResponse, GetSubCategoriesParams>({
+      query: ({ categoryId, limit = 10, offset, page, search, sortBy = 'name', sortOrder = 'asc' }) => {
+        if (!categoryId) {
+          throw new Error("Category ID is required to fetch subcategories.");
+        }
+
+        const searchParams = new URLSearchParams();
+
+        // Handle pagination
+        if (limit) searchParams.append('limit', limit.toString());
+        if (offset !== undefined) searchParams.append('offset', offset.toString());
+        if (page) searchParams.append('page', page.toString());
+
+        // Handle search and sorting
+        if (search) searchParams.append('search', search);
+        if (sortBy) searchParams.append('sortBy', sortBy);
+        if (sortOrder) searchParams.append('sortOrder', sortOrder);
+
+        return `products/categories/subcategory/${categoryId}?${searchParams.toString()}`;
+      },
+      providesTags: (result) =>
+        result?.data?.subcategories
+          ? [
+            ...result.data.subcategories.map(({ id }) => ({ type: 'Category' as const, id })),
+            { type: 'Category', id: 'SUBCATEGORY_LIST' },
+          ]
+          : [{ type: 'Category', id: 'SUBCATEGORY_LIST' }],
+      transformResponse: (response: SubcategoryListResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to fetch subcategories');
+      },
+      transformErrorResponse: (
+        baseQueryReturnValue: import('@reduxjs/toolkit/query').FetchBaseQueryError
+      ) => {
+        if ('data' in baseQueryReturnValue && baseQueryReturnValue.data) {
+          return {
+            status: baseQueryReturnValue.status,
+            message:
+              (typeof baseQueryReturnValue.data === 'object' && 'message' in baseQueryReturnValue.data
+                ? (baseQueryReturnValue.data as any).message
+                : undefined) || 'An error occurred while fetching subcategories',
+          };
+        } else if ('error' in baseQueryReturnValue) {
+          return {
+            status: baseQueryReturnValue.status,
+            message: baseQueryReturnValue.error || 'A network error occurred while fetching subcategories',
+          };
+        }
+        return {
+          status: baseQueryReturnValue.status,
+          message: 'An unknown error occurred while fetching subcategories',
+        };
+      },
+    }),
+    addSubcategory: builder.mutation<SubcategoryResponse, SubcategoryFormData>({
+      query: ({ name, categoryId }) => ({
+        url: `products/categories/subcategory/${categoryId}`,
+        method: 'POST',
+        body: { name }, // only send name; category ID is in the URL
       }),
-      invalidatesTags: [{ type: 'Category', id: 'LIST' }],
+      invalidatesTags: (result, error, { categoryId }) => [
+        { type: 'Category', id: categoryId },
+        { type: 'Category', id: 'SUBCATEGORY_LIST' },
+      ],
+      transformResponse: (response: SubcategoryResponse) => {
+        if (response.success) return response;
+        throw new Error(response.message || 'Failed to add subcategory');
+      },
+      transformErrorResponse: (
+        baseQueryReturnValue: import('@reduxjs/toolkit/query').FetchBaseQueryError
+      ) => ({
+        status: baseQueryReturnValue.status,
+        message:
+          'data' in baseQueryReturnValue && (baseQueryReturnValue.data as any)?.message
+            ? (baseQueryReturnValue.data as any).message
+            : 'An error occurred while adding subcategory',
+      }),
     }),
-
-    getRoles: builder.query<Role[], void>({
-      query: () => 'auth/roles',
-    }),
-
   }),
-  
 });
 
 // Export hooks for usage in components
@@ -154,9 +219,9 @@ export const {
   useAddCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
-  useBulkDeleteCategoriesMutation,
-  useGetRolesQuery,
-  
+  useAddSubcategoryMutation,
+  useGetSubcategoriesByCategoryIdQuery,
+
 } = api;
 
 
@@ -168,7 +233,7 @@ export const useGetCategoriesWithPagination = (
   additionalParams?: Omit<GetCategoriesParams, 'page' | 'limit' | 'offset'>
 ) => {
   const offset = (page - 1) * pageSize;
-  
+
   const result = useGetAllCategoriesQuery({
     page,
     limit: pageSize,
@@ -185,3 +250,25 @@ export const useGetCategoriesWithPagination = (
   };
 };
 
+export const useGetSubcategoriesWithPagination = (
+  categoryId: string,
+  page: number = 1,
+  pageSize: number = 10,
+  additionalParams?: Omit<GetSubCategoriesParams, 'page' | 'limit' | 'offset'>
+) => {
+  const offset = (page - 1) * pageSize;
+
+  const result = useGetSubcategoriesByCategoryIdQuery({
+    categoryId,
+    page,
+    limit: pageSize,
+    ...additionalParams,
+  });
+
+  return {
+    ...result,
+    totalPages: result.data?.data ? Math.ceil(result.data.data.total / pageSize) : 0,
+    hasNextPage: result.data?.data ? (page * pageSize) < result.data.data.total : false,
+    hasPreviousPage: page > 1,
+  };
+};

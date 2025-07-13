@@ -5,16 +5,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
-import { CategoryFormData, CategoryFormConfig } from '@/types/category';
-import { DEFAULT_CATEGORY_CONFIG } from '@/lib/constants/categoryConstants';
+import { CategoryFormData } from '@/types/category';
 import { createCategorySchema } from '@/lib/validations/categoryValidation';
-import { trackEvent, categoryFormEvents } from '@/lib/utils/analytics';
-import { useSubcategories } from '@/hooks/useSubcategories';
-import { useFormDraft } from '@/hooks/useFormDraft';
 import { Form } from '../../ui/form';
 import CustomFormField, { FormFieldType } from '../common/CustomFormField';
 import { CategoryFormHeader } from './CategoryFormHeader';
-import { SubcategoryPreview } from './SubcategoryPreview';
 import { CategoryFormActions } from './CategoryFormActions';
 import { CategoryFormSkeleton } from './CategoryFormSkeleton';
 // Import RTK Query hooks
@@ -29,7 +24,6 @@ interface CategoryFormProps {
   isEdit: boolean;
   onSuccess?: () => void;
   onCancel?: () => void;
-  config?: Partial<CategoryFormConfig>;
   title?: string;
   showExport?: boolean;
 }
@@ -54,17 +48,10 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
   isEdit = true,
   onSuccess,
   onCancel,
-  config: userConfig = {},
   title,
-  showExport,
 }) => {
-  const config = useMemo(() => ({
-    ...DEFAULT_CATEGORY_CONFIG,
-    ...userConfig,
-    enableDragDrop: !!userConfig.enableDragDrop // ✅ Ensures boolean
-  }), [userConfig]);
 
-  const categorySchema = useMemo(() => createCategorySchema(config), [config]);
+  const categorySchema =createCategorySchema();
 
   
   // RTK Query hooks
@@ -84,15 +71,11 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
     resolver: zodResolver(categorySchema) as any,
     defaultValues: {
       name: '',
-      description: '',
-      subcategories: '',
+      description: ''
     },
   });
 
 
-  // Custom hooks
-  const { subcategoriesArray, removeSubcategory, reorderSubcategory } = useSubcategories(form, config);
-  const { clearDraft } = useFormDraft(form, categoryId, config.enableAutoSave);
 
   // Populate form with fetched data
   useEffect(() => {
@@ -100,29 +83,16 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
     form.reset({
       name: categoryData.data.name,
       description: categoryData.data.description || '',
-        subcategories: categoryData.data.subcategories.join(config.separator),
     });
   }
-}, [isEdit, categoryData, form, config.separator]);
+}, [isEdit, categoryData, form]);
 
-  // Analytics tracking
-  useEffect(() => {
-    trackEvent({
-      name: categoryFormEvents.FORM_OPENED,
-      properties: { mode: isEdit ? 'edit' : 'create', categoryId },
-    });
-  }, [isEdit, categoryId]);
 
   const onSubmit = async (values: CategoryFormData) => {
     try {
-      const subcategoriesArray = values.subcategories
-        ? values.subcategories.split(config.separator).map(s => s.trim()).filter(Boolean)
-        : [];
-
       const categoryPayload = {
         name: values.name,
-        description: values.description,
-        subcategories: subcategoriesArray,
+        description: values.description
       };
 
       if (isEdit && categoryId) {
@@ -134,17 +104,6 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
         form.reset();
       }
 
-      clearDraft();
-
-      trackEvent({
-        name: categoryFormEvents.FORM_SUBMITTED,
-        properties: {
-          mode: isEdit ? 'edit' : 'create',
-          categoryId,
-          subcategoriesCount: subcategoriesArray.length,
-        },
-      });
-
       onSuccess?.();
     } catch (error: any) {
       form.reset();
@@ -154,34 +113,6 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
 
   };
 
-
-  const handleExport = () => {
-    const formData = form.getValues();
-    const exportData = {
-      ...formData,
-      subcategories: subcategoriesArray,
-      exportedAt: new Date().toISOString(),
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `category-${formData.name || 'draft'}-${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    trackEvent({
-      name: categoryFormEvents.FORM_EXPORTED,
-      properties: { categoryName: formData.name },
-    });
-
-    toast.success('Category data exported successfully!');
-  };
-
-  // Handle loading states
   if (isEdit && isCategoryLoading) {
     return <CategoryFormSkeleton />;
   }
@@ -232,37 +163,12 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
             disabled={isLoading}
           />
 
-          {/* Subcategories Field */}
-          <div className="space-y-2">
-            <CustomFormField
-              fieldType={FormFieldType.TEXTAREA}
-              control={form.control}
-              name="subcategories"
-              label={`Subcategories (separated by "${config.separator}")`}
-              placeholder={`Enter subcategories separated by "${config.separator}"`}
-              disabled={isLoading}
-              helperText={`Maximum ${config.maxSubcategories} subcategories, each up to ${config.maxSubcategoryLength} characters`}
-            />
-
-            {/* Subcategory Preview */}
-            {config.showPreview && (
-              <SubcategoryPreview
-                subcategories={subcategoriesArray}
-                onRemove={removeSubcategory}
-                onReorder={config.enableDragDrop ? reorderSubcategory : undefined}
-                enableDragDrop={config.enableDragDrop}
-              />
-            )}
-          </div>
-
           {/* Form Actions */}
           <CategoryFormActions
             onCancel={onCancel}
             onSubmit={form.handleSubmit(onSubmit)}
             isLoading={isLoading}
             isEdit={isEdit}
-            showExport={showExport}
-            onExport={handleExport}
           />
         </form>
       </Form>

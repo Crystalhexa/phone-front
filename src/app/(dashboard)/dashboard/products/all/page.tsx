@@ -25,10 +25,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
-  TrendingUp,
   TrendingDown,
   AlertTriangle,
-  DollarSign,
   ChevronDown
 } from 'lucide-react';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
@@ -429,11 +427,14 @@ const ProductsTable: React.FC = () => {
   })) || [];
 
   // Transform data for searchable dropdowns
-  const categoryOptions = categories.map(cat => ({
-    id: cat.id,
-    name: cat.name,
+const categoryOptions = categories
+  .filter((cat) => typeof cat.id === 'string' && typeof cat.name === 'string')
+  .map(cat => ({
+    id: cat.id as string,
+    name: cat.name as string,
     description: cat.description
   }));
+
 
   const subcategoryOptions = subcategories.map(sub => ({
     id: sub.id,

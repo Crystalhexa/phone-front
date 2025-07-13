@@ -1,0 +1,290 @@
+model categories {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  subcategories subcategories[]
+
+  @@map("categories")
+}
+
+model subcategories {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  category_id String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  category categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  products products[]
+
+  @@index([category_id])
+  @@map("subcategories")
+}
+
+// ================== PRODUCT SPECIFICATIONS ==================
+model product_specifications {
+  id         String   @id @default(cuid())
+  product_id String
+  spec_name  String   @db.VarChar(100) // e.g., "RAM", "Storage", "Screen Size", "Camera"
+  spec_value String   @db.VarChar(255) // e.g., "8GB", "256GB", "6.1 inch", "48MP"
+  spec_unit  String?  @db.VarChar(20)  // e.g., "GB", "inch", "MP"
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([product_id])
+  @@index([spec_name])
+  @@map("product_specifications")
+}
+
+// ================== BRANDS ==================
+model brands {
+  id          String   @id @default(cuid())
+  name        String   @unique @db.VarChar(100)
+  code        String   @unique @db.VarChar(10)
+  description String?  @db.Text
+  logo_url    String?  @db.VarChar(500)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  products products[]
+
+  @@index([code])
+  @@map("brands")
+}
+
+// ================== PRODUCTS ==================
+model products {
+ id                      String   @id @default(cuid())
+  name                    String   @db.VarChar(255)
+  model                   String   @db.VarChar(255)
+  description             String?  @db.Text
+  subcategory_id          String?
+  brand_id                String?
+  sku                     String   @unique @db.VarChar(50)
+  warranty_period         Int?     // in months
+  is_active               Boolean  @default(true)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  brand                     brands?                        @relation(fields: [brand_id], references: [id], onDelete: SetNull)
+  subcategory               subcategories?                 @relation(fields: [subcategory_id], references: [id], onDelete: SetNull)
+  specifications            product_specifications[]
+  purchase_order_items      purchase_order_items[]
+  sales_order_items         sales_order_items[]
+  branch_inventory          branch_inventory[]
+  barcodes                  barcodes[]
+  stock_ledgers             product_stock_ledgers[]
+  purchase_batches          purchase_batches[]            // NEW: Link to purchase batches
+  stock_transfer_items      stock_transfer_items[]
+  stock_adjustments         stock_adjustments[]            @relation("ProductVariation")
+  purchase_return_items     purchase_return_items[]
+  sales_return_items        sales_return_items[]
+  serial_numbers            serial_numbers[]
+  low_stock_alerts          low_stock_alerts[]
+
+  @@index([subcategory_id])
+  @@index([brand_id])
+  @@index([name])
+  @@index([sku])
+  @@map("products")
+}
+
+model barcodes {
+  id         String       @id @default(cuid())
+  product_id String
+  code       String       @unique @db.VarChar(50)
+  type       barcode_type @default(INTERNAL)
+  is_active  Boolean      @default(true)
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([product_id])
+  @@map("barcodes")
+}
+model purchase_batches {
+  id                String   @id @default(cuid())
+  batch_number      String   @unique @db.VarChar(50)
+  product_id        String
+  purchase_order_id String
+  supplier_id       String
+  quantity_ordered  Int
+  quantity_received Int      @default(0)
+  cost_price        Decimal  @db.Decimal(10, 2)
+  wholesale_price   Decimal? @db.Decimal(10, 2)
+  retail_price      Decimal  @db.Decimal(10, 2)
+  expiry_date       DateTime? @db.Date
+  received_date     DateTime? @db.Date
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  product         products                @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  purchase_order  purchase_orders         @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  supplier        suppliers               @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
+  inventory_items branch_inventory_items[] // NEW: Link to specific inventory items
+
+  @@index([batch_number])
+  @@index([product_id])
+  @@index([purchase_order_id])
+  @@index([supplier_id])
+  @@index([expiry_date])
+  @@map("purchase_batches")
+}
+
+// ================== PRICE TRACKING ==================
+
+
+model product_stock_ledgers {
+  id             String           @id @default(cuid())
+  product_id     String
+  branch_id      String
+  batch_id       String?          // NEW: Reference to specific batch
+  quantity       Int
+  cost_price     Decimal          @db.Decimal(10, 2)
+  wholesale_price Decimal?        @db.Decimal(10, 2)  // NEW: Track wholesale price
+  retail_price   Decimal          @db.Decimal(10, 2)  // NEW: Track retail price
+  entry_type     stock_entry_type
+  reference_id   String?          @db.VarChar(50)
+  reference_type String?          @db.VarChar(50)
+  notes          String?          @db.Text
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  branch  branches @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+
+  @@index([product_id, created_at])
+  @@index([branch_id, created_at])
+  @@index([batch_id])
+  @@index([reference_type, reference_id])
+  @@map("product_stock_ledgers")
+}
+
+// ================== BRANCH & INVENTORY MANAGEMENT ==================
+model branches {
+  id              String   @id @default(cuid())
+  name            String   @db.VarChar(100)
+  code            String   @unique @db.VarChar(10)
+  location        String?  @db.VarChar(255)
+  address         String?  @db.Text
+  phone           String?  @unique @db.VarChar(20)
+  email           String?  @unique @db.VarChar(255)
+  manager_name    String?  @db.VarChar(100)
+  is_active       Boolean  @default(true)
+  is_main_branch  Boolean  @default(false)
+  can_purchase    Boolean  @default(false)      // NEW: Only main branch can purchase
+  timezone        String   @default("UTC") @db.VarChar(50)
+  operating_hours Json?    @default("{}")
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  employees              employees[]
+  sales_orders           sales_orders[]
+  purchase_orders        purchase_orders[]        // NEW: Link to purchase orders
+  from_transfer_requests stock_transfer_requests[] @relation("FromBranch")
+  to_transfer_requests   stock_transfer_requests[] @relation("ToBranch")
+  inventory              branch_inventory[]
+  storage_bins           storage_bins[]
+  stock_adjustments      stock_adjustments[]       @relation("Branch")
+  stock_ledgers          product_stock_ledgers[]
+  low_stock_alerts       low_stock_alerts[]
+  serial_numbers         serial_numbers[]
+
+  @@index([code])
+  @@index([is_main_branch])
+  @@index([can_purchase])
+  @@map("branches")
+}
+model branch_inventory_items {
+  id                    String   @id @default(cuid())
+  branch_inventory_id   String
+  purchase_batch_id     String
+  quantity              Int      @default(0)
+  reserved_quantity     Int      @default(0)
+  cost_price            Decimal  @db.Decimal(10, 2)  // Cost from this batch
+  wholesale_price       Decimal? @db.Decimal(10, 2)  // Wholesale price for this batch
+  retail_price          Decimal  @db.Decimal(10, 2)  // Retail price for this batch
+  received_date         DateTime @db.Timestamptz(6)
+  expiry_date           DateTime? @db.Date
+  is_active             Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  branch_inventory branch_inventory @relation(fields: [branch_inventory_id], references: [id], onDelete: Cascade)
+  purchase_batch   purchase_batches @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
+
+  @@unique([branch_inventory_id, purchase_batch_id])
+  @@index([branch_inventory_id])
+  @@index([purchase_batch_id])
+  @@index([quantity])
+  @@index([expiry_date])
+  @@map("branch_inventory_items")
+}
+
+model branch_inventory {
+  id                      String    @id @default(cuid())
+  branch_id               String
+  product_id              String
+  total_quantity          Int       @default(0)    // Total across all batches
+  reserved_quantity       Int       @default(0)
+  low_stock_threshold     Int       @default(5)
+  reorder_quantity        Int       @default(20)
+  last_restock_date       DateTime? @db.Timestamptz(6)
+  last_sale_date          DateTime? @db.Timestamptz(6)
+  last_counted_at         DateTime? @db.Timestamptz(6)
+  is_low_stock_alert_sent Boolean   @default(false)
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  branch   branches                @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  product  products                @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  items    branch_inventory_items[] // NEW: Individual batch items
+
+  @@unique([branch_id, product_id])
+  @@index([branch_id])
+  @@index([product_id])
+  @@index([total_quantity])
+  @@index([branch_id, total_quantity])
+  @@map("branch_inventory")
+}
+
+// ================== LOW STOCK ALERT SYSTEM ==================
+model low_stock_alerts {
+  id              String              @id @default(cuid())
+  branch_id       String
+  product_id      String
+  current_stock   Int
+  threshold_level Int
+  alert_type      low_stock_alert_type @default(LOW_STOCK)
+  status          alert_status        @default(ACTIVE)
+  notified_at     DateTime?           @db.Timestamptz(6)
+  resolved_at     DateTime?           @db.Timestamptz(6)
+  notes           String?             @db.Text
+  created_at      DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime            @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  branch  branches @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@index([branch_id, status])
+  @@index([product_id, status])
+  @@index([alert_type, status])
+  @@map("low_stock_alerts")
+}

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Download } from 'lucide-react';
 import { CategoryFormActionsProps } from '@/types/form';
 import SubmitButton from '../common/SubmitButton';
 
@@ -7,23 +6,12 @@ export const CategoryFormActions: React.FC<CategoryFormActionsProps> = ({
   onCancel,
   onSubmit,
   isLoading,
-  isEdit,
-  showExport = false,
-  onExport,
+  isEdit
 }) => {
   return (
     <div className="pt-4 flex justify-between items-center">
       <div className="flex gap-2">
-        {showExport && onExport && (
-          <button
-            type="button"
-            onClick={onExport}
-            className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </button>
-        )}
+        
       </div>
       
       <div className="flex gap-3">

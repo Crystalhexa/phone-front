@@ -1,8 +1,6 @@
 import { CustomerApiResponse, CustomerFormData, CustomersListResponse, DeleteCustomerResponse, GetCustomersParams } from '@/types/customer';
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
-
-
 // API
 export const customersApi = createApi({
   reducerPath: 'customersApi',

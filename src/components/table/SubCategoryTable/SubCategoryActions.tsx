@@ -1,43 +1,42 @@
 import { useState } from 'react';
 import { Eye, Edit, Trash2 } from "lucide-react";
 import { toast } from 'react-hot-toast';
-import {  useDeleteCategoryMutation } from '@/state/api';
-import { TableAction } from "./AttributeColumn";
+import { useDeleteCategoryMutation } from '@/state/api';
+import { TableAction } from "./SubCategoryColumn";
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
-import { Attribute } from '@/types/attribute';
-import { useDeleteAttributeMutation } from '@/state/attribute';
+import {  Subcategory } from '@/types/category';
 
-export const useAttributeActions = () => {
+export const useSubCategoryActions = () => {
   // Dialog state management
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedAttribute, setSelectedAttribute] = useState<Attribute | null>(null);
+  const [selectedsubCategory, setSelectedSubcategory] = useState<Subcategory | null>(null);
 
   // Mutation hooks
-  const [deleteAttribute, { isLoading: isDeleting }] = useDeleteAttributeMutation();
+  const [deleteCategory, { isLoading: isDeleting }] = useDeleteCategoryMutation();
 
   // Action handlers
-  const handleView = (attribute: Attribute) => {
-    setSelectedAttribute(attribute);
+  const handleView = (subcategory: Subcategory) => {
+    setSelectedSubcategory(subcategory);
     setIsViewDialogOpen(true);
   };
 
-  const handleEdit = (attribute: Attribute) => {
-    console.log("Editing attribute:", attribute);
-    setSelectedAttribute(attribute);
+  const handleEdit = (subcategory: Subcategory) => {
+    setSelectedSubcategory(subcategory);
     setIsEditDialogOpen(true);
   };
 
-  const handleDelete = async (attribute: Attribute) => {
-    if (!confirm(`Are you sure you want to delete "${attribute.name}"?`)) {
+  const handleDelete = async (subcategory: Subcategory) => {
+    if (!confirm(`Are you sure you want to delete "${subcategory.name}"?`)) {
       return;
     }
     try {
-      await deleteAttribute(attribute.id).unwrap();
-      toast.success('Attribute deleted successfully');
+      console.log(subcategory)
+      await deleteCategory(subcategory.subcategory_id).unwrap();
+      toast.success('Category deleted successfully');
     } catch (error: any) {
       console.error('Delete error:', error);
-      toast.error(error.message || 'Failed to delete attribute');
+      toast.error(error.message || 'Failed to delete category');
     }
   };
 
@@ -68,12 +67,12 @@ export const useAttributeActions = () => {
     isEditDialogOpen ? (
       <ReusableDialogForm
         showTrigger={false}
-        triggerLabel="Edit Attribute" // This won't be used since we're controlling the dialog
-        title={`Edit Attribute: ${selectedAttribute?.name}`}
-        description="Update attribute information"
-        formType="attribute"
+        triggerLabel="Edit Category" // This won't be used since we're controlling the dialog
+        title={`Edit Category: ${selectedsubCategory?.name}`}
+        description="Update category information"
+        formType="category"
         formProps={{
-         attributeId: selectedAttribute?.id,
+         categoryId: selectedsubCategory?.subcategory_id,
           mode: 'edit', // Read-only mode
           showExport: true,
           isEdit: true, // Read-only mode
@@ -91,6 +90,6 @@ export const useAttributeActions = () => {
     EditDialog,
     isViewDialogOpen,
     isEditDialogOpen,
-    selectedAttribute,
+    selectedsubCategory,
   };
 };

@@ -5,8 +5,7 @@ import { z } from 'zod';
 
 const updateCategorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
-  description: z.string().optional(),
-  subcategories: z.array(z.string().min(1)).optional(),
+  description: z.string().optional()
 });
 
 type UpdateCategoryPayload = z.infer<typeof updateCategorySchema>;
@@ -49,17 +48,6 @@ async function updateCategoryInDatabase(categoryId: string, payload: UpdateCateg
       `UPDATE categories SET name = $1, description = $2, updated_at = NOW() WHERE id = $3`,
       [payload.name, payload.description ?? null, categoryId]
     );
-
-    await client.query(`DELETE FROM subcategories WHERE category_id = $1`, [categoryId]);
-
-    if (payload.subcategories?.length) {
-      for (const subName of payload.subcategories) {
-        await client.query(
-          `INSERT INTO subcategories (id, name, category_id) VALUES (gen_random_uuid(), $1, $2)`,
-          [subName, categoryId]
-        );
-      }
-    }
 
     return { categoryId };
   });
@@ -121,11 +109,7 @@ export async function PUT(req: NextRequest,
       if (constraint.includes('categories_name')) {
         return NextResponse.json({ success: false, message: `Category name '${payload?.name}' already exists`, timestamp: new Date().toISOString() }, { status: 400 });
       }
-      if (constraint.includes('subcategories_name')) {
-        return NextResponse.json({ success: false, message: `One or more subcategories already exist`, timestamp: new Date().toISOString() }, { status: 400 });
-      }
     }
-
     return NextResponse.json({ success: false, message: 'Internal server error', errors: [error.message], timestamp: new Date().toISOString() }, { status: 500 });
   }
 }

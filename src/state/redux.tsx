@@ -8,7 +8,6 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 import globalReducer from "@/state";
 import { api } from "@/state/api";
 import { brandsApi } from "./brand";
-import { attributesApi } from "./attribute";
 import { rolesApi } from "./role";
 import { employeeApi } from "./employee";
 import { customersApi } from "./customer";
@@ -19,7 +18,6 @@ const rootReducer = combineReducers({
   global: globalReducer,
   [api.reducerPath]: api.reducer,
    [brandsApi.reducerPath]: brandsApi.reducer,
-   [attributesApi.reducerPath]: attributesApi.reducer,
    [rolesApi.reducerPath]: rolesApi.reducer,
    [employeeApi.reducerPath]: employeeApi.reducer,
    [customersApi.reducerPath]: customersApi.reducer,
@@ -33,7 +31,6 @@ export const makeStore = () => {
       getDefaultMiddleware()
         .concat(api.middleware)
         .concat(brandsApi.middleware)
-        .concat(attributesApi.middleware)
         .concat(rolesApi.middleware)
         .concat(employeeApi.middleware)
         .concat(customersApi.middleware)

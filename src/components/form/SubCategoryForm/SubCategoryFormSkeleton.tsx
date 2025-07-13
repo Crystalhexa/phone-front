@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const AttributeFormSkeleton: React.FC = () => {
+export const CategoryFormSkeleton: React.FC = () => {
   return (
     <div className="p-2 sm:p-4 animate-pulse">
       <div className="space-y-6">

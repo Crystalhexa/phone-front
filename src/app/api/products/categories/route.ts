@@ -5,8 +5,7 @@ import { z } from 'zod'
 import cuid from 'cuid';
 const createCategorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
-  description: z.string().optional(),
-  subcategories: z.array(z.string().min(1)).optional(),
+  description: z.string().optional()
 });
 
 type CreateCategoryPayload = z.infer<typeof createCategorySchema>;
@@ -19,18 +18,6 @@ async function checkCategoryExists(categoryName: string): Promise<boolean> {
   return result.rows.length > 0;
 }
 
-async function checkSubcategoriesExist(subcategoryNames: string[]): Promise<string[]> {
-  if (!subcategoryNames.length) return [];
-
-  const placeholders = subcategoryNames.map((_, i) => `$${i + 1}`).join(',');
-  const result = await query(
-    `SELECT name FROM "subcategories" WHERE name IN (${placeholders})`,
-    subcategoryNames
-  );
-
-  return result.rows.map(row => row.name);
-}
-
 async function createCategoryInDatabase(payload: CreateCategoryPayload) {
   return await transaction(async (client) => {
     const categoryId = cuid(); // generate id manually
@@ -38,16 +25,6 @@ async function createCategoryInDatabase(payload: CreateCategoryPayload) {
       `INSERT INTO "categories" (id, name, description) VALUES ($1, $2, $3) RETURNING id`,
       [categoryId, payload.name, payload.description ?? null]
     );
-
-    if (payload.subcategories?.length) {
-      for (const subName of payload.subcategories) {
-        const subcategoryId = cuid();
-        await client.query(
-          `INSERT INTO "subcategories" (id, name, category_id) VALUES ($1, $2, $3)`,
-          [subcategoryId, subName, categoryId]
-        );
-      }
-    }
 
     return { categoryId };
   });
@@ -78,20 +55,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    if (payload.subcategories?.length) {
-      const existingSubcategories = await checkSubcategoriesExist(payload.subcategories);
-
-      if (existingSubcategories.length > 0) {
-        return NextResponse.json(
-          {
-            message: `Category is OK but these subcategories already exist: ${existingSubcategories.join(', ')}`
-          },
-          { status: 400 }
-        );
-      }
-    }
-
     const result = await createCategoryInDatabase(payload);
 
     return NextResponse.json(

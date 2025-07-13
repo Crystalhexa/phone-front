@@ -1,15 +1,15 @@
 import React from 'react';
 
-interface AttributeFormHeaderProps {
+interface CategoryFormHeaderProps {
   isEdit?: boolean;
   title?: string;
 }
 
-export const AttributeFormHeader: React.FC<AttributeFormHeaderProps> = ({ 
+export const CategoryFormHeader: React.FC<CategoryFormHeaderProps> = ({ 
   isEdit, 
   title 
 }) => {
-  const defaultTitle = isEdit ? 'Edit Attribute' : 'Create New Attribute';
+  const defaultTitle = isEdit ? 'Edit Category' : 'Create New Category';
   
   return (
     <div className="mb-6">

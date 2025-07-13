@@ -5,8 +5,10 @@ import { useDeleteCategoryMutation } from '@/state/api';
 import { TableAction } from "./CategoryColumn";
 import { ReusableDialogForm } from "@/components/form/ReusableDialogForm";
 import { Category } from '@/types/category';
+import { useRouter } from 'next/navigation';
 
 export const useCategoryActions = () => {
+    const router = useRouter()
   // Dialog state management
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -18,7 +20,7 @@ export const useCategoryActions = () => {
   // Action handlers
   const handleView = (category: Category) => {
     setSelectedCategory(category);
-    setIsViewDialogOpen(true);
+    router.push(`/dashboard/products/categories/view/${category.id}`)
   };
 
   const handleEdit = (category: Category) => {

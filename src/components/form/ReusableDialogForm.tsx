@@ -10,13 +10,13 @@ import {
 import { ReactNode } from "react";
 import CategoryForm from "./CategoryForm";
 import BrandForm from "./BrandForm/BrandForm";
-import AttributeForm from "./Attribute/AttributeForm";
+import { SubCategoryForm } from "./SubCategoryForm/SubCategoryForm";
 
 interface ReusableDialogFormProps {
   triggerLabel?: ReactNode;
   title?: string;
   description?: string;
-  formType: "category" | "brand" |"attribute";
+  formType: "category" | "brand" |"subcategory";
   formProps?: any;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -39,8 +39,8 @@ export function ReusableDialogForm({
         return <CategoryForm {...formProps} />;
       case "brand":
         return <BrandForm {...formProps} />;
-      case "attribute":
-        return <AttributeForm {...formProps} />;
+      case "subcategory":
+        return <SubCategoryForm {...formProps}/>;
       default:
         return null;
     }

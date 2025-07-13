@@ -1,52 +1,48 @@
 import { useState } from 'react';
-import { useGetAttributesWithPagination } from '@/state/attribute';
+import { useGetSubcategoriesWithPagination } from '@/state/api';
 
-export const useAttributeData = () => {
+export const useSubcategoryData = (categoryId: string) => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [searchTerm, setSearchTerm] = useState<string>("");
 
-  // Use RTK Query hook
-  const { 
-    data, 
-    isLoading, 
-    error, 
+  const {
+    data,
+    isLoading,
+    error,
     totalPages,
-    refetch 
-  } = useGetAttributesWithPagination(currentPage, pageSize, {
+    refetch,
+  } = useGetSubcategoriesWithPagination(categoryId,currentPage, pageSize, {
     search: searchTerm || undefined,
     sortBy: 'name',
     sortOrder: 'asc'
-  });
+  });;
 
-  // Handle search with debouncing
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    setCurrentPage(1); // Reset to first page when searching
+    setCurrentPage(1);
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
-    setCurrentPage(1); // Reset to first page when changing page size
+    setCurrentPage(1);
   };
 
-  // Format error message
-  const errorMessage = error ? 
-    ('message' in error ? error.message : 'An error occurred') : 
-    null;
+  const errorMessage = error
+    ? ('message' in error ? error.message : 'An error occurred')
+    : null;
 
   return {
-    // Data
     data,
     isLoading,
     error: errorMessage,
-    
+
     // Pagination state
     currentPage,
     pageSize,
     totalPages,
     searchTerm,
-    
+
     // Handlers
     handleSearch,
     setCurrentPage,

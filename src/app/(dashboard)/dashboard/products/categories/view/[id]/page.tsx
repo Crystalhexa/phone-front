@@ -1,14 +1,17 @@
 "use client"
+
 import React from 'react'
 import { DataTable } from '@/components/ui/DataTable/DataTable'
-import { CategoryTableHeader } from '@/components/table/CategoryTable/CategoryTableHeader'
 import { Input } from '@/components/ui/input' // Adjust path as needed
-import { useAttributeData } from '@/components/table/AttributeTable/useAttributeData'
-import { useAttributeActions } from '@/components/table/AttributeTable/AttributeActions'
-import { createAttributeColumns } from '@/components/table/AttributeTable/AttributeColumn'
-import { AttributeTableHeader } from '@/components/table/AttributeTable/AttributeTableHeader'
+import { useSubCategoryActions } from '@/components/table/SubCategoryTable/SubCategoryActions'
+import { useSubcategoryData } from '@/components/table/SubCategoryTable/useSubcategoryData'
+import { useParams } from 'next/navigation'
+import { createSubCategoryColumns } from '@/components/table/SubCategoryTable/SubCategoryColumn'
+import { SubCategoryTableHeader } from '@/components/table/SubCategoryTable/SubCategoryTableHeader'
 
-const AttributeTable: React.FC = () => {
+const CategoriesTable: React.FC = () => {
+  const params = useParams();
+  const id = params.id as string;
   // Custom hooks
   const {
     data,
@@ -21,26 +24,26 @@ const AttributeTable: React.FC = () => {
     totalPages,
     setCurrentPage,
     handlePageSizeChange,
-  } = useAttributeData()
+  } = useSubcategoryData(id);
 
   const {
     tableActions,
     EditDialog,
-  } = useAttributeActions()
+  } = useSubCategoryActions()
 
   // Create columns with actions
-  const columns = createAttributeColumns(tableActions)
+  const columns = createSubCategoryColumns(tableActions)
 
   // Header actions component
   const headerActions = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       {/* You can keep other buttons in CategoryTableHeader */}
-      <AttributeTableHeader/>
-      
+
+      <SubCategoryTableHeader categoryId={id} />
       {/* 🔍 Search input */}
       <Input
         type="text"
-        placeholder="Search attributes..."
+        placeholder="Search categories..."
         value={searchTerm}
         onChange={(e) => handleSearch(e.target.value)}
         className="sm:w-64 w-full"
@@ -51,12 +54,12 @@ const AttributeTable: React.FC = () => {
   return (
     <>
       <DataTable
-        data={data?.data?.attributes || []}
+        data={data?.data?.subcategories || []}
         columns={columns}
         isLoading={isLoading}
         error={error}
-        title="Attributes"
-        subtitle={`Total: ${data?.data?.total || 0} attributes`}
+        title={data?.data.name}
+        subtitle={`Total: ${data?.data?.total || 0} sub categories`}
         actions={headerActions}
         searchable={false} // Disable built-in search if using custom input
         pagination={{
@@ -75,4 +78,4 @@ const AttributeTable: React.FC = () => {
   )
 }
 
-export default AttributeTable
+export default CategoriesTable

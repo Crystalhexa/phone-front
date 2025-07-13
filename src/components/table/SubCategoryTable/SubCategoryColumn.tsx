@@ -1,7 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Badge } from '@/components/ui/badge';
 import { ActionCell } from '../../ui/DataTable/ActionCell';
-import { Category, Subcategory } from "@/types/category";
+import {  Subcategory } from "@/types/category";
 
 export interface TableAction {
   label: string;
@@ -10,20 +9,20 @@ export interface TableAction {
   variant?: 'default' | 'destructive';
 }
 
-export const createCategoryColumns = (actions: TableAction[]): ColumnDef<Category>[] => [
+export const createSubCategoryColumns = (actions: TableAction[]): ColumnDef<Subcategory>[] => [
   {
-    accessorKey: "id",
+    accessorKey: "subcategory_id",
     header: "ID",
     size: 80,
     cell: ({ row }) => (
       <div className="font-medium text-gray-300 w-[80px] truncate">
-        #{row.getValue("id")}
+        #{row.getValue("subcategory_id")}
       </div>
     ),
   },
   {
     accessorKey: "name",
-    header: "Category Name",
+    header: "Subcategory Name",
     size: 200,
     cell: ({ row }) => (
       <div className="font-medium text-white w-[200px] truncate">
