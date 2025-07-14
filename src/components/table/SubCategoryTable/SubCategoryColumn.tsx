@@ -31,16 +31,6 @@ export const createSubCategoryColumns = (actions: TableAction[]): ColumnDef<Subc
     ),
   },
   {
-    accessorKey: "description",
-    header: "Description",
-    size: 300,
-    cell: ({ row }) => (
-      <div className="text-gray-400 max-w-[300px] truncate">
-        {row.getValue("description") || "No description"}
-      </div>
-    ),
-  },
-  {
     id: "actions",
     header: "Actions",
     size: 150,

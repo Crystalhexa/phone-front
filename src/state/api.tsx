@@ -1,4 +1,5 @@
 import { CategoriesListResponse, CategoryApiRequest, CategoryApiResponse,DeleteCategoryResponse, GetCategoriesParams, GetSubCategoriesParams } from "@/types/category";
+import { Role } from "@/types/role";
 import { SubcategoryFormData, SubcategoryListResponse,SubcategoryResponse } from "@/types/subcategory";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
@@ -152,7 +153,7 @@ export const api = createApi({
       providesTags: (result) =>
         result?.data?.subcategories
           ? [
-            ...result.data.subcategories.map(({ id }) => ({ type: 'Category' as const, id })),
+            ...result.data.subcategories.map(({ subcategory_id }) => ({ type: 'Category' as const, subcategory_id })),
             { type: 'Category', id: 'SUBCATEGORY_LIST' },
           ]
           : [{ type: 'Category', id: 'SUBCATEGORY_LIST' }],
@@ -209,6 +210,11 @@ export const api = createApi({
             : 'An error occurred while adding subcategory',
       }),
     }),
+
+    getRoles: builder.query<Role[], void>({
+      query: () => 'auth/roles',
+    }),
+
   }),
 });
 
@@ -221,6 +227,7 @@ export const {
   useDeleteCategoryMutation,
   useAddSubcategoryMutation,
   useGetSubcategoriesByCategoryIdQuery,
+  useGetRolesQuery,
 
 } = api;
 

@@ -1,7 +1,5 @@
-
 "use client"
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,11 +33,11 @@ const ProductBarcodeSchema = z.object({
 
 const ProductFormSchema = z.object({
   name: z.string().min(1, 'Product name is required').max(200, 'Product name too long'),
-  model: z.string().min(1, 'Model is required').max(100, 'Model too long'),
+  model: z.string().max(100, 'Model too long').optional(),
   description: z.string().max(1000, 'Description too long').optional(),
   subcategory_id: z.string().min(1, 'Subcategory is required'),
   brand_id: z.string().min(1, 'Brand is required'),
-  sku: z.string().min(1, 'SKU is required').max(50, 'SKU too long'),
+  sku: z.string().min(1, 'SKU is required').max(500, 'SKU too long'),
   warranty_period: z.number().min(0, 'Warranty period must be positive').max(120, 'Warranty period too long'),
   is_active: z.boolean(),
   specifications: z.array(ProductSpecificationSchema).default([]),
@@ -48,8 +46,8 @@ const ProductFormSchema = z.object({
 
 // New spec schema for adding specifications
 const NewSpecSchema = z.object({
-  spec_name: z.string().min(1, 'Specification name is required').max(100, 'Specification name too long'),
-  spec_value: z.string().min(1, 'Specification value is required').max(200, 'Specification value too long'),
+  spec_name: z.string().min(1, 'Specification name is required').max(100, 'Specification name too long').optional(),
+  spec_value: z.string().min(1, 'Specification value is required').max(200, 'Specification value too long').optional(),
   spec_unit: z.string().max(20, 'Unit too long').optional(),
 });
 
@@ -61,21 +59,6 @@ type ProductBarcode = z.infer<typeof ProductBarcodeSchema>;
 type ProductFormData = z.infer<typeof ProductFormSchema>;
 type NewSpec = z.infer<typeof NewSpecSchema>;
 
-
-
-interface Category {
-  id: string;
-  name: string;
-  code: string;
-  description: string;
-  subcategories: Subcategory[];
-}
-
-interface Brand {
-  id: string;
-  name: string;
-  code: string;
-}
 
 const ProductCreationForm: React.FC = () => {
   // Updated categories with nested subcategories
@@ -151,14 +134,18 @@ const ProductCreationForm: React.FC = () => {
     return availableSubcategories.find(sub => sub.subcategory_id === formData.subcategory_id);
   };
 
-  // Generate product name automatically
   useEffect(() => {
     const generateProductName = () => {
       const subcategory = getCurrentSubcategory();
       const brand = brands?.data.brands?.find(b => b.id === formData.brand_id);
 
-      if (brand && formData.model && subcategory) {
-        const name = `${brand.name} ${formData.model} ${subcategory.name}`;
+      if (brand && subcategory) {
+        // Include model if it's available, otherwise skip it
+        const parts = [brand.name];
+        if (formData.model) parts.push(formData.model);
+        parts.push(subcategory.name);
+
+        const name = parts.join(' ');
         setFormData(prev => ({ ...prev, name }));
         // Clear name error when auto-generated
         setErrors(prev => ({ ...prev, name: '' }));
@@ -166,32 +153,48 @@ const ProductCreationForm: React.FC = () => {
     };
 
     generateProductName();
-  }, [selectedCategory, formData.subcategory_id, formData.brand_id, formData.model, categories, brands, availableSubcategories]);
+  }, [
+    selectedCategory,
+    formData.subcategory_id,
+    formData.brand_id,
+    formData.model,
+    categories,
+    brands,
+    availableSubcategories
+  ]);
+
 
   // Generate SKU automatically
-  useEffect(() => {
-    const generateSKU = () => {
-      const category = categories?.data.categories.find(c => c.id === selectedCategory);
-      const brand = brands?.data.brands.find(b => b.id === formData.brand_id);
+  // Generate SKU automatically
+useEffect(() => {
+  const generateSKU = () => {
+    const subcategory = getCurrentSubcategory();
+    const brand = brands?.data.brands.find(b => b.id === formData.brand_id);
 
-      if (category && brand && formData.model) {
-        let sku = `${category.name}-${brand.code}-${formData.model.toUpperCase().replace(/\s+/g, '')}`;
-
-        // Add specification codes to SKU
-        formData.specifications.forEach(spec => {
-          const specCode = `${spec.spec_value.replace(/\s+/g, '').toUpperCase()}`;
-          sku += `-${specCode}`;
-        });
-
-        setFormData(prev => ({ ...prev, sku }));
-        // Clear SKU error when auto-generated
-        setErrors(prev => ({ ...prev, sku: '' }));
+    if (subcategory && brand) {
+      let sku = `${subcategory.name}-${brand.code}`;
+      
+      // Add model if it exists
+      if (formData.model) {
+        sku += `-${formData.model.toUpperCase().replace(/\s+/g, '')}`;
       }
-    };
 
-    generateSKU();
-  }, [selectedCategory, formData.brand_id, formData.model, formData.specifications, categories, brands]);
+      // Add specification codes to SKU (only short values <= 5 characters)
+      formData.specifications.forEach(spec => {
+        const specValue = spec.spec_value.replace(/\s+/g, '').toUpperCase();
+        if (specValue.length <= 10) {
+          sku += `-${specValue}`;
+        }
+      });
 
+      setFormData(prev => ({ ...prev, sku }));
+      // Clear SKU error when auto-generated
+      setErrors(prev => ({ ...prev, sku: '' }));
+    }
+  };
+
+  generateSKU();
+}, [formData.subcategory_id, formData.brand_id, formData.model, formData.specifications, brands, availableSubcategories]);
   // Generate CUID-like ID
   const generateCUID = () => {
     const timestamp = Date.now().toString(36);
@@ -219,7 +222,20 @@ const ProductCreationForm: React.FC = () => {
       return false;
     }
   };
+// Clear specification errors when clicking outside
+useEffect(() => {
+  const handleClickOutside = (event:any) => {
+    const specSection = document.querySelector('[data-spec-section]');
+    if (specSection && !specSection.contains(event.target)) {
+      setSpecErrors({});
+    }
+  };
 
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => {
+    document.removeEventListener('mousedown', handleClickOutside);
+  };
+}, []);
   // Handle input changes with validation
   const handleInputChange = (field: keyof ProductFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -472,63 +488,93 @@ const ProductCreationForm: React.FC = () => {
 
 
 
-const handleSubmit = async () => {
-  setIsSubmitting(true);
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
 
-  if (validateForm()) {
-    try {
-      // Build final form data with category details
-      const selectedCategoryData = categories?.data.categories.find(
-        (cat) => cat.id === selectedCategory
-      );
+    if (validateForm()) {
+      try {
+        // Build final form data with category details
+        const selectedCategoryData = categories?.data.categories.find(
+          (cat) => cat.id === selectedCategory
+        );
 
-      const finalFormData = {
-        ...formData,
-        category_id: selectedCategory,
-        category_name: selectedCategoryData?.name,
-        category_code: selectedCategoryData?.name,
-      };
+        const finalFormData = {
+          ...formData,
+          category_id: selectedCategory,
+          category_name: selectedCategoryData?.name,
+          category_code: selectedCategoryData?.name,
+        };
 
-      const response = await fetch("/api/products/all", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(finalFormData),
-      });
+        const response = await fetch("/api/products/all", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(finalFormData),
+        });
 
-      const result: ApiResponse = await response.json();
+        const result: ApiResponse = await response.json();
 
-      if (!result.success) {
-        if (result.errors) {
-          toast.error("❌ Validation Failed", {
-            description: Object.values(result.errors).flat().join(", "),
-          });
+        if (!result.success) {
+          if (result.errors) {
+            toast.error("❌ Validation Failed", {
+              description: Object.values(result.errors).flat().join(", "),
+            });
+          } else {
+            toast.error(`❌ ${result.message || "Product creation failed"}`);
+          }
         } else {
-          toast.error(`❌ ${result.message || "Product creation failed"}`);
+          toast.success("✅ Product Created Successfully", {
+            description: `The product "${finalFormData.name}" was added.`,
+          });
+           resetForm();
         }
-      } else {
-        toast.success("✅ Product Created Successfully", {
-          description: `The product "${finalFormData.name}" was added.`,
+      } catch (error: any) {
+        console.error("Error creating product:", error);
+        toast.error("❌ Server Error", {
+          description: error.message || "An unexpected error occurred.",
         });
       }
-    } catch (error: any) {
-      console.error("Error creating product:", error);
-      toast.error("❌ Server Error", {
-        description: error.message || "An unexpected error occurred.",
+    } else {
+      toast.error("⚠️ Form validation failed", {
+        description: "Please check required fields and try again.",
       });
     }
-  } else {
-    toast.error("⚠️ Form validation failed", {
-      description: "Please check required fields and try again.",
-    });
-  }
 
-  setIsSubmitting(false);
+    setIsSubmitting(false);
+  };
+  // Reset form to initial state
+const resetForm = () => {
+  setFormData({
+    name: '',
+    model: '',
+    description: '',
+    subcategory_id: '',
+    brand_id: '',
+    sku: '',
+    warranty_period: 12,
+    is_active: true,
+    specifications: [],
+    barcodes: [],
+  });
+  
+  setSelectedCategory('');
+  setAvailableSubcategories([]);
+  setNewSpec({
+    spec_name: '',
+    spec_value: '',
+    spec_unit: '',
+  });
+  setBarcodeInput('');
+  setLabelQuantity(1);
+  setShowBarcodePreview(false);
+  setIsScanning(false);
+  
+  // Clear all errors
+  setErrors({});
+  setSpecErrors({});
+  setBarcodeError('');
 };
-
-
-
   // Error display component
   const ErrorMessage = ({ message }: { message: string }) => (
     message ? (
@@ -566,71 +612,71 @@ const handleSubmit = async () => {
 
         {/* Basic Information Section */}
         <div className="space-y-4">
-  <h2 className="text-xl font-bold text-gray-800 dark:text-white">Basic Information</h2>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">Basic Information</h2>
 
-  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    {/* Category */}
-    <div className="space-y-2 w-full max-w-xs">
-      <Label htmlFor="category" className="text-sm font-medium text-gray-700 dark:text-gray-300">Category *</Label>
-      <Select value={selectedCategory} onValueChange={handleCategoryChange}>
-        <SelectTrigger className={`${errors.category ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
-          <SelectValue placeholder="Select a category" />
-        </SelectTrigger>
-        <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-          {categories?.data.categories.map(category => (
-            <SelectItem key={category.id} value={category.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
-              {category.name} ({category.name})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <ErrorMessage message={errors.category} />
-    </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Category */}
+            <div className="space-y-2 w-full max-w-xs">
+              <Label htmlFor="category" className="text-sm font-medium text-gray-700 dark:text-gray-300">Category *</Label>
+              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+                <SelectTrigger className={`${errors.category ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  {categories?.data.categories.map(category => (
+                    <SelectItem key={category.id} value={category.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
+                      {category.name} ({category.name})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ErrorMessage message={errors.category} />
+            </div>
 
-    {/* Subcategory */}
-    <div className="space-y-2 w-full max-w-xs">
-      <Label htmlFor="subcategory" className="text-sm font-medium text-gray-700 dark:text-gray-300">Subcategory *</Label>
-      <Select
-        value={formData.subcategory_id}
-        onValueChange={(value) => handleInputChange('subcategory_id', value)}
-        disabled={!selectedCategory}
-      >
-        <SelectTrigger className={`${errors.subcategory_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
-          <SelectValue placeholder="Select a subcategory" />
-        </SelectTrigger>
-        <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-          {availableSubcategories.map(subcategory => (
-            <SelectItem key={subcategory.subcategory_id} value={subcategory.subcategory_id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
-              {subcategory.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <ErrorMessage message={errors.subcategory_id} />
-    </div>
+            {/* Subcategory */}
+            <div className="space-y-2 w-full max-w-xs">
+              <Label htmlFor="subcategory" className="text-sm font-medium text-gray-700 dark:text-gray-300">Subcategory *</Label>
+              <Select
+                value={formData.subcategory_id}
+                onValueChange={(value) => handleInputChange('subcategory_id', value)}
+                disabled={!selectedCategory}
+              >
+                <SelectTrigger className={`${errors.subcategory_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
+                  <SelectValue placeholder="Select a subcategory" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  {availableSubcategories.map(subcategory => (
+                    <SelectItem key={subcategory.subcategory_id} value={subcategory.subcategory_id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
+                      {subcategory.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ErrorMessage message={errors.subcategory_id} />
+            </div>
 
-    {/* Brand */}
-    <div className="space-y-2 w-full max-w-xs">
-      <Label htmlFor="brand" className="text-sm font-medium text-gray-700 dark:text-gray-300">Brand *</Label>
-      <Select
-        value={formData.brand_id}
-        onValueChange={(value) => handleInputChange('brand_id', value)}
-      >
-        <SelectTrigger className={`${errors.brand_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
-          <SelectValue placeholder="Select a brand" />
-        </SelectTrigger>
-        <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-          {brands?.data.brands.map(brand => (
-            <SelectItem key={brand.id} value={brand.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
-              {brand.name} ({brand.code})
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <ErrorMessage message={errors.brand_id} />
-    </div>
-  </div>
-</div>
+            {/* Brand */}
+            <div className="space-y-2 w-full max-w-xs">
+              <Label htmlFor="brand" className="text-sm font-medium text-gray-700 dark:text-gray-300">Brand *</Label>
+              <Select
+                value={formData.brand_id}
+                onValueChange={(value) => handleInputChange('brand_id', value)}
+              >
+                <SelectTrigger className={`${errors.brand_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
+                  <SelectValue placeholder="Select a brand" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
+                  {brands?.data.brands.map(brand => (
+                    <SelectItem key={brand.id} value={brand.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
+                      {brand.name} ({brand.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <ErrorMessage message={errors.brand_id} />
+            </div>
+          </div>
+        </div>
 
 
         {/* Product Details Section */}
@@ -682,9 +728,9 @@ const handleSubmit = async () => {
             <Tag className="h-4 w-4" />
             Product Specifications
           </h2>
-          
+
           {/* Add New Specification */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4"  data-spec-section>
             <div className="space-y-1">
               <Input
                 placeholder="Specification name *"
@@ -747,7 +793,7 @@ const handleSubmit = async () => {
             <Barcode className="h-4 w-4" />
             Barcode Management *
           </h2>
-          
+
           {/* Barcode Input/Scanning */}
           <div className="space-y-4">
             <div className="flex gap-2">

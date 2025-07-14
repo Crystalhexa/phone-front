@@ -27,7 +27,7 @@ const barcodeSchema = z.object({
 
 const productSchema = z.object({
   name: z.string().min(1, 'Product name is required').max(255, 'Product name too long'),
-  model: z.string().min(1, 'Product model is required').max(255, 'Product model too long'),
+  model: z.string().max(255, 'Product model too long'),
   description: z.string().max(1000, 'Description too long').optional(),
   subcategory_id: z.string().optional(),
   brand_id: z.string().optional(),

@@ -1,4 +1,4 @@
-import ProductCreationForm from '@/components/form/productForm/ProductCreationForm'
+import ProductCreationForm from '@/components/form/ProductForm/ProductCreationForm'
 import React from 'react'
 
 function page() {

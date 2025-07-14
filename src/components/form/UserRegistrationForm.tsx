@@ -10,13 +10,13 @@ import { ArrowLeft } from 'lucide-react'
 import { Form } from '../ui/form'
 import CustomFormField, { FormFieldType } from '../form/CustomFormField'
 import SubmitButton from '../form/SubmitButton'
-import { useGetRolesQuery } from '@/state/api'
 import { Props, RolesApiResponse } from '@/types/roles'
 import {
   useCreateUserMutation,
   useGetUserByIdQuery,
   useUpdateUserMutation,
 } from '@/state/employee'
+import { useGetRolesQuery } from '@/state/api'
 
 const userSchema = z.object({
   user_id: z.string().optional(),

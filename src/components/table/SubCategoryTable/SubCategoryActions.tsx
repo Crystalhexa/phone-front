@@ -10,7 +10,7 @@ export const useSubCategoryActions = () => {
   // Dialog state management
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedsubCategory, setSelectedSubcategory] = useState<Subcategory | null>(null);
+  const [selectedsubCategory, setSelectedSubcategory] = useState<Subcategory>();
 
   // Mutation hooks
   const [deleteCategory, { isLoading: isDeleting }] = useDeleteCategoryMutation();

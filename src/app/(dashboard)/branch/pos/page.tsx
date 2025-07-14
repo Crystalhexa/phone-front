@@ -129,7 +129,7 @@ const POSSystem: React.FC = () => {
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>();
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 20,
+    limit: 8,
     total: 0,
     total_pages: 0,
     has_next: false,
@@ -161,7 +161,7 @@ const POSSystem: React.FC = () => {
       const queryParams = new URLSearchParams({
         branch_id: branchId,
         page: currentPage.toString(),
-        limit: '20',
+        limit: '8',
         ...params
       })
 
