@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect, useCallback } from 'react'
-import { Search, ShoppingCart, Plus, Minus, X, Package, AlertTriangle, Barcode, Filter, Grid, List, EyeOff, Eye } from 'lucide-react'
+import { Search, ShoppingCart, Plus, Minus, X, Package, AlertTriangle, Barcode, Filter, Grid, List, EyeOff, Eye, TableProperties, Table2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useBrandData } from '@/components/table/BrandTable/useBrandData'
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData'
 import { CategoriesListResponse, Subcategory } from '@/types/category'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 // ========== Types ==========
 interface Product {
@@ -124,7 +125,7 @@ const POSSystem: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [selectedBrand, setSelectedBrand] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'table'>('grid')
   const [showLowStock, setShowLowStock] = useState(false);
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>();
   const [pagination, setPagination] = useState({
@@ -450,6 +451,134 @@ const POSSystem: React.FC = () => {
     </Card>
   )
 
+  const renderProductTable = () => (
+    
+  <div className="rounded-md border">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[250px]">Product</TableHead>
+          <TableHead className="w-[100px]">Brand</TableHead>
+          <TableHead className="w-[150px]">Category</TableHead>
+          <TableHead className="w-[100px]">Stock</TableHead>
+          <TableHead className="w-[120px]">Pricing</TableHead>
+          <TableHead className="w-[150px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {products.map((product) => (
+          <TableRow key={product.id}>
+            <TableCell className="font-medium">
+              <div className="space-y-1">
+                <div className="font-medium text-sm">{product.name}</div>
+                <div className="text-xs text-muted-foreground">{product.model}</div>
+                <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
+              </div>
+            </TableCell>
+            
+            <TableCell>
+              {product.brand && (
+                <Badge variant="secondary" className="text-xs">
+                  {product.brand.name}
+                </Badge>
+              )}
+            </TableCell>
+            
+            <TableCell>
+              {product.subcategory && (
+                <div className="space-y-1">
+                  <div className="text-xs font-medium">{product.subcategory.category.name}</div>
+                  <div className="text-xs text-muted-foreground">{product.subcategory.name}</div>
+                </div>
+              )}
+            </TableCell>
+            
+            <TableCell>
+              {product.stock && (
+                <div className="space-y-1">
+                  <div className={`text-xs font-medium ${
+                    product.stock.is_low_stock ? 'text-red-600' : 'text-green-600'
+                  }`}>
+                    {product.stock.available_quantity}
+                  </div>
+                  {product.stock.is_low_stock && (
+                    <Badge variant="destructive" className="text-xs">
+                      Low
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </TableCell>
+            
+            <TableCell>
+              {product.pricing && (
+                <div className="space-y-1">
+                  <div className="text-xs font-medium">
+                    {product.pricing.currency} {product.pricing.retail_price.toFixed(2)}
+                  </div>
+                  {product.pricing.wholesale_price && (
+                    <div className="text-xs text-muted-foreground">
+                      W: {product.pricing.currency} {product.pricing.wholesale_price.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </TableCell>
+            
+            <TableCell>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  onClick={() => addToCart(product, 'retail')}
+                  disabled={!product.stock || product.stock.available_quantity <= 0}
+                  className="h-8 px-2 text-xs"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+                
+                {product.pricing?.wholesale_price && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => addToCart(product, 'wholesale')}
+                    disabled={!product.stock || product.stock.available_quantity <= 0}
+                    className="h-8 px-2 text-xs"
+                  >
+                    W
+                  </Button>
+                )}
+                
+                {product.specifications.length > 0 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-8 px-2">
+                        <Package className="h-3 w-3" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>{product.name} - Specifications</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2">
+                        {product.specifications.map(spec => (
+                          <div key={spec.id} className="flex justify-between text-sm">
+                            <span className="font-medium">{spec.spec_name}:</span>
+                            <span>{spec.spec_value} {spec.spec_unit}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </div>
+)
+
   const renderCartItem = (item: CartItem) => (
     <div key={`${item.product.id}-${item.price_type}`} className="flex items-center justify-between p-3 border rounded-lg">
       <div className="flex-1">
@@ -629,6 +758,14 @@ const POSSystem: React.FC = () => {
                   <List className="h-4 w-4" />
                 </Button>
                 <Button
+                  variant={viewMode === 'table' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                >
+                  <List className="h-4 w-4" />
+                  Table
+                </Button>
+                <Button
                   variant={showLowStock ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setShowLowStock(!showLowStock)}
@@ -654,38 +791,29 @@ const POSSystem: React.FC = () => {
 
           {/* Products Grid - Updated responsive classes */}
           {loading ? (
-            <div className={`grid gap-6 ${viewMode === 'grid'
-              ? isCartVisible
-                ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-              : 'grid-cols-1'
-              }`}>
+            <div className="space-y-4">
               {[...Array(8)].map((_, i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardHeader>
-                    <div className="h-6 bg-gray-200 rounded"></div>
-                    <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 rounded"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                      <div className="h-8 bg-gray-200 rounded"></div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div key={i} className="animate-pulse">
+                  <div className="h-16 bg-gray-200 rounded"></div>
+                </div>
               ))}
             </div>
           ) : (
-            <div className={`${viewMode === 'grid'
-              ? `grid gap-6 ${isCartVisible
-                ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-              }`
-              : 'space-y-4'
-              }`}>
-              {products.map(renderProductCard)}
-            </div>
+            <>
+              {viewMode === 'table' ? (
+                renderProductTable()
+              ) : (
+                <div className={`${viewMode === 'grid'
+                  ? `grid gap-6 ${isCartVisible
+                    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                  }`
+                  : 'space-y-4'
+                  }`}>
+                  {products.map(renderProductCard)}
+                </div>
+              )}
+            </>
           )}
 
           {/* Pagination */}

@@ -32,7 +32,6 @@ export function DataTable<T>({
   title = "Data Table",
   subtitle,
   actions,
-  className = ""
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);

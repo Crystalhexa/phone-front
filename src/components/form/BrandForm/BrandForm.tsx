@@ -147,7 +147,7 @@ console.log(isEdit, brandId);
             label="Brand Code"
             placeholder="Enter brand code"
             disabled={isLoading}
-            required
+            
           />
 
           <CustomFormField
@@ -157,7 +157,7 @@ console.log(isEdit, brandId);
             label="Brand Name"
             placeholder="Enter brand name"
             disabled={isLoading}
-            required
+           
           />
 
           <CustomFormField

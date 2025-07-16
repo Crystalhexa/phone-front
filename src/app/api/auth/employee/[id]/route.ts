@@ -19,6 +19,7 @@ const updateSchema = z.object({
     gender: z.string().optional().nullable(),
     position: z.string().optional().nullable(),
     department: z.string().optional().nullable(),
+      branch_id:z.string().cuid(),
     date_of_birth: z.string().optional().nullable(),
     hire_date: z.string().optional().nullable(),
     is_active: z.boolean()
@@ -109,8 +110,8 @@ export async function PUT(
         `UPDATE employees SET
           employee_number = $1, name = $2, email = $3, phone = $4, nic = $5,
           gender = $6, position = $7, department = $8, date_of_birth = $9,
-          hire_date = $10, is_active = $11
-         WHERE user_id = $12`,
+          hire_date = $10, is_active = $11,branch_id = $12
+         WHERE user_id = $13`,
         [
           employee.employee_number,
           employee.name,
@@ -123,6 +124,7 @@ export async function PUT(
           employee.date_of_birth,
           employee.hire_date,
           employee.is_active,
+          employee.branch_id,
           id
         ]
       )

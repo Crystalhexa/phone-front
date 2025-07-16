@@ -150,7 +150,7 @@ const CategoryFormComponent: React.FC<CategoryFormProps> = ({
             label="Category Name"
             placeholder="Enter category name"
             disabled={isLoading}
-            required
+            
           />
 
           {/* Description Field */}

@@ -8,10 +8,6 @@ export interface User {
   is_active: boolean;
   role_id: number;
 }
-// types/user.ts
-
-// types/user.ts
-
 export interface EmployeeFormData {
   employee_number: string
   name: string
@@ -62,8 +58,9 @@ export interface UserListItem {
   username: string
   email: string
   is_active: boolean
-  role_id: string
+  role_name: string
   employee: {
+    branch_id: string;
     id: string
     name: string
     employee_number: string
@@ -72,6 +69,7 @@ export interface UserListItem {
     nic?: string,
     gender?: "MALE"|"FEMALE"|"OTHER",
     position?: string,
+    branch_name?:string,
     department?: string,
     date_of_birth?: Date;
     hire_date ?: Date;

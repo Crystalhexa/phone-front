@@ -120,7 +120,7 @@ const data = {
       icon: IconInnerShadowTop,
       items: [
         { title: "Stores", url: "/locations/stores" },
-        { title: "Branches", url: "/locations/branches" },
+        { title: "Branches", url: "/dashboard/branches/view" },
       ],
     },
     {

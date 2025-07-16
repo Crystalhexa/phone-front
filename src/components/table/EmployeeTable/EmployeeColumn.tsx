@@ -64,22 +64,22 @@ export const createEmployeeColumns = (actions: TableAction[]): ColumnDef<UserLis
     },
   },
   {
-    accessorKey: "position",
-    header: "Position",
+    accessorKey: "role_name",
+    header: "Role",
     size: 180,
     cell: ({ row }) => (
       <div className="text-gray-300 w-[180px] truncate">
-        {row.getValue("position") || <span className="text-gray-500 italic">—</span>}
+        {row.getValue("role_name") || <span className="text-gray-500 italic">—</span>}
       </div>
     ),
   },
   {
-    accessorKey: "department",
-    header: "Department",
+    accessorKey: "branch_name",
+    header: "Branch",
     size: 180,
     cell: ({ row }) => (
       <div className="text-gray-300 w-[180px] truncate">
-        {row.getValue("department") || <span className="text-gray-500 italic">—</span>}
+        {row.getValue("branch_name") || <span className="text-gray-500 italic">—</span>}
       </div>
     ),
   },

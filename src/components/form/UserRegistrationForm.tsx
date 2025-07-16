@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -16,7 +16,9 @@ import {
   useGetUserByIdQuery,
   useUpdateUserMutation,
 } from '@/state/employee'
-import { useGetRolesQuery } from '@/state/api'
+import { useGetAllRolesQuery } from '@/state/role'
+import { SearchableDropdown } from './SearchableDropdown'
+import { useBranchData } from '../table/BranchTable/useBranchData'
 
 const userSchema = z.object({
   user_id: z.string().optional(),
@@ -34,6 +36,7 @@ const userSchema = z.object({
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
     position: z.string().optional(),
     department: z.string().optional(),
+    branch_id: z.string().min(1, 'Branch is required'),
     date_of_birth: z.coerce.date().optional(),
     hire_date: z.coerce.date().optional(),
     is_active: z.boolean(),
@@ -45,7 +48,7 @@ export type UserFormData = z.infer<typeof userSchema>
 const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
   const router = useRouter()
 
-  const { data: rolesData, isLoading: rolesLoading } = useGetRolesQuery() as {
+  const { data: rolesData, isLoading: rolesLoading } = useGetAllRolesQuery() as {
     data?: RolesApiResponse
     isLoading: boolean
   }
@@ -67,6 +70,7 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
         gender: 'MALE',
         position: '',
         department: '',
+        branch_id: '',
         date_of_birth: new Date(),
         hire_date: new Date(),
         is_active: true,
@@ -101,7 +105,7 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
         email: user.email,
         password_hash: '',
         is_active: user.is_active,
-        role_id: user.role_id,
+        role_id: user.id,
         employee: {
           employee_number: user.employee?.employee_number || '',
           name: user.employee?.name || '',
@@ -110,6 +114,7 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
           nic: user.employee?.nic || '',
           gender: user.employee?.gender || 'MALE',
           position: user.employee?.position || '',
+          branch_id: user.employee?.branch_id || '',
           department: user.employee?.department || '',
           date_of_birth: user.employee?.date_of_birth
             ? new Date(user.employee.date_of_birth)
@@ -147,6 +152,19 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
       toast.error(`User ${isEdit ? 'update' : 'creation'} failed! ${message}`)
     }
   }
+
+   const {
+      data:branchOptions,
+      isLoading:isSearching,
+      handleSearch:handleBranchSearch,
+      searchTerm,
+      error,
+      currentPage,
+      pageSize,
+      totalPages,
+      setCurrentPage,
+      handlePageSizeChange,
+    } = useBranchData()
 
   if (isEdit && isLoading) {
     return <p className="text-center py-10">Loading user data...</p>
@@ -212,6 +230,25 @@ const UserForm: React.FC<Props> = ({ userId, isEdit = false }) => {
                 }
                 required
               />
+              <Controller
+                name="employee.branch_id"
+                control={form.control}
+                render={({ field }) => (
+                  <SearchableDropdown
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    placeholder="Select Branch"
+                    searchPlaceholder="Search branches..."
+                    options={branchOptions?.data?.branches||[]} // array of branches: { id, name, ... }
+                    disabled={false}
+                    emptyMessage="No branches found"
+                    onSearch={handleBranchSearch} // optional, for remote search
+                    searchTerm={searchTerm}
+                    isSearching={isSearching}
+                  />
+                )}
+              />
+
               <CustomFormField
                 control={form.control}
                 name="is_active"

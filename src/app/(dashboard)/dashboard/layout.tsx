@@ -9,7 +9,7 @@ type Props = {
 
 const Layout = async ({ children }: Props) => {
   return (
-    <StoreProvider>
+
       <SidebarProvider>
         <AppSidebar variant="inset" />
         <SidebarInset>
@@ -18,7 +18,7 @@ const Layout = async ({ children }: Props) => {
         </SidebarInset>
         <Toaster />
       </SidebarProvider>
-    </StoreProvider>
+   
   )
 }
 export default Layout;

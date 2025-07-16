@@ -215,7 +215,7 @@ model brands {
 
 // ================== PRODUCTS ==================
 model products {
- id                      String   @id @default(cuid())
+  id                      String   @id @default(cuid())
   name                    String   @db.VarChar(255)
   model                   String   @db.VarChar(255)
   description             String?  @db.Text
@@ -355,14 +355,12 @@ model branches {
   address         String?  @db.Text
   phone           String?  @unique @db.VarChar(20)
   email           String?  @unique @db.VarChar(255)
-  manager_name    String?  @db.VarChar(100)
   is_active       Boolean  @default(true)
   is_main_branch  Boolean  @default(false)
   can_purchase    Boolean  @default(false)      // NEW: Only main branch can purchase
   timezone        String   @default("UTC") @db.VarChar(50)
-  operating_hours Json?    @default("{}")
   created_at      DateTime @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
   employees              employees[]

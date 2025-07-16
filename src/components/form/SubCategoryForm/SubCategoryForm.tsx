@@ -142,7 +142,6 @@ const SubCategoryFormComponent: React.FC<SubCategoryFormProps> = ({
             label="Subcategory Name"
             placeholder="Enter subcategory name"
             disabled={isLoading}
-            required
           />
 
           <SubCategoryFormActions
