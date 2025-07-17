@@ -10,6 +10,7 @@ export interface AuthenticatedRequest extends NextRequest {
       username: string;
       email: string;
       roleId: string;
+      branchId: string;
     }
   };
 }
@@ -39,22 +40,25 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
 
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-        // Fetch user and permissions
+        
+        // Fetch user, permissions, and branch information
         const userQuery = `
-        SELECT u.id, u.username, u.email, u.role_id, u.is_active,
-               COALESCE(
-                 json_agg(
-                   DISTINCT p.name
-                 ) FILTER (WHERE p.name IS NOT NULL), 
-                 '[]'::json
-               ) as permissions
-        FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        LEFT JOIN role_permissions rp ON r.id = rp.role_id
-        LEFT JOIN permissions p ON rp.permission_id = p.id
-        WHERE u.id = $1 AND u.is_active = true
-        GROUP BY u.id, u.username, u.email, u.role_id, u.is_active
-      `;
+          SELECT u.id, u.username, u.email, u.role_id, u.is_active,
+                 e.branch_id,
+                 COALESCE(
+                   json_agg(
+                     DISTINCT p.name
+                   ) FILTER (WHERE p.name IS NOT NULL),
+                   '[]'::json
+                 ) as permissions
+          FROM users u
+          LEFT JOIN roles r ON u.role_id = r.id
+          LEFT JOIN role_permissions rp ON r.id = rp.role_id
+          LEFT JOIN permissions p ON rp.permission_id = p.id
+          LEFT JOIN employees e ON u.id = e.user_id
+          WHERE u.id = $1 AND u.is_active = true
+          GROUP BY u.id, u.username, u.email, u.role_id, u.is_active, e.branch_id
+        `;
 
         const userResult = await query(userQuery, [decoded.userId]);
 
@@ -76,6 +80,7 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
             username: user.username,
             email: user.email,
             roleId: user.role_id,
+            branchId: user.branch_id, // Added branch_id here
           }
         };
 
@@ -93,10 +98,7 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
         return NextResponse.json({ error: 'Token verification failed' }, { status: 401 });
       }
 
-
       return handler(req as AuthenticatedRequest);
-
-
     } catch (error) {
       console.error('Auth middleware error:', error);
       return NextResponse.json({

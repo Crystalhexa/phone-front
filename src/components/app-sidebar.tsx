@@ -98,7 +98,7 @@ const data = {
           title: "Purchase Orders",
           url: "/orders/purchase",
           items: [
-            { title: "All Purchases", url: "/orders/purchase/all" },
+            { title: "All Purchases", url: "/dashboard/orders/purchase/all" },
             { title: "Suppliers", url: "/dashboard/orders/purchase/suppliers" },
           ],
         },
