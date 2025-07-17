@@ -35,6 +35,7 @@ export const authApi = createApi({
       return headers;
     },
   }),
+  tagTypes: ['Profile', 'Auth'],
   endpoints: (builder) => ({
     login: builder.mutation<AuthResponse, LoginRequest>({
       query: (body) => ({
@@ -42,6 +43,18 @@ export const authApi = createApi({
         method: 'POST',
         body,
       }),
+      // Clear all cached data on successful login
+      invalidatesTags: ['Profile', 'Auth'],
+      // Optional: Clear cache on any login attempt
+      onQueryStarted: async (arg, { dispatch, queryFulfilled }) => {
+        try {
+          await queryFulfilled;
+          // Clear the entire cache to prevent stale data
+          dispatch(authApi.util.resetApiState());
+        } catch (error) {
+          // Handle error if needed
+        }
+      },
     }),
     register: builder.mutation<AuthResponse, RegisterRequest>({
       query: (body) => ({
@@ -49,15 +62,42 @@ export const authApi = createApi({
         method: 'POST',
         body,
       }),
+      // Clear all cached data on successful registration
+      invalidatesTags: ['Profile', 'Auth'],
+      // Optional: Clear cache on any registration attempt
+      onQueryStarted: async (arg, { dispatch, queryFulfilled }) => {
+        try {
+          await queryFulfilled;
+          // Clear the entire cache to prevent stale data
+          dispatch(authApi.util.resetApiState());
+        } catch (error) {
+          // Handle error if needed
+        }
+      },
     }),
     getProfile: builder.query<AuthResponse, void>({
       query: () => '/me',
+      providesTags: ['Profile'],
+      // Force refetch on mount and focus to ensure fresh data
+      forceRefetch: ({ currentArg, previousArg }) => currentArg !== previousArg,
     }),
     logout: builder.mutation<{ success: boolean }, void>({
       query: () => ({
         url: '/logout',
         method: 'POST',
       }),
+      // Clear all cached data on logout
+      invalidatesTags: ['Profile', 'Auth'],
+      onQueryStarted: async (arg, { dispatch, queryFulfilled }) => {
+        try {
+          await queryFulfilled;
+        } catch (error) {
+          // Even if logout fails on server, clear local cache
+        } finally {
+          // Always clear the cache on logout
+          dispatch(authApi.util.resetApiState());
+        }
+      },
     }),
   }),
 });

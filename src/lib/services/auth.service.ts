@@ -69,6 +69,7 @@ export class AuthService {
         permissions
       });
 
+      
       // Log user activity
       await this.logUserActivity(user.id, 'LOGIN', 'USER', user.id);
 

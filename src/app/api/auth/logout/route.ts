@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
       // Clear cookie
       response.cookies.set({
-        name: 'token',
+        name: 'accessToken',
         value: '',
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',

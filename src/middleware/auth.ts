@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { query } from '@/lib/database/connection';
+import { initDatabase, query } from '@/lib/database/connection';
 
 export interface AuthenticatedRequest extends NextRequest {
   user: {
-    userId: string;
-    username: string;
-    email: string;
-    roleId: string;
     permissions: string[];
+    user: {
+      userId: string;
+      username: string;
+      email: string;
+      roleId: string;
+    }
   };
 }
 
 export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextResponse>) {
   return async (req: NextRequest): Promise<NextResponse> => {
     try {
-      // Get token from Authorization header or cookie
+      await initDatabase();
+
       const authHeader = req.headers.get('authorization');
-      const cookieToken = req.cookies.get('token')?.value;
-      
+      const cookieToken = req.cookies.get('accessToken')?.value;
       let token: string | null = null;
-      
+
       if (authHeader && authHeader.startsWith('Bearer ')) {
         token = authHeader.substring(7);
       } else if (cookieToken) {
@@ -28,21 +30,17 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
       }
 
       if (!token) {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Authentication required',
-            timestamp: new Date().toISOString()
-          },
-          { status: 401 }
-        );
+        return NextResponse.json({
+          success: false,
+          message: 'Authentication required',
+          timestamp: new Date().toISOString()
+        }, { status: 401 });
       }
 
-      // Verify token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-      
-      // Get user with permissions
-      const userQuery = `
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+        // Fetch user and permissions
+        const userQuery = `
         SELECT u.id, u.username, u.email, u.role_id, u.is_active,
                COALESCE(
                  json_agg(
@@ -58,45 +56,59 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
         GROUP BY u.id, u.username, u.email, u.role_id, u.is_active
       `;
 
-      const userResult = await query(userQuery, [decoded.userId]);
-      
-      if (userResult.rows.length === 0) {
-        return NextResponse.json(
-          {
+        const userResult = await query(userQuery, [decoded.userId]);
+
+        if (userResult.rows.length === 0) {
+          return NextResponse.json({
             success: false,
             message: 'User not found or inactive',
             timestamp: new Date().toISOString()
-          },
-          { status: 401 }
-        );
+          }, { status: 401 });
+        }
+
+        const user = userResult.rows[0];
+
+        // Attach to request
+        (req as AuthenticatedRequest).user = {
+          permissions: user.permissions,
+          user: {
+            userId: user.id,
+            username: user.username,
+            email: user.email,
+            roleId: user.role_id,
+          }
+        };
+
+        // Call original handler
+      } catch (tokenError: any) {
+        console.error('Token verification error:', tokenError);
+
+        if (tokenError.name === 'TokenExpiredError' || tokenError.name === 'JsonWebTokenError') {
+          const response = NextResponse.json({ error: 'Token expired or invalid' }, { status: 401 });
+          response.cookies.delete('accessToken');
+          response.cookies.delete('refreshToken');
+          return response;
+        }
+
+        return NextResponse.json({ error: 'Token verification failed' }, { status: 401 });
       }
 
-      const user = userResult.rows[0];
-      
-      // Attach user to request
-      (req as AuthenticatedRequest).user = {
-        userId: user.id,
-        username: user.username,
-        email: user.email,
-        roleId: user.role_id,
-        permissions: user.permissions
-      };
 
       return handler(req as AuthenticatedRequest);
 
+
     } catch (error) {
       console.error('Auth middleware error:', error);
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Authentication failed',
-          timestamp: new Date().toISOString()
-        },
-        { status: 401 }
-      );
+      return NextResponse.json({
+        success: false,
+        message: 'Authentication failed',
+        timestamp: new Date().toISOString()
+      }, { status: 401 });
     }
   };
 }
+
+
 
 export function withPermission(requiredPermission: string) {
   return (handler: (req: AuthenticatedRequest) => Promise<NextResponse>) => {

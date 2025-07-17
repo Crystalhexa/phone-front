@@ -16,7 +16,7 @@ import { setCredentials } from "@/state/slices/authSlice";
 import { useLoginMutation } from "@/state/authApi";
 import { useAppDispatch } from "@/state/redux";
 import { useRouter } from 'next/navigation';
-
+import { useAuth } from '@/hooks/useAuth';
 
 export function LoginForm({
   className,
@@ -24,22 +24,21 @@ export function LoginForm({
 }: React.ComponentProps<"div">) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [login, { isLoading, error }] = useLoginMutation();
+const { login, isLoading } = useAuth();
   const dispatch = useAppDispatch();
-  const  route = useRouter()
+  const  route = useRouter();
+    const [error, setError] = useState('');
+
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const res = await login({ email, password }).unwrap();
-      dispatch(setCredentials({
-        user: res.data.user,
-        token: res.data.token,
-        permissions: res.data.permissions,
-      }));
-      route.push('/dashboard')
-        
-    } catch (err) {
-      console.error("Login failed:", err);
+    
+      const res = await login({ email, password });
+     if (res.success) {
+      route.push('/dashboard'); // Redirect to dashboard or desired page
+    } else {
+      setError(res.message || 'Login failed');
     }
   };
 

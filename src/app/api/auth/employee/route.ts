@@ -177,7 +177,8 @@ export async function POST(req: NextRequest) {
           emp.date_of_birth,
           emp.hire_date,
           emp.is_active,
-          userId
+          userId,
+          emp.branch_id,
         ]
       )
 
