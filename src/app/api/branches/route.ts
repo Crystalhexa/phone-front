@@ -26,33 +26,35 @@ function generateBranchCode(location: string): string {
 export async function POST(req: NextRequest) {
   await initDatabase();
   const timestamp = new Date().toISOString();
-
+  
   try {
     const json = await req.json();
     const parsed = branchSchema.safeParse(json);
-
-  if (!parsed.success) {
-        return NextResponse.json<ApiResponse>({
-          success: false,
-          message: parsed.error.errors[0]?.message || 'Invalid input',
-          data: null,
-          timestamp,
-        }, { status: 400 })
-      }
-
+    
+    if (!parsed.success) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        message: parsed.error.errors[0]?.message || 'Invalid input',
+        data: null,
+        timestamp,
+      }, { status: 400 })
+    }
+    
     const data = parsed.data;
     const branchCode = generateBranchCode(data.location);
-
+    
     const result = await transaction(async client => {
-      const id = cuid()
-      const { rows } = await client.query(`
+      const branchId = cuid();
+      
+      // 1. Create the branch
+      const { rows: branchRows } = await client.query(`
         INSERT INTO branches (
-          id,name, code, location, address, phone, email,
+          id, name, code, location, address, phone, email,
           is_active, is_main_branch, can_purchase, timezone
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
       `, [
-        id,
+        branchId,
         data.name,
         branchCode,
         data.location,
@@ -64,27 +66,65 @@ export async function POST(req: NextRequest) {
         data.can_purchase ?? false,
         data.timezone || 'UTC',
       ]);
-      return rows[0];
+      
+      const branch = branchRows[0];
+      
+      // 2. Get all active products
+      const { rows: productRows } = await client.query(`
+        SELECT id FROM products WHERE is_active = true
+      `);
+      
+      // 3. Create branch_inventory records for all active products
+      if (productRows.length > 0) {
+        const inventoryValues = productRows.map((product, index) => {
+          const baseIndex = index * 9; // 9 parameters per record
+          return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, $${baseIndex + 8}, $${baseIndex + 9})`;
+        }).join(', ');
+        
+        const inventoryParams = productRows.flatMap(product => [
+          cuid(), // id
+          branchId, // branch_id
+          product.id, // product_id
+          0, // total_quantity
+          0, // reserved_quantity
+          5, // low_stock_threshold (default)
+          20, // reorder_quantity (default)
+          null, // last_restock_date
+          null, // last_sale_date
+        ]);
+        
+        await client.query(`
+          INSERT INTO branch_inventory (
+            id, branch_id, product_id, total_quantity, reserved_quantity,
+            low_stock_threshold, reorder_quantity, last_restock_date, last_sale_date
+          ) VALUES ${inventoryValues}
+        `, inventoryParams);
+      }
+      
+      return {
+        branch,
+        inventoryRecordsCreated: productRows.length
+      };
     });
-
- return NextResponse.json<ApiResponse>({
+    
+    return NextResponse.json<ApiResponse>({
       success: true,
-      message: 'Branch created successfully',
-      data: result,
+      message: `Branch created successfully with ${result.inventoryRecordsCreated} inventory records initialized`,
+      data: result.branch,
       timestamp,
     }, { status: 201 })
+    
   } catch (err: any) {
-    console.log(err)
+    console.log(err);
     const isUnique = err.code === '23505';
     let message = 'Internal server error';
-
+    
     if (isUnique) {
       if (err.detail?.includes('phone')) message = 'Phone already exists.';
       else if (err.detail?.includes('email')) message = 'Email already exists.';
       else if (err.detail?.includes('code')) message = 'Generated branch code already exists. Please retry.';
     }
-
-
+    
     return NextResponse.json<ApiResponse>({
       success: false,
       message,

@@ -26,82 +26,75 @@ import {
   ChevronRight,
   Package,
   TrendingDown,
-  AlertTriangle,
-  ChevronDown
+  AlertTriangle
 } from 'lucide-react';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 import { SearchableDropdown } from '@/components/form/SearchableDropdown';
 
-// Types based on your API response
-interface Product {
+// Updated types to match backend response structure
+interface Brand {
   id: string;
   name: string;
+  code: string;
+  logo_url?: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface Subcategory {
+  id: string;
+  name: string;
+  category: Category;
+}
+
+interface Stock {
+  total_quantity: number;
+  reserved_quantity: number;
+  available_quantity: number;
+  low_stock_threshold: number;
+  reorder_quantity: number;
+  last_restock_date?: string;
+  last_sale_date?: string;
+  is_low_stock: boolean;
+  batches?: any[];
+}
+
+interface Pricing {
+  id: string;
+  unit_price: number;
+  currency: string;
+  is_active: boolean;
+  effective_from: string;
+  effective_to?: string;
+}
+
+interface ProductResponse {
+  id: string;
+  name: string;
+  model?: string;
   description: string;
-  subcategory_id: string;
-  brand_id: string;
+  sku?: string;
+  warranty_period?: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
-  subcategory_name: string;
-  category_id: string;
-  category_name: string;
-  brand_name: string;
-  brand_code: string;
-  brand_logo: string;
-  variations?: ProductVariation[];
-  attributes?: ProductAttribute[];
-  stock_info?: StockInfo;
-}
-
-interface ProductVariation {
-  id: string;
-  product_id: string;
-  sku: string;
-  stock_quantity: number;
-  low_stock_threshold: number;
-  retail_price: number;
-  wholesale_price: number;
-  images: ProductImage[];
-  barcodes: Barcode[];
-}
-
-interface ProductImage {
-  id: string;
-  image_url: string;
-  alt_text: string;
-  is_primary: boolean;
-}
-
-interface Barcode {
-  id: string;
-  code: string;
-  type: string;
-  is_active: boolean;
-}
-
-interface ProductAttribute {
-  id: string;
-  name: string;
-  description: string;
-}
-
-interface StockInfo {
-  total_stock: number;
-  min_variation_stock: number;
-  max_variation_stock: number;
-  avg_price: number;
-  min_price: number;
-  max_price: number;
-  variation_count: number;
-  out_of_stock_variations: number;
-  low_stock_variations: number;
-  stock_status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+  brand: Brand | null;
+  subcategory: Subcategory | null;
+  specifications: any[];
+  barcodes: any[];
+  stock: Stock | null;
+  pricing: Pricing | null;
 }
 
 interface ApiResponse {
   success: boolean;
   data: {
-    products: Product[];
+    products: ProductResponse[];
     total: number;
     limit: number;
     page: number;
@@ -117,18 +110,12 @@ interface Filters {
   subcategory_id: string;
   brand_id: string;
   stock_filter: 'all' | 'in_stock' | 'low_stock' | 'out_of_stock';
-  price_min: string;
-  price_max: string;
-  include_variations: boolean;
-  include_attributes: boolean;
   include_stock: boolean;
+  low_stock_only: boolean;
 }
 
-
-
-
 const ProductsTable: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -145,14 +132,10 @@ const ProductsTable: React.FC = () => {
     subcategory_id: '',
     brand_id: '',
     stock_filter: 'all',
-    price_min: '',
-    price_max: '',
-    include_variations: true,
-    include_attributes: true,
-    include_stock: true
+    include_stock: true,
+    low_stock_only: false
   });
 
-  // Simulated API call - replace with your actual API endpoint
   const fetchProducts = async () => {
     setLoading(true);
     try {
@@ -161,19 +144,16 @@ const ProductsTable: React.FC = () => {
         limit: pagination.limit.toString(),
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
-        include_variations: filters.include_variations.toString(),
-        include_attributes: filters.include_attributes.toString(),
         include_stock: filters.include_stock.toString(),
         stock_filter: filters.stock_filter,
+        low_stock_only: filters.low_stock_only.toString(),
+        branch_id: 'cmd7qdjga000fhjeu18ubhpnf',
         ...(filters.search && { search: filters.search }),
         ...(filters.category_id && { category_id: filters.category_id }),
         ...(filters.subcategory_id && { subcategory_id: filters.subcategory_id }),
         ...(filters.brand_id && { brand_id: filters.brand_id }),
-        ...(filters.price_min && { price_min: filters.price_min }),
-        ...(filters.price_max && { price_max: filters.price_max }),
       });
 
-      // Replace with your actual API endpoint
       const response = await fetch(`/api/products/all?${params}`);
       const data: ApiResponse = await response.json();
 
@@ -196,7 +176,15 @@ const ProductsTable: React.FC = () => {
     fetchProducts();
   }, [pagination.page, pagination.limit, filters]);
 
-  const getStockBadge = (status: string) => {
+  const getStockStatus = (product: ProductResponse): 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' => {
+    if (!product.stock) return 'OUT_OF_STOCK';
+    if (product.stock.available_quantity === 0) return 'OUT_OF_STOCK';
+    if (product.stock.is_low_stock) return 'LOW_STOCK';
+    return 'IN_STOCK';
+  };
+
+  const getStockBadge = (product: ProductResponse) => {
+    const status = getStockStatus(product);
     switch (status) {
       case 'IN_STOCK':
         return <Badge variant="default" className="bg-green-500"><Package className="w-3 h-3 mr-1" />In Stock</Badge>;
@@ -225,11 +213,8 @@ const ProductsTable: React.FC = () => {
       subcategory_id: '',
       brand_id: '',
       stock_filter: 'all',
-      price_min: '',
-      price_max: '',
-      include_variations: true,
-      include_attributes: true,
-      include_stock: true
+      include_stock: true,
+      low_stock_only: false
     });
     setPagination(prev => ({ ...prev, page: 1 }));
   };
@@ -238,14 +223,12 @@ const ProductsTable: React.FC = () => {
     data: brand,
     handleSearch: handleBrandSearch,
     searchTerm: brandSearchTerm,
- 
   } = useBrandData();
 
   const {
     data: category,
     handleSearch: handleCategorySearch,
     searchTerm: categorySearchTerm,
-
   } = useCategoryData();
 
   const categories = category?.data?.categories || [];
@@ -257,15 +240,13 @@ const ProductsTable: React.FC = () => {
     name: sub.name,
   })) || [];
 
-  // Transform data for searchable dropdowns
-const categoryOptions = categories
-  .filter((cat) => typeof cat.id === 'string' && typeof cat.name === 'string')
-  .map(cat => ({
-    id: cat.id as string,
-    name: cat.name as string,
-    description: cat.description
-  }));
-
+  const categoryOptions = categories
+    .filter((cat) => typeof cat.id === 'string' && typeof cat.name === 'string')
+    .map(cat => ({
+      id: cat.id as string,
+      name: cat.name as string,
+      description: cat.description
+    }));
 
   const subcategoryOptions = subcategories.map(sub => ({
     id: sub.id,
@@ -277,24 +258,25 @@ const categoryOptions = categories
     name: brand.name,
     code: brand.code,
   }));
-    const router = useRouter();
+
+  const router = useRouter();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-     <div className="flex justify-between items-center">
-      <h1 className="text-3xl font-bold">Products Management</h1>
-      <div className="flex gap-2">
-        <Button onClick={resetFilters} variant="outline">
-          Reset Filters
-        </Button>
-        <Button onClick={() => fetchProducts()}>
-          Refresh
-        </Button>
-        <Button onClick={() => router.push('/dashboard/products/all/register')}>
-          Add New Product
-        </Button>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Products Management</h1>
+        <div className="flex gap-2">
+          <Button onClick={resetFilters} variant="outline">
+            Reset Filters
+          </Button>
+          <Button onClick={() => fetchProducts()}>
+            Refresh
+          </Button>
+          <Button onClick={() => router.push('/dashboard/products/all/register')}>
+            Add New Product
+          </Button>
+        </div>
       </div>
-    </div>
 
       {/* Filters Section */}
       <Card>
@@ -316,7 +298,7 @@ const categoryOptions = categories
               </div>
             </div>
 
-            {/* Category Filter - Searchable with Dynamic Search */}
+            {/* Category Filter */}
             <SearchableDropdown
               value={filters.category_id}
               onValueChange={(value) => {
@@ -328,10 +310,9 @@ const categoryOptions = categories
               emptyMessage="No categories found"
               onSearch={handleCategorySearch}
               searchTerm={categorySearchTerm}
-              
             />
 
-            {/* Subcategory Filter - Searchable */}
+            {/* Subcategory Filter */}
             <SearchableDropdown
               value={filters.subcategory_id}
               onValueChange={(value) => setFilters((prev) => ({ ...prev, subcategory_id: value }))}
@@ -342,7 +323,7 @@ const categoryOptions = categories
               emptyMessage="No subcategories found"
             />
 
-            {/* Brand Filter - Searchable with Dynamic Search */}
+            {/* Brand Filter */}
             <SearchableDropdown
               value={filters.brand_id}
               onValueChange={(value) => setFilters((prev) => ({ ...prev, brand_id: value }))}
@@ -400,21 +381,19 @@ const categoryOptions = categories
               </SelectContent>
             </Select>
 
-            {/* Price Min */}
-            <Input
-              type="number"
-              placeholder="Min Price"
-              value={filters.price_min}
-              onChange={(e) => setFilters((prev) => ({ ...prev, price_min: e.target.value }))}
-            />
-
-            {/* Price Max */}
-            <Input
-              type="number"
-              placeholder="Max Price"
-              value={filters.price_max}
-              onChange={(e) => setFilters((prev) => ({ ...prev, price_max: e.target.value }))}
-            />
+            {/* Low Stock Only Toggle */}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="low_stock_only"
+                checked={filters.low_stock_only}
+                onChange={(e) => setFilters((prev) => ({ ...prev, low_stock_only: e.target.checked }))}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+              />
+              <label htmlFor="low_stock_only" className="text-sm font-medium text-gray-700">
+                Show only low stock items
+              </label>
+            </div>
           </div>
 
           {/* Filter Actions */}
@@ -445,17 +424,21 @@ const categoryOptions = categories
                 <TableHead>Brand</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Stock Status</TableHead>
-                <TableHead>Price Range</TableHead>
-                <TableHead>Variations</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead>SKU</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {products.map((product) => (
-                <TableRow key={product.id} className="hover:bg-gray-900">
+                <TableRow key={product.id} className="hover:bg-gray-50">
                   <TableCell>
                     <div>
                       <div className="font-medium">{product.name}</div>
+                      {product.model && (
+                        <div className="text-sm text-gray-500">Model: {product.model}</div>
+                      )}
                       <div className="text-sm text-gray-500 truncate max-w-xs">
                         {product.description}
                       </div>
@@ -463,41 +446,39 @@ const categoryOptions = categories
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      {product.brand_logo && (
-                        <img src={product.brand_logo} alt={product.brand_name} className="w-6 h-6 rounded" />
+                      {product.brand?.logo_url && (
+                        <img src={product.brand.logo_url} alt={product.brand.name} className="w-6 h-6 rounded" />
                       )}
                       <div>
-                        <div className="font-medium">{product.brand_name}</div>
-                        <div className="text-xs text-gray-500">{product.brand_code}</div>
+                        <div className="font-medium">{product.brand?.name || 'No Brand'}</div>
+                        <div className="text-xs text-gray-500">{product.brand?.code || ''}</div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-medium">{product.category_name}</div>
-                      <div className="text-sm text-gray-500">{product.subcategory_name}</div>
+                      <div className="font-medium">{product.subcategory?.category?.name || 'No Category'}</div>
+                      <div className="text-sm text-gray-500">{product.subcategory?.name || 'No Subcategory'}</div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {product.stock_info ? (
-                      <div className="space-y-1">
-                        {getStockBadge(product.stock_info.stock_status)}
+                    <div className="space-y-2">
+                      {getStockBadge(product)}
+                      {product.stock && (
                         <div className="text-xs text-gray-500">
-                          Total: {product.stock_info.total_stock}
+                          Available: {product.stock.available_quantity} / {product.stock.total_quantity}
                         </div>
-                      </div>
-                    ) : (
-                      <Badge variant="outline">No stock info</Badge>
-                    )}
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
-                    {product.stock_info ? (
+                    {product.pricing ? (
                       <div className="space-y-1">
                         <div className="font-medium">
-                          {formatPrice(product.stock_info.min_price)} - {formatPrice(product.stock_info.max_price)}
+                          {formatPrice(product.pricing.unit_price)}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Avg: {formatPrice(product.stock_info.avg_price)}
+                          {product.pricing.currency}
                         </div>
                       </div>
                     ) : (
@@ -505,20 +486,18 @@ const categoryOptions = categories
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
-                        {product.variations?.length || 0} variations
-                      </Badge>
-                      {product.stock_info && product.stock_info.out_of_stock_variations > 0 && (
-                        <Badge variant="destructive" className="text-xs">
-                          {product.stock_info.out_of_stock_variations} out
-                        </Badge>
-                      )}
+                    <div className="text-sm font-mono">
+                      {product.sku || 'No SKU'}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex">
-                      <Button size="sm" variant="outline"  onClick={() => router.push('/dashboard/products/all/view/' + product.id)}>
+                    <Badge variant={product.is_active ? "default" : "secondary"}>
+                      {product.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => router.push('/dashboard/products/all/view/' + product.id)}>
                         View Details
                       </Button>
                     </div>

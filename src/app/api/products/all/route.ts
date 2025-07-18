@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     // Create product with transaction
     const result = await transaction(async (client) => {
-      // 3. Create product
+      // 1. Create product
       const productId = cuid()
       const productInsertQuery = `
         INSERT INTO products (
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 
       const product = productResult.rows[0]
 
-      // 4. Create specifications
+      // 2. Create specifications
       const createdSpecifications: any[] = []
       if (specifications && specifications.length > 0) {
         const specInsertQuery = `
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 5. Create barcodes
+      // 3. Create barcodes
       const createdBarcodes: any[] = []
       if (barcodes && barcodes.length > 0) {
         const barcodeInsertQuery = `
@@ -133,17 +133,67 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 4. Get all active branches
+      const { rows: branchRows } = await client.query(`
+        SELECT id FROM branches WHERE is_active = true
+      `)
+
+      // 5. Create branch_inventory records for all active branches
+      let inventoryRecordsCreated = 0
+      if (branchRows.length > 0) {
+        const inventoryValues = branchRows.map((branch, index) => {
+          const baseIndex = index * 9 // 9 parameters per record
+          return `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, $${baseIndex + 8}, $${baseIndex + 9})`
+        }).join(', ')
+
+        const inventoryParams = branchRows.flatMap(branch => [
+          cuid(), // id
+          branch.id, // branch_id
+          productId, // product_id
+          0, // total_quantity
+          0, // reserved_quantity
+          5, // low_stock_threshold (default)
+          20, // reorder_quantity (default)
+          null, // last_restock_date
+          null, // last_sale_date
+        ])
+
+        await client.query(`
+          INSERT INTO branch_inventory (
+            id, branch_id, product_id, total_quantity, reserved_quantity,
+            low_stock_threshold, reorder_quantity, last_restock_date, last_sale_date
+          ) VALUES ${inventoryValues}
+        `, inventoryParams)
+
+        inventoryRecordsCreated = branchRows.length
+      }
+
       return {
         ...product,
         specifications: createdSpecifications,
-        barcodes: createdBarcodes
+        barcodes: createdBarcodes,
+        inventoryRecordsCreated
       }
     })
 
     return NextResponse.json({
       success: true,
-      message: 'Product created successfully',
-      data: result,
+      message: `Product created successfully with inventory initialized across ${result.inventoryRecordsCreated} branches`,
+      data: {
+        id: result.id,
+        name: result.name,
+        model: result.model,
+        sku: result.sku,
+        description: result.description,
+        subcategory_id: result.subcategory_id,
+        brand_id: result.brand_id,
+        warranty_period: result.warranty_period,
+        is_active: result.is_active,
+        created_at: result.created_at,
+        specifications: result.specifications,
+        barcodes: result.barcodes,
+        inventoryRecordsCreated: result.inventoryRecordsCreated
+      },
       timestamp: new Date().toISOString(),
     }, { headers: corsHeaders })
 
@@ -651,7 +701,7 @@ async function processProductResults(rows: any[], branchId: string): Promise<Pro
     ORDER BY created_at DESC
   `, [productIds])
 
-  // Fetch batch details with pricing
+  // Fetch batch details with pricing - CORRECTED QUERY
   const batchesResult = await query(`
     SELECT 
       bii.branch_inventory_id,
@@ -664,11 +714,15 @@ async function processProductResults(rows: any[], branchId: string): Promise<Pro
       bii.retail_price,
       bii.expiry_date,
       bii.received_date,
+      poi.purchase_order_id,
+      po.supplier_id,
       s.name as supplier_name
     FROM branch_inventory_items bii
     JOIN branch_inventory bi ON bii.branch_inventory_id = bi.id
     JOIN purchase_batches pb ON bii.purchase_batch_id = pb.id
-    JOIN suppliers s ON pb.supplier_id = s.id
+    JOIN purchase_order_items poi ON pb.purchase_order_item_id = poi.id
+    JOIN purchase_orders po ON poi.purchase_order_id = po.id
+    JOIN suppliers s ON po.supplier_id = s.id
     WHERE bi.branch_id = $1 AND bi.product_id = ANY($2) AND bii.is_active = true
     ORDER BY bii.received_date DESC
   `, [branchId, productIds])
@@ -678,7 +732,13 @@ async function processProductResults(rows: any[], branchId: string): Promise<Pro
   const barcodesMap = new Map<string, any[]>()
   const batchesMap = new Map<string, any[]>()
 
-  specsResult.rows.forEach((spec: { product_id: string; id: any; spec_name: any; spec_value: any; spec_unit: any }) => {
+  specsResult.rows.forEach((spec: { 
+    product_id: string; 
+    id: any; 
+    spec_name: any; 
+    spec_value: any; 
+    spec_unit: any 
+  }) => {
     if (!specificationsMap.has(spec.product_id)) {
       specificationsMap.set(spec.product_id, [])
     }
@@ -690,7 +750,13 @@ async function processProductResults(rows: any[], branchId: string): Promise<Pro
     })
   })
 
-  barcodesResult.rows.forEach((barcode: { product_id: string; id: any; code: any; type: any; is_active: any }) => {
+  barcodesResult.rows.forEach((barcode: { 
+    product_id: string; 
+    id: any; 
+    code: any; 
+    type: any; 
+    is_active: any 
+  }) => {
     if (!barcodesMap.has(barcode.product_id)) {
       barcodesMap.set(barcode.product_id, [])
     }
@@ -702,7 +768,18 @@ async function processProductResults(rows: any[], branchId: string): Promise<Pro
     })
   })
 
-  batchesResult.rows.forEach((batch: { product_id: string; id: any; batch_number: any; quantity: any; cost_price: string; wholesale_price: string; retail_price: string; expiry_date: any; received_date: any; supplier_name: any }) => {
+  batchesResult.rows.forEach((batch: { 
+    product_id: string; 
+    id: any; 
+    batch_number: any; 
+    quantity: any; 
+    cost_price: string; 
+    wholesale_price: string; 
+    retail_price: string; 
+    expiry_date: any; 
+    received_date: any; 
+    supplier_name: any 
+  }) => {
     if (!batchesMap.has(batch.product_id)) {
       batchesMap.set(batch.product_id, [])
     }
@@ -727,13 +804,40 @@ async function processProductResults(rows: any[], branchId: string): Promise<Pro
     // Calculate current pricing (weighted average or latest batch)
     let currentPricing = null
     if (batches.length > 0) {
+      // Option 1: Use latest batch pricing
       const latestBatch = batches[0] // Already sorted by received_date DESC
       currentPricing = {
         cost_price: latestBatch.cost_price,
         wholesale_price: latestBatch.wholesale_price,
         retail_price: latestBatch.retail_price,
-        currency: 'LKR' // You can make this dynamic
+        currency: 'LKR'
       }
+      
+      // Option 2: Calculate weighted average pricing (uncomment if preferred)
+      /*
+      const totalQuantity = batches.reduce((sum, batch) => sum + batch.quantity, 0)
+      if (totalQuantity > 0) {
+        const weightedCostPrice = batches.reduce((sum, batch) => 
+          sum + (batch.cost_price * batch.quantity), 0) / totalQuantity
+        const weightedRetailPrice = batches.reduce((sum, batch) => 
+          sum + (batch.retail_price * batch.quantity), 0) / totalQuantity
+        
+        // For wholesale price, handle nulls
+        const batchesWithWholesale = batches.filter(b => b.wholesale_price !== null)
+        const weightedWholesalePrice = batchesWithWholesale.length > 0 
+          ? batchesWithWholesale.reduce((sum, batch) => 
+              sum + (batch.wholesale_price! * batch.quantity), 0) / 
+            batchesWithWholesale.reduce((sum, batch) => sum + batch.quantity, 0)
+          : null
+        
+        currentPricing = {
+          cost_price: parseFloat(weightedCostPrice.toFixed(2)),
+          wholesale_price: weightedWholesalePrice ? parseFloat(weightedWholesalePrice.toFixed(2)) : null,
+          retail_price: parseFloat(weightedRetailPrice.toFixed(2)),
+          currency: 'LKR'
+        }
+      }
+      */
     }
 
     const product: ProductResponse = {

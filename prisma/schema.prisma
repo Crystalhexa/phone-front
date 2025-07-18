@@ -236,7 +236,6 @@ model products {
   branch_inventory      branch_inventory[]
   barcodes              barcodes[]
   stock_ledgers         product_stock_ledgers[]
-  purchase_batches      purchase_batches[] // NEW: Link to purchase batches
   stock_transfer_items  stock_transfer_items[]
   stock_adjustments     stock_adjustments[]      @relation("ProductVariation")
   purchase_return_items purchase_return_items[]
@@ -290,9 +289,7 @@ model serial_numbers {
 model purchase_batches {
   id                String    @id @default(cuid())
   batch_number      String    @unique @db.VarChar(50)
-  product_id        String
-  purchase_order_id String
-  supplier_id       String
+  purchase_order_item_id    String  @unique
   quantity_ordered  Int
   quantity_received Int       @default(0)
   cost_price        Decimal   @db.Decimal(10, 2)
@@ -305,16 +302,11 @@ model purchase_batches {
   updated_at        DateTime  @updatedAt @db.Timestamptz(6)
 
   // Relations
-  product               products                 @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  purchase_order        purchase_orders          @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
-  supplier              suppliers                @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
+    purchase_order_item    purchase_order_items     @relation("OrderItemToBatch", fields: [purchase_order_item_id], references: [id], onDelete: Cascade)
   inventory_items       branch_inventory_items[] // NEW: Link to specific inventory items
   product_stock_ledgers product_stock_ledgers[]
 
   @@index([batch_number])
-  @@index([product_id])
-  @@index([purchase_order_id])
-  @@index([supplier_id])
   @@index([expiry_date])
   @@map("purchase_batches")
 }
@@ -420,7 +412,7 @@ model branch_inventory {
   last_counted_at         DateTime? @db.Timestamptz(6)
   is_low_stock_alert_sent Boolean   @default(false)
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at              DateTime  @updatedAt @db.Timestamptz(6)
+  updated_at              DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
   branch  branches                 @relation(fields: [branch_id], references: [id], onDelete: Cascade)
@@ -625,7 +617,6 @@ model suppliers {
 
   // Relations
   purchase_orders  purchase_orders[]
-  purchase_batches purchase_batches[] // NEW: Direct link to batches
 
   @@index([code])
   @@index([name])
@@ -655,7 +646,6 @@ model purchase_orders {
   branch           branches?              @relation(fields: [branch_id], references: [id]) // NEW
   items            purchase_order_items[]
   returns          purchase_returns[]
-  purchase_batches purchase_batches[] // NEW: Link to batches created from this PO
 
   @@index([order_number])
   @@index([supplier_id])
@@ -681,6 +671,7 @@ model purchase_order_items {
   // Relations
   purchase_order purchase_orders @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
   product        products        @relation(fields: [product_id], references: [id])
+  batch          purchase_batches?  @relation("OrderItemToBatch") // ONE batch per order item
 
   @@unique([purchase_order_id, product_id])
   @@map("purchase_order_items")

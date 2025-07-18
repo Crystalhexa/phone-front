@@ -151,7 +151,7 @@ const POSSystem: React.FC = () => {
 
   }, [selectedCategory]);
   // Mock branch ID (in real app, get from auth context)
-  const branchId = 'branch_123'
+  const branchId = 'cmd7qdjga000fhjeu18ubhpnf'
 
   // ========== API Functions ==========
   const fetchProducts = useCallback(async (params: Record<string, string> = {}) => {
