@@ -26,11 +26,13 @@ import {
   ChevronRight,
   Package,
   TrendingDown,
-  AlertTriangle
+  AlertTriangle,
+  Plus
 } from 'lucide-react';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 import { SearchableDropdown } from '@/components/form/SearchableDropdown';
+import { PurchaseCart } from '@/components/pos/PurchaseCart';
 
 // Updated types to match backend response structure
 interface Brand {
@@ -114,9 +116,31 @@ interface Filters {
   low_stock_only: boolean;
 }
 
+interface CartItem {
+  id: string;
+  product: {
+    id: string;
+    name: string;
+    model?: string;
+    sku?: string;
+    brand?: {
+      name: string;
+      code: string;
+    };
+  };
+  quantity: number;
+  cost_price: number;
+  wholesale_price?: number;
+  retail_price: number;
+  line_total: number;
+  batch_number?: string;
+  expiry_date?: string;
+}
+
 const ProductsTable: React.FC = () => {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -197,6 +221,47 @@ const ProductsTable: React.FC = () => {
     }
   };
 
+  const addToCart = (product: ProductResponse) => {
+    const existingItem = cartItems.find(item => item.product.id === product.id);
+    
+    if (existingItem) {
+      // Update quantity if item already exists
+      setCartItems(prev => prev.map(item => 
+        item.product.id === product.id 
+          ? { 
+              ...item, 
+              quantity: item.quantity + 1,
+              line_total: (item.quantity + 1) * item.cost_price
+            }
+          : item
+      ));
+    } else {
+      // Add new item to cart
+      const newItem: CartItem = {
+        id: `${product.id}-${Date.now()}`,
+        product: {
+          id: product.id,
+          name: product.name,
+          model: product.model,
+          sku: product.sku,
+          brand: product.brand ? {
+            name: product.brand.name,
+            code: product.brand.code
+          } : undefined
+        },
+        quantity: 1,
+        cost_price: product.pricing?.unit_price || 0,
+        wholesale_price: undefined,
+        retail_price: product.pricing?.unit_price || 0,
+        line_total: product.pricing?.unit_price || 0,
+        batch_number: undefined,
+        expiry_date: undefined
+      };
+      
+      setCartItems(prev => [...prev, newItem]);
+    }
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -266,6 +331,11 @@ const ProductsTable: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Products Management</h1>
         <div className="flex gap-2">
+          <PurchaseCart 
+            onAddToCart={addToCart}
+            cartItems={cartItems}
+            setCartItems={setCartItems}
+          />
           <Button onClick={resetFilters} variant="outline">
             Reset Filters
           </Button>
@@ -497,6 +567,15 @@ const ProductsTable: React.FC = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => addToCart(product)}
+                        disabled={product.pricing}
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add to Cart
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => router.push('/dashboard/products/all/view/' + product.id)}>
                         View Details
                       </Button>
