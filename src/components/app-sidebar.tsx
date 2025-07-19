@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import { NavUser } from "@/components/nav-user"
-import { Button } from "@/components/ui/button"
 
 const data = {
   user: {
@@ -192,7 +191,6 @@ function RecursiveAccordion({ item, depth = 0 }: { item: any; depth?: number }) 
     )
   }
 
-  const openByDefault = pathname.startsWith(item.url)
 
   return (
     <AccordionItem value={item.title} className={depth === 0 ? "px-2" : "pl-6"}>

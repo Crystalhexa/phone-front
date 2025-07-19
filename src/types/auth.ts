@@ -6,7 +6,22 @@ export interface User {
   role_id?: string;
   created_at: Date;
   updated_at: Date;
-  avatar?:string
+  avatar?: string;
+  employee_number?:string;
+  employee_name?:string;
+  branch_name?:string;
+}
+export interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  employee_name: string;
+  branch_name: string;
+  is_active: boolean;
+  role_id?: string;
+  created_at: Date;
+  updated_at: Date;
+  avatar?: string
 }
 
 export interface Role {

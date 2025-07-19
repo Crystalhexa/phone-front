@@ -2,7 +2,7 @@ import { useAppDispatch, useAppSelector } from '@/state/redux';
 import { setCredentials, logout, setLoading } from '@/state/slices/authSlice';
 import { useLoginMutation, useRegisterMutation, useGetProfileQuery, useLogoutMutation } from '@/state/authApi';
 import { useEffect } from 'react';
-import { User } from '@/types/auth';
+import { User, UserProfile } from '@/types/auth';
 
 export const useAuth = () => {
   const dispatch = useAppDispatch();
@@ -16,7 +16,6 @@ export const useAuth = () => {
 
   useEffect(() => {
     if (profileData?.data?.user) {
-      console.log("janath")
       dispatch(setCredentials({
         user: profileData.data.user,
         permissions: profileData.data.permissions || []
@@ -108,7 +107,7 @@ export const useAuth = () => {
       // Profile data will be fetched automatically by the useGetProfileQuery hook
       dispatch(setCredentials({
         token: storedToken,
-        user: {} as User, // Will be populated once profile query completes
+        user: {} as UserProfile, // Will be populated once profile query completes
         permissions: []
       }));
     }

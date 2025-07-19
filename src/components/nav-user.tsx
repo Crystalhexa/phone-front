@@ -36,7 +36,6 @@ export function NavUser() {
   const { isMobile } = useSidebar();
   const router = useRouter()
     const { user, logout } = useAuth();
-
     const  handleLogout= ()=>{
         logout();
         router.push('/login')
@@ -87,7 +86,7 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
                 <IconUserCircle />
                 Account
               </DropdownMenuItem>
