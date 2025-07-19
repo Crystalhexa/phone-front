@@ -57,7 +57,7 @@ class BusinessLogicError extends PurchaseOrderError {
 // ========== Validation Schemas ==========
 
 const PurchaseOrderItemSchema = z.object({
-  product_id: z.string().uuid('Invalid product ID format'),
+  product_id: z.string().cuid('Invalid product ID format'),
   quantity: z.number().positive('Quantity must be positive'),
   cost_price: z.number().positive('Cost price must be positive'),
   wholesale_price: z.number().positive().optional(),
@@ -66,7 +66,7 @@ const PurchaseOrderItemSchema = z.object({
 });
 
 const CreatePurchaseOrderSchema = z.object({
-  supplier_id: z.string().uuid('Invalid supplier ID format'),
+  supplier_id: z.string().cuid('Invalid supplier ID format'),
   items: z.array(PurchaseOrderItemSchema).min(1, 'At least one item is required'),
   notes: z.string().max(1000, 'Notes cannot exceed 1000 characters').optional(),
   expected_delivery_date: z.string().datetime().optional()
@@ -134,7 +134,7 @@ async function validateBranchPermissions(branchId: string): Promise<void> {
         branchName: branch.name 
       });
     }
-    
+    console.log(branch.name)
     if (!branch.is_main_branch) {
       throw new AuthorizationError('Only main branch can place purchase orders', { 
         branchId, 
@@ -172,7 +172,6 @@ async function validateSupplier(supplierId: string): Promise<void> {
   
   try {
     const result = await query(supplierQuery, [supplierId]);
-    
     if (result.rows.length === 0) {
       throw new NotFoundError('Supplier not found', { supplierId });
     }

@@ -1,13 +1,7 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg'
 
 // ========== Types ==========
-export interface ApiResponse<T = any> {
-  success: boolean
-  data: T | null
-  message: string
-  errors?: any[] | null
-  timestamp: string
-}
+
 
 // ========== Pool Setup ==========
 const MAX_RETRIES = 5
