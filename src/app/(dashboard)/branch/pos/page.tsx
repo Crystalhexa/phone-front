@@ -13,7 +13,7 @@ import { useBrandData } from '@/components/table/BrandTable/useBrandData'
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData'
 import { CategoriesListResponse, Subcategory } from '@/types/category'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
+// cmd9pzj9j00019eeu7dmi1wo4
 // ========== Types ==========
 interface Product {
   id: string
@@ -151,7 +151,7 @@ const POSSystem: React.FC = () => {
 
   }, [selectedCategory]);
   // Mock branch ID (in real app, get from auth context)
-  const branchId = 'cmd7qdjga000fhjeu18ubhpnf'
+  const branchId = 'cmd9pzj9j00019eeu7dmi1wo4'
 
   // ========== API Functions ==========
   const fetchProducts = useCallback(async (params: Record<string, string> = {}) => {

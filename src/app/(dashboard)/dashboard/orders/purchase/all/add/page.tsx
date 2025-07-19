@@ -136,7 +136,6 @@ const AddItemDialog = ({
                   {selectedProduct && (
                     <div>
                       <p>Product: {selectedProduct?.name}</p>
-                      <p>SKU: {selectedProduct?.sku}</p>
                     </div>
                   )}
 

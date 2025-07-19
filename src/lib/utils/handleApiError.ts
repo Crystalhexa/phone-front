@@ -1,8 +1,8 @@
-// lib/utils/handleApiError.ts
-import { NextResponse } from 'next/server'
-import { AppError } from './AppError'
+import { NextResponse } from "next/server"
+import { AppError } from "./AppError"
 
-export function handleApiError(error: any): NextResponse {
+function handleApiError(error: any): NextResponse {
+  // Custom application-level errors
   if (error instanceof AppError) {
     return NextResponse.json({
       success: false,
@@ -11,6 +11,7 @@ export function handleApiError(error: any): NextResponse {
     }, { status: error.statusCode })
   }
 
+  // Zod validation errors
   if (error?.name === 'ZodError') {
     return NextResponse.json({
       success: false,
@@ -23,6 +24,7 @@ export function handleApiError(error: any): NextResponse {
     }, { status: 400 })
   }
 
+  // Unknown / unexpected error
   console.error('Unexpected error:', error)
 
   return NextResponse.json({

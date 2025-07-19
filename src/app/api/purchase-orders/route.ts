@@ -1,541 +1,416 @@
 // app/api/purchase-orders/route.ts
-import { NextResponse } from 'next/server';
-import { initDatabase, query, transaction } from '@/lib/database/connection';
-import { z } from 'zod';
-import { AuthenticatedRequest, withAuth } from '@/middleware/auth';
+import { transaction } from '@/lib/database/connection'
+import { validateProducts, validateSupplier } from '@/lib/services/validation.service'
+import { handleApiError } from '@/lib/utils/apiHelpers'
+import { AppError } from '@/lib/utils/AppError'
+import { AuthenticatedRequest, withAuth } from '@/middleware/auth'
+import { CreatePurchaseOrderRequest } from '@/types/purchase_order'
+import cuid from 'cuid'
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 
-// ========== Custom Error Classes ==========
 
-class PurchaseOrderError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public statusCode: number = 400,
-    public details?: any
-  ) {
-    super(message);
-    this.name = 'PurchaseOrderError';
-    Error.captureStackTrace(this, this.constructor);
-  }
+// ========== Validation Schema ==========
+const purchaseOrderItemSchema = z.object({
+  product_id: z.string().min(1, 'Product ID is required'),
+  quantity: z.number().min(1, 'Quantity must be at least 1'),
+  cost_price: z.number().min(0, 'Cost price must be non-negative'),
+  wholesale_price: z.number().min(0).optional(),
+  retail_price: z.number().min(0, 'Retail price must be non-negative'),
+  quantity_received: z.number().min(0).optional()
+})
+
+const createPurchaseOrderSchema = z.object({
+  supplier_id: z.string().min(1, 'Supplier ID is required'),
+  order_date: z.string().optional(),
+  expected_date: z.string().optional(),
+  received_date: z.string().optional(),
+  status: z.enum(['PENDING', 'RECEIVED']),
+  notes: z.string().optional(),
+  items: z.array(purchaseOrderItemSchema).min(1, 'At least one item is required')
+})
+
+
+async function createPendingOrder(orderData: CreatePurchaseOrderRequest,user:any) {
+  return await transaction(async (client) => {
+    // Calculate totals
+    const subtotal = orderData.items.reduce(
+      (sum, item) => sum + (item.cost_price * item.quantity), 0
+    )
+    const purchase_order_id = cuid();
+    // Insert purchase order
+    const orderResult = await client.query(`
+      INSERT INTO purchase_orders (
+        id, supplier_id, purchased_by, branch_id, 
+        order_date, expected_date, status, subtotal, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id
+    `, [
+      purchase_order_id,
+      orderData.supplier_id,
+      user.employee_id,
+      user.branch_id,
+      orderData.order_date || new Date().toISOString().split('T')[0],
+      orderData.expected_date,
+      'PENDING',
+      subtotal,
+      orderData.notes
+    ])
+    for (const item of orderData.items) {
+      const line_total = item.cost_price * item.quantity
+      const item_id = cuid()
+      await client.query(`
+        INSERT INTO purchase_order_items (
+          id,purchase_order_id, product_id, quantity_ordered, 
+          cost_price, wholesale_price, retail_price, line_total
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        item_id,
+        purchase_order_id,
+        item.product_id,
+        item.quantity,
+        item.cost_price,
+        item.wholesale_price,
+        item.retail_price,
+        line_total,
+      ])
+    }
+
+    return { purchase_order_id }
+  })
 }
 
-class ValidationError extends PurchaseOrderError {
-  constructor(message: string, details?: any) {
-    super(message, 'VALIDATION_ERROR', 400, details);
-    this.name = 'ValidationError';
-  }
-}
+// async function createReceivedOrder(orderData: CreatePurchaseOrderRequest, orderNumber: string) {
+//   return await transaction(async (client) => {
+//     // Calculate totals
+//     const subtotal = orderData.items.reduce(
+//       (sum, item) => sum + (item.cost_price * item.quantity_ordered), 0
+//     )
+//     const tax_amount = subtotal * 0.1
+//     const total_amount = subtotal + tax_amount
+//         const purchase_order_id = cuid()
 
-class DatabaseError extends PurchaseOrderError {
-  constructor(message: string, details?: any) {
-    super(message, 'DATABASE_ERROR', 500, details);
-    this.name = 'DatabaseError';
-  }
-}
+//     // Insert purchase order
+//     const orderResult = await client.query(`
+//       INSERT INTO purchase_orders (
+//         id,order_number, supplier_id, purchased_by, branch_id, 
+//         order_date, expected_date, received_date, status, 
+//         subtotal, tax_amount, total_amount, notes
+//       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,$13)
+//       RETURNING id
+//     `, [
+//       purchase_order_id,
+//       orderNumber,
+//       orderData.supplier_id,
+//       orderData.purchased_by,
+//       orderData.branch_id,
+//       orderData.order_date || new Date().toISOString().split('T')[0],
+//       orderData.expected_date,
+//       orderData.received_date || new Date().toISOString(),
+//       'RECEIVED',
+//       subtotal,
+//       tax_amount,
+//       total_amount,
+//       orderData.notes
+//     ])
 
-class AuthorizationError extends PurchaseOrderError {
-  constructor(message: string, details?: any) {
-    super(message, 'AUTHORIZATION_ERROR', 403, details);
-    this.name = 'AuthorizationError';
-  }
-}
+//     const receipt_id = cuid()
 
-class NotFoundError extends PurchaseOrderError {
-  constructor(message: string, details?: any) {
-    super(message, 'NOT_FOUND_ERROR', 404, details);
-    this.name = 'NotFoundError';
-  }
-}
+//     // Create receipt record
+//     const receiptNumber = `RCP${Date.now().toString().slice(-8)}`
+//     const receiptResult = await client.query(`
+//       INSERT INTO purchase_receipts (
+//         id,receipt_number, purchase_order_id, received_by, 
+//         received_date, total_items, total_received, status
+//       ) VALUES ($1, $2, $3, $4, $5, $6, $7,$8)
+//       RETURNING id
+//     `, [
+//       receipt_id,
+//       receiptNumber,
+//       purchase_order_id,
+//       orderData.purchased_by,
+//       orderData.received_date || new Date().toISOString(),
+//       orderData.items.length,
+//       orderData.items.reduce((sum, item) => sum + (item.quantity_received || item.quantity_ordered), 0),
+//       'COMPLETED'
+//     ])
 
-class BusinessLogicError extends PurchaseOrderError {
-  constructor(message: string, details?: any) {
-    super(message, 'BUSINESS_LOGIC_ERROR', 422, details);
-    this.name = 'BusinessLogicError';
-  }
-}
 
-// ========== Validation Schemas ==========
+//     // Process each item
+//     for (const item of orderData.items) {
+//       const line_total = item.cost_price * item.quantity_ordered
+//       const quantity_received = item.quantity_received || item.quantity_ordered
+//       const batch_number = item.batch_number || `BATCH${Date.now()}${Math.random().toString(36).substr(2, 5)}`
 
-const PurchaseOrderItemSchema = z.object({
-  product_id: z.string().cuid('Invalid product ID format'),
-  quantity: z.number().positive('Quantity must be positive'),
-  cost_price: z.number().positive('Cost price must be positive'),
-  wholesale_price: z.number().positive().optional(),
-  retail_price: z.number().positive('Retail price must be positive'),
-  notes: z.string().max(500, 'Notes cannot exceed 500 characters').optional()
-});
+//       const purchase_order_item_id = cuid()
 
-const CreatePurchaseOrderSchema = z.object({
-  supplier_id: z.string().cuid('Invalid supplier ID format'),
-  items: z.array(PurchaseOrderItemSchema).min(1, 'At least one item is required'),
-  notes: z.string().max(1000, 'Notes cannot exceed 1000 characters').optional(),
-  expected_delivery_date: z.string().datetime().optional()
-});
+//       // Insert order item
+//       const orderItemResult = await client.query(`
+//         INSERT INTO purchase_order_items (
+//           id,purchase_order_id, product_id, quantity_ordered, quantity_received,
+//           cost_price, wholesale_price, retail_price, line_total,
+//           batch_number, expiry_date
+//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
+//         RETURNING id
+//       `, [
+//         purchase_order_item_id,
+//         purchase_order_id,
+//         item.product_id,
+//         item.quantity_ordered,
+//         quantity_received,
+//         item.cost_price,
+//         item.wholesale_price,
+//         item.retail_price,
+//         line_total,
+//         batch_number,
+//         item.expiry_date
+//       ])
 
-// ========== Types ==========
+//             const batch_id =cuid()
 
-interface PurchaseOrderItem {
-  product_id: string;
-  quantity: number;
-  cost_price: number;
-  wholesale_price?: number;
-  retail_price: number;
-  notes?: string;
-}
 
-interface CreatePurchaseOrderRequest {
-  supplier_id: string;
-  items: PurchaseOrderItem[];
-  notes?: string;
-  expected_delivery_date?: string;
-}
+//       // Create purchase batch
+//       const batchResult = await client.query(`
+//         INSERT INTO purchase_batches (
+//           id,batch_number, purchase_order_item_id, quantity_ordered, 
+//           quantity_received, cost_price, wholesale_price, retail_price,
+//           expiry_date, received_date, received_by, fifo_sequence
+//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11, 
+//           COALESCE((SELECT MAX(fifo_sequence) FROM purchase_batches) + 1, 1))
+//         RETURNING id
+//       `, [
+//         batch_id,
+//         batch_number,
+//         purchase_order_item_id,
+//         item.quantity_ordered,
+//         quantity_received,
+//         item.cost_price,
+//         item.wholesale_price,
+//         item.retail_price,
+//         item.expiry_date,
+//         orderData.received_date || new Date().toISOString(),
+//         orderData.purchased_by
+//       ])
 
-interface ApiResponse<T> {
-  success: boolean;
-  data: T | null;
-  message: string;
-  errors?: string[] | null;
-  error_code?: string;
-  timestamp: string;
-  request_id?: string;
-}
+//       const recipt_item_id = cuid()
+//       // Create receipt item
+//       await client.query(`
+//         INSERT INTO purchase_receipt_items (
+//           id,receipt_id, purchase_order_item_id, quantity_received,
+//           quantity_expected, batch_number, expiry_date, condition,
+//           cost_price, wholesale_price, retail_price
+//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
+//       `, [
+//         recipt_item_id,
+//         receipt_id,
+//         purchase_order_item_id,
+//         quantity_received,
+//         item.quantity_ordered,
+//         batch_number,
+//         item.expiry_date,
+//         'GOOD',
+//         item.cost_price,
+//         item.wholesale_price,
+//         item.retail_price
+//       ])
 
-// ========== Helper Functions ==========
+//       // Update or create branch inventory
+//       const inventoryResult = await client.query(`
+//         SELECT id, total_quantity, average_cost_price
+//         FROM branch_inventory 
+//         WHERE branch_id = $1 AND product_id = $2
+//       `, [orderData.branch_id, item.product_id])
 
-/**
- * Generate unique request ID for tracking
- */
-function generateRequestId(): string {
-  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
+//       let branch_inventory_id: string
+//       let new_average_cost: number
 
-/**
- * Validate branch permissions for purchase orders
- */
-async function validateBranchPermissions(branchId: string): Promise<void> {
-  const branchQuery = `
-    SELECT id, name, code, is_main_branch, can_purchase, is_active
-    FROM branches 
-    WHERE id = $1
-  `;
-  
+//       if (inventoryResult.rows.length > 0) {
+//         // Update existing inventory
+//         const existing = inventoryResult.rows[0]
+//         const current_qty = existing.total_quantity
+//         const current_avg_cost = parseFloat(existing.average_cost_price) || 0
+
+//         // Calculate weighted average cost
+//         const total_cost = (current_qty * current_avg_cost) + (quantity_received * item.cost_price)
+//         const total_qty = current_qty + quantity_received
+//         new_average_cost = total_cost / total_qty
+
+//         await client.query(`
+//           UPDATE branch_inventory 
+//           SET total_quantity = total_quantity + $1,
+//               average_cost_price = $2,
+//               last_restock_date = $3,
+//               updated_at = NOW()
+//           WHERE id = $4
+//         `, [quantity_received, new_average_cost, new Date().toISOString(), existing.id])
+
+//         branch_inventory_id = existing.id
+//       } else {
+//         branch_inventory_id = cuid()
+//         // Create new inventory record
+//         const newInventoryResult = await client.query(`
+//           INSERT INTO branch_inventory (
+//             id,branch_id, product_id, total_quantity, average_cost_price,
+//             last_restock_date
+//           ) VALUES ($1, $2, $3, $4, $5,$6)
+//           RETURNING id
+//         `, [
+//           branch_inventory_id,
+//           orderData.branch_id,
+//           item.product_id,
+//           quantity_received,
+//           item.cost_price,
+//           new Date().toISOString()
+//         ])
+
+//         new_average_cost = item.cost_price
+//       }
+
+//       // Create inventory item record
+//       await client.query(`
+//         INSERT INTO branch_inventory_items (
+//           branch_inventory_id, purchase_batch_id, quantity,
+//           cost_price, wholesale_price, retail_price,
+//           received_date, expiry_date, fifo_order
+//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+//           COALESCE((SELECT MAX(fifo_order) FROM branch_inventory_items WHERE branch_inventory_id = $1) + 1, 1))
+//       `, [
+//         branch_inventory_id,
+//         batch_id,
+//         quantity_received,
+//         item.cost_price,
+//         item.wholesale_price,
+//         item.retail_price,
+//         orderData.received_date || new Date().toISOString(),
+//         item.expiry_date
+//       ])
+
+//       // Create stock ledger entry
+//       await client.query(`
+//         INSERT INTO product_stock_ledgers (
+//           product_id, branch_id, batch_id, quantity, entry_type,
+//           reference_id, reference_type, cost_price, selling_price
+//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+//       `, [
+//         item.product_id,
+//         orderData.branch_id,
+//         batch_id,
+//         quantity_received,
+//         'PURCHASE_RECEIVED',
+//         purchase_order_id,
+//         'PURCHASE_ORDER',
+//         item.cost_price,
+//         item.retail_price
+//       ])
+
+//       // Update product prices if this is from main branch
+//       const branchInfo = await validateBranch(orderData.branch_id)
+//       if (branchInfo.is_main_branch) {
+//         // Check if we need to update product price history
+//         const priceHistoryResult = await client.query(`
+//           SELECT cost_price, wholesale_price, retail_price
+//           FROM product_price_history
+//           WHERE product_id = $1 AND is_active = true
+//           ORDER BY effective_date DESC
+//           LIMIT 1
+//         `, [item.product_id])
+
+//         const needsPriceUpdate = priceHistoryResult.rows.length === 0 || 
+//           priceHistoryResult.rows[0].cost_price !== item.cost_price ||
+//           priceHistoryResult.rows[0].wholesale_price !== item.wholesale_price ||
+//           priceHistoryResult.rows[0].retail_price !== item.retail_price
+
+//         if (needsPriceUpdate) {
+//           // Deactivate old price records
+//           await client.query(`
+//             UPDATE product_price_history 
+//             SET is_active = false 
+//             WHERE product_id = $1 AND is_active = true
+//           `, [item.product_id])
+
+//           // Insert new price record
+//           await client.query(`
+//             INSERT INTO product_price_history (
+//               product_id, effective_date, cost_price, wholesale_price,
+//               retail_price, created_by, reason
+//             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+//           `, [
+//             item.product_id,
+//             new Date().toISOString(),
+//             item.cost_price,
+//             item.wholesale_price,
+//             item.retail_price,
+//             orderData.purchased_by,
+//             `Price updated from purchase order ${orderNumber}`
+//           ])
+
+//           // Update current prices table
+//           await client.query(`
+//             INSERT INTO product_current_prices (
+//               product_id, cost_price, wholesale_price, retail_price, last_updated
+//             ) VALUES ($1, $2, $3, $4, $5)
+//             ON CONFLICT (product_id) DO UPDATE SET
+//               cost_price = EXCLUDED.cost_price,
+//               wholesale_price = EXCLUDED.wholesale_price,
+//               retail_price = EXCLUDED.retail_price,
+//               last_updated = EXCLUDED.last_updated
+//           `, [
+//             item.product_id,
+//             item.cost_price,
+//             item.wholesale_price,
+//             item.retail_price,
+//             new Date().toISOString()
+//           ])
+//         }
+//       }
+//     }
+
+//     return { 
+//       purchase_order_id, 
+//       order_number: orderNumber, 
+//       receipt_number: receiptNumber 
+//     }
+//   })
+// }
+
+// ========== API Route Handler ==========
+export async function POST(request: NextRequest) {
+  return withAuth(async(authedReq: NextRequest & { user: any }) => {
   try {
-    const result = await query(branchQuery, [branchId]);
-    
-    if (result.rows.length === 0) {
-      throw new NotFoundError('Branch not found', { branchId });
+    let body
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid JSON payload',
+        timestamp: new Date().toISOString()
+      }, { status: 400 })
     }
-    
-    const branch = result.rows[0];
-    
-    if (!branch.is_active) {
-      throw new AuthorizationError('Branch is not active', { 
-        branchId, 
-        branchName: branch.name 
-      });
+    // Zod validation
+    const validatedData = createPurchaseOrderSchema.parse(body)
+    // Business validations
+    await validateSupplier(validatedData.supplier_id)
+    await validateProducts(validatedData.items)
+    // Handle order creation based on status
+    let result
+    if (validatedData.status === 'PENDING') {
+      result = await createPendingOrder(validatedData,authedReq.user)
+    } else {
+      // result = await createReceivedOrder(validatedData)
+      throw new AppError('Received orders not implemented yet', 501)
     }
-    console.log(branch.name)
-    if (!branch.is_main_branch) {
-      throw new AuthorizationError('Only main branch can place purchase orders', { 
-        branchId, 
-        branchName: branch.name,
-        isMainBranch: branch.is_main_branch
-      });
-    }
-    
-    if (!branch.can_purchase) {
-      throw new AuthorizationError('Branch does not have purchase permissions', { 
-        branchId, 
-        branchName: branch.name,
-        canPurchase: branch.can_purchase
-      });
-    }
-  } catch (error) {
-    if (error instanceof PurchaseOrderError) {
-      throw error;
-    }
-    throw new DatabaseError('Failed to validate branch permissions', { 
-      branchId,
-      originalError: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
 
-/**
- * Validate supplier exists and is active
- */
-async function validateSupplier(supplierId: string): Promise<void> {
-  const supplierQuery = `
-    SELECT id, name, is_active FROM suppliers 
-    WHERE id = $1
-  `;
-  
-  try {
-    const result = await query(supplierQuery, [supplierId]);
-    if (result.rows.length === 0) {
-      throw new NotFoundError('Supplier not found', { supplierId });
-    }
-    
-    const supplier = result.rows[0];
-    
-    if (!supplier.is_active) {
-      throw new BusinessLogicError('Supplier is not active', { 
-        supplierId,
-        supplierName: supplier.name
-      });
-    }
-  } catch (error) {
-    if (error instanceof PurchaseOrderError) {
-      throw error;
-    }
-    throw new DatabaseError('Failed to validate supplier', { 
-      supplierId,
-      originalError: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-/**
- * Validate all products exist and are active
- */
-async function validateProducts(productIds: string[]): Promise<void> {
-  if (productIds.length === 0) {
-    throw new ValidationError('No products provided');
-  }
-  
-  // Check for duplicate product IDs
-  const uniqueProductIds = [...new Set(productIds)];
-  if (uniqueProductIds.length !== productIds.length) {
-    throw new ValidationError('Duplicate products are not allowed');
-  }
-  
-  const productQuery = `
-    SELECT id, name, is_active FROM products 
-    WHERE id = ANY($1)
-  `;
-  
-  try {
-    const result = await query(productQuery, [uniqueProductIds]);
-    
-    if (result.rows.length !== uniqueProductIds.length) {
-      const foundIds = result.rows.map(p => p.id);
-      const missingIds = uniqueProductIds.filter(id => !foundIds.includes(id));
-      throw new NotFoundError('One or more products not found', { 
-        missingProductIds: missingIds 
-      });
-    }
-    
-    const inactiveProducts = result.rows.filter(p => !p.is_active);
-    if (inactiveProducts.length > 0) {
-      throw new BusinessLogicError('Some products are not active', { 
-        inactiveProducts: inactiveProducts.map(p => ({
-          id: p.id,
-          name: p.name
-        }))
-      });
-    }
-  } catch (error) {
-    if (error instanceof PurchaseOrderError) {
-      throw error;
-    }
-    throw new DatabaseError('Failed to validate products', { 
-      productIds: uniqueProductIds,
-      originalError: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-/**
- * Generate next purchase order number
- */
-async function generatePurchaseOrderNumber(client: any): Promise<string> {
-  const orderNumberQuery = `
-    SELECT COALESCE(MAX(CAST(SUBSTRING(order_number FROM 3) AS INTEGER)), 0) + 1 as next_number
-    FROM purchase_orders 
-    WHERE order_number LIKE 'PO%'
-  `;
-  
-  try {
-    const result = await client.query(orderNumberQuery);
-    const nextNumber = result.rows[0].next_number;
-    return `PO${nextNumber.toString().padStart(6, '0')}`;
-  } catch (error) {
-    throw new DatabaseError('Failed to generate purchase order number', { 
-      originalError: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-/**
- * Generate next batch number
- */
-async function generateBatchNumber(client: any): Promise<string> {
-  const batchNumberQuery = `
-    SELECT COALESCE(MAX(CAST(SUBSTRING(batch_number FROM 3) AS INTEGER)), 0) + 1 as next_number
-    FROM purchase_batches 
-    WHERE batch_number LIKE 'BT%'
-  `;
-  
-  try {
-    const result = await client.query(batchNumberQuery);
-    const nextNumber = result.rows[0].next_number;
-    return `BT${nextNumber.toString().padStart(6, '0')}`;
-  } catch (error) {
-    throw new DatabaseError('Failed to generate batch number', { 
-      originalError: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-/**
- * Create error response
- */
-function createErrorResponse(
-  error: any, 
-  requestId: string, 
-  defaultMessage: string = 'An unexpected error occurred'
-): NextResponse {
-  let statusCode = 500;
-  let message = defaultMessage;
-  let errorCode = 'INTERNAL_SERVER_ERROR';
-  let errors: string[] = [];
-
-  if (error instanceof PurchaseOrderError) {
-    statusCode = error.statusCode;
-    message = error.message;
-    errorCode = error.code;
-    errors = [error.message];
-  } else if (error instanceof z.ZodError) {
-    statusCode = 400;
-    message = 'Validation failed';
-    errorCode = 'VALIDATION_ERROR';
-    errors = error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
-  } else {
-    console.error('Unexpected error:', error);
-    errors = [message];
-  }
-
-  return NextResponse.json({
-    success: false,
-    data: null,
-    message,
-    errors,
-    error_code: errorCode,
-    timestamp: new Date().toISOString(),
-    request_id: requestId
-  } as ApiResponse<null>, { status: statusCode });
-}
-
-// ========== API Handlers ==========
-
-/**
- * POST /api/purchase-orders
- * Create new purchase order with items
- */
-export const POST = withAuth(async (req: AuthenticatedRequest) => {
-  const requestId = generateRequestId();
-  
-  try {
-    await initDatabase();
-    
-    // Parse and validate request body
-    const body: CreatePurchaseOrderRequest = await req.json();
-    const validatedData = CreatePurchaseOrderSchema.parse(body);
-    
-    const { supplier_id, items, notes, expected_delivery_date } = validatedData;
-    
-    // Get user's branch ID from authentication
-    const branchId = req.user?.user?.branchId;
-    
-    if (!branchId) {
-      throw new AuthorizationError('User must be associated with a branch');
-    }
-    
-    // Validate business logic
-    await validateBranchPermissions(branchId);
-    await validateSupplier(supplier_id);
-    
-    const productIds = items.map(item => item.product_id);
-    await validateProducts(productIds);
-    
-    // Create purchase order in transaction
-    const purchaseOrder = await transaction(async (client) => {
-      try {
-        // Generate purchase order number
-        const orderNumber = await generatePurchaseOrderNumber(client);
-        
-        // Calculate total amount
-        const totalAmount = items.reduce((sum, item) => sum + (item.cost_price * item.quantity), 0);
-        
-        // Create purchase order
-        const createOrderQuery = `
-          INSERT INTO purchase_orders (
-            
-            order_number, 
-            branch_id, 
-            supplier_id, 
-            total_amount, 
-            status, 
-            notes, 
-            expected_delivery_date,
-            created_at,
-            updated_at
-          ) VALUES ($1, $2, $3, $4, 'PENDING', $5, $6, NOW(), NOW())
-          RETURNING id, order_number, total_amount, status, created_at
-        `;
-        
-        const orderResult = await client.query(createOrderQuery, [
-          orderNumber,
-          branchId,
-          supplier_id,
-          totalAmount,
-          notes || null,
-          expected_delivery_date || null
-        ]);
-        
-        const purchaseOrderId = orderResult.rows[0].id;
-        const createdOrder = orderResult.rows[0];
-        
-        // Create purchase order items and corresponding batches
-        const createdItems = [];
-        
-        for (const item of items) {
-          // Create purchase order item
-          const createItemQuery = `
-            INSERT INTO purchase_order_items (
-              purchase_order_id, 
-              product_id, 
-              quantity, 
-              cost_price, 
-              wholesale_price, 
-              retail_price, 
-              notes
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, product_id, quantity, cost_price, wholesale_price, retail_price
-          `;
-          
-          const itemResult = await client.query(createItemQuery, [
-            purchaseOrderId,
-            item.product_id,
-            item.quantity,
-            item.cost_price,
-            item.wholesale_price || null,
-            item.retail_price,
-            item.notes || null
-          ]);
-          
-          const createdItem = itemResult.rows[0];
-          createdItems.push(createdItem);
-          
-          // Generate batch number
-          const batchNumber = await generateBatchNumber(client);
-          
-          // Create corresponding purchase batch
-          const createBatchQuery = `
-            INSERT INTO purchase_batches (
-              batch_number,
-              product_id,
-              purchase_order_id,
-              supplier_id,
-              quantity_ordered,
-              quantity_received,
-              cost_price,
-              wholesale_price,
-              retail_price,
-              is_active,
-              created_at,
-              updated_at
-            ) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, true, NOW(), NOW())
-            RETURNING id, batch_number
-          `;
-          
-          await client.query(createBatchQuery, [
-            batchNumber,
-            item.product_id,
-            purchaseOrderId,
-            supplier_id,
-            item.quantity,
-            item.cost_price,
-            item.wholesale_price || null,
-            item.retail_price
-          ]);
-        }
-        
-        return {
-          ...createdOrder,
-          items: createdItems,
-          total_items: createdItems.length
-        };
-      } catch (error) {
-        throw new DatabaseError('Failed to create purchase order in transaction', { 
-          originalError: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    });
-    
-    // Return success response
+    // Success response
     return NextResponse.json({
       success: true,
-      data: purchaseOrder,
-      message: 'Purchase order created successfully',
-      timestamp: new Date().toISOString(),
-      request_id: requestId
-    } as ApiResponse<any>, { status: 201 });
-    
-  } catch (error) {
-    return createErrorResponse(error, requestId, 'Failed to create purchase order');
-  }
-});
+      message: `Purchase order ${validatedData.status.toLowerCase()} successfully`,
+      data: result,
+      timestamp: new Date().toISOString()
+    }, { status: 201 })
 
-/**
- * GET /api/purchase-orders
- * Get all purchase orders for the authenticated user's branch
- */
-export const GET = withAuth(async (req: AuthenticatedRequest) => {
-  const requestId = generateRequestId();
-  
-  try {
-    await initDatabase();
-    
-    const branchId = req.user?.user?.branchId;
-    
-    if (!branchId) {
-      throw new AuthorizationError('User must be associated with a branch');
-    }
-    
-    // Get purchase orders with supplier info
-    const purchaseOrdersQuery = `
-      SELECT 
-        po.id,
-        po.order_number,
-        po.total_amount,
-        po.status,
-        po.notes,
-        po.expected_delivery_date,
-        po.created_at,
-        po.updated_at,
-        s.name as supplier_name,
-        s.code as supplier_code,
-        COUNT(poi.id) as total_items
-      FROM purchase_orders po
-      LEFT JOIN suppliers s ON po.supplier_id = s.id
-      LEFT JOIN purchase_order_items poi ON po.id = poi.purchase_order_id
-      WHERE po.branch_id = $1
-      GROUP BY po.id, s.name, s.code
-      ORDER BY po.created_at DESC
-    `;
-    
-    const result = await query(purchaseOrdersQuery, [branchId]);
-    
-    return NextResponse.json({
-      success: true,
-      data: result.rows,
-      message: 'Purchase orders retrieved successfully',
-      timestamp: new Date().toISOString(),
-      request_id: requestId
-    } as ApiResponse<any>, { status: 200 });
-    
-  } catch (error) {
-    return createErrorResponse(error, requestId, 'Failed to retrieve purchase orders');
+  } catch (error: any) {
+     return handleApiError(error);
   }
-});
+})(request);
+}

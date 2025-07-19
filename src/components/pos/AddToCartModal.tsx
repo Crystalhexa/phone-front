@@ -32,6 +32,7 @@ interface Props {
 }
 
 export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm }: Props) => {
+  console
   const [loading, setLoading] = useState(false);
 
   type PurchaseItemFormData = z.infer<typeof purchaseItemSchema>;
@@ -40,24 +41,14 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
     resolver: zodResolver(purchaseItemSchema),
     defaultValues: {
       quantity: 1,
-      cost_price: product.pricing?.unit_price || 0,
+      cost_price: 0,
       wholesale_price: 0,
-      retail_price: product.pricing?.unit_price || 0,
+      retail_price: 0,
     },
   });
 
   // Reset form when product changes
-  useEffect(() => {
-    if (open) {
-      form.reset({
-        quantity: 1,
-        cost_price: product.pricing?.unit_price || 0,
-        wholesale_price: 0,
-        retail_price: product.pricing?.unit_price || 0,
-      });
-    }
-  }, [open, product, form]);
-
+ 
   const handleSubmit = async (data: PurchaseItemFormData) => {
     setLoading(true);
     try {
@@ -83,18 +74,7 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
     }).format(amount);
   };
 
-  const getStockBadge = () => {
-    const availableStock = product.stock?.available_quantity ?? 0;
-    const isLowStock = product.stock?.is_low_stock ?? false;
-    
-    if (availableStock === 0) {
-      return <Badge variant="destructive">Out of Stock</Badge>;
-    } else if (isLowStock) {
-      return <Badge variant="secondary" className="bg-yellow-500 text-white">Low Stock</Badge>;
-    } else {
-      return <Badge variant="default" className="bg-green-500">In Stock</Badge>;
-    }
-  };
+
 
   // Calculate purchase total
   const watchQuantity = form.watch('quantity');
@@ -119,46 +99,6 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
           </DialogTitle>
         </DialogHeader>
 
-        {/* Product Info Header */}
-        <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <h3 className="font-semibold">{product.name}</h3>
-              {product.model && (
-                <p className="text-sm text-muted-foreground">Model: {product.model}</p>
-              )}
-              {product.sku && (
-                <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
-              )}
-              {product.brand && (
-                <p className="text-sm text-muted-foreground">Brand: {product.brand.name}</p>
-              )}
-            </div>
-            <div className="text-right space-y-2">
-              {getStockBadge()}
-              {product.pricing && (
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Current Cost: </span>
-                  <span className="font-medium">{formatCurrency(product.pricing.unit_price)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-6 text-sm">
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Current Stock:</span>
-              <span className="font-medium">{product.stock?.available_quantity ?? 0}</span>
-            </div>
-            {product.stock?.total_quantity && (
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Total Stock:</span>
-                <span className="font-medium">{product.stock.total_quantity}</span>
-              </div>
-            )}
-          </div>
-        </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">

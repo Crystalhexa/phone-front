@@ -1,4 +1,4 @@
-import { User, Role, Permission, LoginCredentials, AuthResponse } from '@/types/auth';
+import { User, LoginCredentials, AuthResponse } from '@/types/auth';
 import { PasswordService } from '@/lib/auth/password';
 import { JWTService } from '@/lib/auth/jwt';
 import { PoolClient } from 'pg';

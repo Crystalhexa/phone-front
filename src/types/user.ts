@@ -110,3 +110,46 @@ export interface DeleteUserResponse {
   message: string
   timestamp: string
 }
+
+
+export interface UserWithDetailsStructured {
+  id: string;
+  username: string;
+  email: string;
+  role_id: string;
+  is_active: boolean;
+  
+  employee?: {
+    id: string;
+    employee_number: string;
+    name: string;
+    position?: string;
+    department?: string;
+    branch_id?: string;
+  };
+  
+  branch?: {
+    id: string;
+    name: string;
+    code: string;
+    location?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    is_active: boolean;
+    is_main_branch: boolean;
+    can_purchase: boolean;
+    timezone: string;
+  };
+  
+  branch_permissions?: {
+    can_view_other_inventory: boolean;
+    can_request_transfers: boolean;
+    can_approve_transfers: boolean;
+    can_override_prices: boolean;
+    can_view_cost_prices: boolean;
+    max_transfer_value?: number;
+  };
+  
+  permissions: string[];
+}

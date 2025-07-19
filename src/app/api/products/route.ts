@@ -465,10 +465,6 @@ async function getBranchStockDetails(productIds: string[], branchId?: string): P
   
   const params = [productIds]
   
-  if (branchId) {
-    stockQuery += ` AND br.id = $2`
-    params.push(branchId)
-  }
   
   stockQuery += ` ORDER BY br.name`
   

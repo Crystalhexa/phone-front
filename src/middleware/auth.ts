@@ -4,13 +4,24 @@ import { initDatabase, query } from '@/lib/database/connection';
 
 export interface AuthenticatedRequest extends NextRequest {
   user: {
-    permissions: string[];
     user: {
       userId: string;
       username: string;
       email: string;
-      roleId: string;
-      branchId: string;
+      role_id: string;
+      is_active: boolean;
+
+      // Employee details
+      employee_id?: string;
+      employee_number?: string;
+      employee_name?: string;
+
+      // Branch details
+      branch_id?: string;
+      branch_name?: string;
+
+      // User permissions
+      permissions: string[];
     }
   };
 }
@@ -40,28 +51,41 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
 
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-        
-        // Fetch user, permissions, and branch information
+
         const userQuery = `
-          SELECT u.id, u.username, u.email, u.role_id, u.is_active,
-                 e.branch_id,
-                 COALESCE(
-                   json_agg(
-                     DISTINCT p.name
-                   ) FILTER (WHERE p.name IS NOT NULL),
-                   '[]'::json
-                 ) as permissions
-          FROM users u
-          LEFT JOIN roles r ON u.role_id = r.id
-          LEFT JOIN role_permissions rp ON r.id = rp.role_id
-          LEFT JOIN permissions p ON rp.permission_id = p.id
-          LEFT JOIN employees e ON u.id = e.user_id
-          WHERE u.id = $1 AND u.is_active = true
-          GROUP BY u.id, u.username, u.email, u.role_id, u.is_active, e.branch_id
-        `;
-
+  SELECT 
+    u.id, 
+    u.username, 
+    u.email, 
+    u.role_id, 
+    u.is_active,
+    -- Employee details
+    e.id as employee_id,
+    e.employee_number,
+    e.name as employee_name,
+    -- Branch details
+    e.branch_id,
+    b.name as branch_name,
+    -- User permissions
+    COALESCE(
+      json_agg(
+        DISTINCT p.name
+      ) FILTER (WHERE p.name IS NOT NULL),
+      '[]'::json
+    ) as permissions
+  FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    LEFT JOIN role_permissions rp ON r.id = rp.role_id
+    LEFT JOIN permissions p ON rp.permission_id = p.id
+    LEFT JOIN employees e ON u.id = e.user_id
+    LEFT JOIN branches b ON e.branch_id = b.id
+  WHERE u.id = $1 AND u.is_active = true
+  GROUP BY 
+    u.id, u.username, u.email, u.role_id, u.is_active,
+    e.id, e.employee_number, e.name, e.branch_id, b.name
+`;
         const userResult = await query(userQuery, [decoded.userId]);
-
+        console.log(userResult.rows[0])
         if (userResult.rows.length === 0) {
           return NextResponse.json({
             success: false,
@@ -74,17 +98,22 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
 
         // Attach to request
         (req as AuthenticatedRequest).user = {
-          permissions: user.permissions,
           user: {
             userId: user.id,
             username: user.username,
             email: user.email,
-            roleId: user.role_id,
-            branchId: user.branch_id, // Added branch_id here
-          }
+            role_id: user.role_id,
+            is_active: user.is_active,
+            employee_id: user.employee_id,
+            employee_number: user.employee_number,
+            employee_name: user.employee_number,
+            branch_id: user.branch_id,
+            branch_name: user.branch_name,
+            permissions: user.permissions,
+
+          },
         };
 
-        // Call original handler
       } catch (tokenError: any) {
         console.error('Token verification error:', tokenError);
 
@@ -115,7 +144,7 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
 export function withPermission(requiredPermission: string) {
   return (handler: (req: AuthenticatedRequest) => Promise<NextResponse>) => {
     return withAuth(async (req: AuthenticatedRequest) => {
-      if (!req.user.permissions.includes(requiredPermission)) {
+      if (!req.user.user.permissions.includes(requiredPermission)) {
         return NextResponse.json(
           {
             success: false,

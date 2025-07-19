@@ -40,7 +40,7 @@ import CustomFormField, { FormFieldType } from '../form/CustomFormField';
 import { toast } from 'sonner';
 
 // Zod schemas
-const orderFormSchema = z.object({
+export const orderFormSchema = z.object({
   supplier_id: z.string().min(1, 'Supplier is required'),
   order_date: z.coerce.date().optional(),
   expected_date: z.coerce.date().optional(),
@@ -110,7 +110,7 @@ interface PurchaseOrder {
   is_saved: boolean;
 }
 
-type OrderFormData = z.infer<typeof orderFormSchema>;
+export type OrderFormData = z.infer<typeof orderFormSchema>;
 type ItemFormData = z.infer<typeof itemFormSchema>;
 
 interface PurchaseCartProps {
@@ -305,18 +305,12 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
         expected_date: currentOrder.expected_date,
         status: currentOrder.status,
         notes: currentOrder.notes,
-        subtotal: subtotal,
-        tax_amount: taxAmount,
-        total_amount: totalAmount,
         items: cartItems.map(item => ({
           product_id: item.product.id,
           quantity: item.quantity,
           cost_price: item.cost_price,
           wholesale_price: item.wholesale_price,
           retail_price: item.retail_price,
-          line_total: item.line_total,
-          batch_number: item.batch_number,
-          expiry_date: item.expiry_date
         }))
       };
 
@@ -395,6 +389,13 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
       const confirmClear = window.confirm('Starting a new order will clear the current cart. Are you sure?');
       if (!confirmClear) return;
     }
+    setOrderFormData({
+      supplier_id: '',
+      order_date: new Date(),
+      expected_date: undefined,
+      status: 'PENDING',
+      notes: ''
+    })
     setCartItems([]);
     setCurrentOrder(null);
     setEditingOrderDetails(false);
@@ -428,12 +429,12 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
     <>
       {/* Backdrop */}
       {cartPanelOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
           onClick={() => setCartPanelOpen(false)}
         />
       )}
-      
+
       {/* Slide-over Panel */}
       <div className={`
         fixed top-0 right-0 h-full bg-background border-l shadow-2xl z-50 transition-all duration-300 ease-in-out
@@ -485,8 +486,8 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
           <div className="p-4 border-b bg-muted/10">
             {editingOrderDetails ? (
               <Form {...orderForm}>
-                <form 
-                  onSubmit={orderForm.handleSubmit(handleUpdateOrderDetails)} 
+                <form
+                  onSubmit={orderForm.handleSubmit(handleUpdateOrderDetails)}
                   className="space-y-3"
                 >
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -540,7 +541,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setEditingOrderDetails(false)}
+                      onClick={() => startNewOrder(false)}
                     >
                       Cancel
                     </Button>
@@ -706,7 +707,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                                     allowQuickEdit
                                   />
                                 </TableCell>
-                               
+
                               </>
                             )}
                             <TableCell className="font-medium text-sm">{formatCurrency(item.line_total)}</TableCell>
@@ -862,8 +863,8 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
           </Dialog>
         ) : (
           // Cart trigger button
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="relative"
             onClick={() => setCartPanelOpen(true)}
           >
