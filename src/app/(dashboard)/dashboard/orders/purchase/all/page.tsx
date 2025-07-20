@@ -628,9 +628,9 @@ const PurchaseOrdersTable = () => {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button onClick={() => router.push('/dashboard/purchase-orders/create')}>
+          <Button onClick={() => router.push('/dashboard/orders/purchase/all/add')}>
             <Plus className="h-4 w-4 mr-2" />
-            New Order
+            New Purchese order
           </Button>
         </div>
       </div>

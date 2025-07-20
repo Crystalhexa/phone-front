@@ -1,23 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/services/auth.service';
 import { initDatabase } from '@/lib/database/connection';
-import { withAuth } from '@/middleware/auth';
+import { AuthenticatedRequest, withAuth } from '@/middleware/auth';
 
 export async function POST(req: NextRequest) {
-  return withAuth(async (req: NextRequest & { user: any }) => {
+  return withAuth(async (authedReq: AuthenticatedRequest) => {
     await initDatabase();
+      
 
     try {
+      const { user: userDetails } = authedReq.user
       // Log logout activity
       const forwardedFor = req.headers.get('x-forwarded-for');
       const userAgent = req.headers.get('user-agent');
       const ip = forwardedFor || 'unknown';
 
       await AuthService.logUserActivity(
-        req.user.userId,
+        userDetails.userId,
         'LOGOUT',
         'USER',
-        req.user.userId,
+        userDetails.userId,
         { success: true },
         ip,
         userAgent || undefined

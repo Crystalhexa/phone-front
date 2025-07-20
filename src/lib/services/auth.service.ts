@@ -3,6 +3,7 @@ import { PasswordService } from '@/lib/auth/password';
 import { JWTService } from '@/lib/auth/jwt';
 import { PoolClient } from 'pg';
 import { query, transaction } from '../database/connection';
+import cuid2, { createId } from '@paralleldrive/cuid2';
 
 export class AuthService {
   static async login(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -71,7 +72,7 @@ export class AuthService {
 
       
       // Log user activity
-      await this.logUserActivity(user.id, 'LOGIN', 'USER', user.id);
+      await this.logUserActivity(userRow.id, 'LOGIN', 'USER', user.id);
 
       return {
         success: true,
@@ -257,10 +258,11 @@ export class AuthService {
     userAgent?: string
   ): Promise<void> {
     try {
+      const id = createId();
       await query(
-        `INSERT INTO user_activity_logs (user_id, action, entity, entity_id, metadata, ip_address, user_agent, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-        [userId, action, entity || null, entityId || null, JSON.stringify(metadata || {}), ipAddress || null, userAgent || null]
+        `INSERT INTO user_activity_logs (id,user_id, action, entity, entity_id, metadata, ip_address, user_agent, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7,$8, NOW())`,
+        [id,userId, action, entity || null, entityId || null, JSON.stringify(metadata || {}), ipAddress || null, userAgent || null]
       );
     } catch (error) {
       console.error('Error logging user activity:', error);

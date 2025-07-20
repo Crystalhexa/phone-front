@@ -65,8 +65,6 @@ const data = {
         { title: "All Products", url: "/dashboard/products/all" },
         { title: "Categories", url: "/dashboard/products/categories", },
         { title: "Brands", url: "/dashboard/products/brands" },
-        { title: "Attribute", url: "/dashboard/products/attribute" },
-        { title: "Images", url: "/products/images" },
       ],
     },
     {
@@ -149,18 +147,9 @@ const data = {
       icon: IconSettings,
       items: [{ title: "Preferences", url: "/settings/preferences" }],
     },
-    { title: "Help", url: "/help", icon: IconHelp },
-    { title: "Search", url: "/search", icon: IconSearch },
   ],
   documents: [
-    {
-      title: "Data Library",
-      url: "/library",
-      icon: IconDatabase,
-      items: [{ title: "Schemas", url: "/library/schemas" }],
-    },
     { title: "Reports", url: "/reports", icon: IconReport },
-    { title: "Word Assistant", url: "/word", icon: IconFileWord },
   ],
 }
 
