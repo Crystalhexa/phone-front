@@ -17,7 +17,7 @@ export interface AuthenticatedRequest extends NextRequest {
       employee_name?: string;
 
       // Branch details
-      branch_id?: string;
+      branch_id: string;
       branch_name?: string;
 
       // User permissions
@@ -94,25 +94,26 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
           }, { status: 401 });
         }
 
-        const user = userResult.rows[0];
+        // Fixed section of the auth middleware
+// In the withAuth function, around line 87-97:
 
-        // Attach to request
-        (req as AuthenticatedRequest).user = {
-          user: {
-            userId: user.id,
-            username: user.username,
-            email: user.email,
-            role_id: user.role_id,
-            is_active: user.is_active,
-            employee_id: user.employee_id,
-            employee_number: user.employee_number,
-            employee_name: user.employee_number,
-            branch_id: user.branch_id,
-            branch_name: user.branch_name,
-            permissions: user.permissions,
-
-          },
-        };
+const user = userResult.rows[0];
+// Attach to request
+(req as AuthenticatedRequest).user = {
+  user: {
+    userId: user.id,
+    username: user.username,
+    email: user.email,
+    role_id: user.role_id,
+    is_active: user.is_active,
+    employee_id: user.employee_id,
+    employee_number: user.employee_number,
+    employee_name: user.employee_name, // Fixed: was user.employee_number
+    branch_id: user.branch_id,
+    branch_name: user.branch_name,
+    permissions: user.permissions,
+  },
+};
 
       } catch (tokenError: any) {
         console.error('Token verification error:', tokenError);

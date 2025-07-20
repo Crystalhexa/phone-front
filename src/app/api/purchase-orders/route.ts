@@ -3,7 +3,7 @@ import { transaction } from '@/lib/database/connection'
 import { validateProducts, validateSupplier } from '@/lib/services/validation.service'
 import { handleApiError } from '@/lib/utils/apiHelpers'
 import { AppError } from '@/lib/utils/AppError'
-import { AuthenticatedRequest, withAuth } from '@/middleware/auth'
+import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
 import { CreatePurchaseOrderRequest } from '@/types/purchase_order'
 import cuid from 'cuid'
 import { NextRequest, NextResponse } from 'next/server'
@@ -31,7 +31,7 @@ const createPurchaseOrderSchema = z.object({
 })
 
 
-async function createPendingOrder(orderData: CreatePurchaseOrderRequest,user:any) {
+async function createPendingOrder(orderData: CreatePurchaseOrderRequest, user: any) {
   return await transaction(async (client) => {
     // Calculate totals
     const subtotal = orderData.items.reduce(
@@ -375,42 +375,42 @@ async function createPendingOrder(orderData: CreatePurchaseOrderRequest,user:any
 
 // ========== API Route Handler ==========
 export async function POST(request: NextRequest) {
-  return withAuth(async(authedReq: NextRequest & { user: any }) => {
-  try {
-    let body
+  return withPermission('create_product')(async (authedReq: AuthenticatedRequest) => {
     try {
-      body = await request.json();
-    } catch {
+      let body
+      try {
+        body = await request.json();
+      } catch {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid JSON payload',
+          timestamp: new Date().toISOString()
+        }, { status: 400 })
+      }
+      // Zod validation
+      const validatedData = createPurchaseOrderSchema.parse(body)
+      // Business validations
+      await validateSupplier(validatedData.supplier_id)
+      await validateProducts(validatedData.items)
+      // Handle order creation based on status
+      let result
+      if (validatedData.status === 'PENDING') {
+        result = await createPendingOrder(validatedData, authedReq.user)
+      } else {
+        // result = await createReceivedOrder(validatedData)
+        throw new AppError('Received orders not implemented yet', 501)
+      }
+
+      // Success response
       return NextResponse.json({
-        success: false,
-        message: 'Invalid JSON payload',
+        success: true,
+        message: `Purchase order ${validatedData.status.toLowerCase()} successfully`,
+        data: result,
         timestamp: new Date().toISOString()
-      }, { status: 400 })
-    }
-    // Zod validation
-    const validatedData = createPurchaseOrderSchema.parse(body)
-    // Business validations
-    await validateSupplier(validatedData.supplier_id)
-    await validateProducts(validatedData.items)
-    // Handle order creation based on status
-    let result
-    if (validatedData.status === 'PENDING') {
-      result = await createPendingOrder(validatedData,authedReq.user)
-    } else {
-      // result = await createReceivedOrder(validatedData)
-      throw new AppError('Received orders not implemented yet', 501)
-    }
+      }, { status: 201 })
 
-    // Success response
-    return NextResponse.json({
-      success: true,
-      message: `Purchase order ${validatedData.status.toLowerCase()} successfully`,
-      data: result,
-      timestamp: new Date().toISOString()
-    }, { status: 201 })
-
-  } catch (error: any) {
-     return handleApiError(error);
-  }
-})(request);
+    } catch (error: any) {
+      return handleApiError(error);
+    }
+  })(request);
 }

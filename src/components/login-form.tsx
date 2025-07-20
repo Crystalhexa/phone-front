@@ -12,8 +12,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { setCredentials } from "@/state/slices/authSlice";
-import { useLoginMutation } from "@/state/authApi";
 import { useAppDispatch } from "@/state/redux";
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,15 +64,7 @@ const { login, isLoading } = useAuth();
                 />
               </div>
               <div className="grid gap-3">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                  <a
-                    href="#"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    Forgot your password?
-                  </a>
-                </div>
+                
                 <Input
                   id="password"
                   type="password"
@@ -94,16 +84,11 @@ const { login, isLoading } = useAuth();
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? "Logging in..." : "Login"}
                 </Button>
-                <Button type="button" variant="outline" className="w-full">
-                  Login with Google
-                </Button>
+               
               </div>
             </div>
             <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
-              <a href="#" className="underline underline-offset-4">
-                Sign up
-              </a>
+                Kandy Radio Enginerring
             </div>
           </form>
         </CardContent>

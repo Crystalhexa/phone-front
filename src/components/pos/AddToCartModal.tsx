@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Form } from '@/components/ui/form';
 import { ProductResponse } from '@/app/(dashboard)/dashboard/products/all/page';
 import CustomFormField, { FormFieldType } from '@/components/form/CustomFormField';
-import { Package, DollarSign, ShoppingCart, TrendingUp } from 'lucide-react';
+import {  ShoppingCart, TrendingUp } from 'lucide-react';
 
 // Purchasing schema - focused on buying context with proper number coercion
 const purchaseItemSchema = z.object({

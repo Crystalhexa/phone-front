@@ -309,7 +309,6 @@ export async function transaction<T>(
           setTimeout(() => reject(new Error('Transaction timeout')), timeout)
         )
       ])
-      
       await client.query('COMMIT')
       console.log('✅ Transaction committed successfully')
       
@@ -336,21 +335,6 @@ export async function transaction<T>(
       }
     }
   })
-}
-
-// ========== Health Check ==========
-export async function healthCheck(): Promise<boolean> {
-  try {
-    const result = await query('SELECT 1 as health', [], { 
-      timeout: 5000, 
-      retries: 1,
-      logQuery: false 
-    })
-    return result.rows[0]?.health === 1
-  } catch (error) {
-    console.error('❌ Health check failed:', error)
-    return false
-  }
 }
 // ========== Initialization ==========
 let initialized = false
@@ -386,7 +370,20 @@ export async function initDatabase(): Promise<void> {
     throw error
   }
 }
-
+// ========== Health Check ==========
+export async function healthCheck(): Promise<boolean> {
+  try {
+    const result = await query('SELECT 1 as health', [], { 
+      timeout: 5000, 
+      retries: 1,
+      logQuery: false 
+    })
+    return result.rows[0]?.health === 1
+  } catch (error) {
+    console.error('❌ Health check failed:', error)
+    return false
+  }
+}
 // ========== Graceful Shutdown ==========
 export async function closeDatabase(): Promise<void> {
   console.log('🔚 Closing database connections...')
