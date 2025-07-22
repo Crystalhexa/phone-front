@@ -2,7 +2,7 @@ import { useAppDispatch, useAppSelector } from '@/state/redux';
 import { setCredentials, logout, setLoading } from '@/state/slices/authSlice';
 import { useLoginMutation, useRegisterMutation, useGetProfileQuery, useLogoutMutation } from '@/state/authApi';
 import { useEffect } from 'react';
-import { User, UserProfile } from '@/types/auth';
+import { UserProfile } from '@/types/auth';
 
 export const useAuth = () => {
   const dispatch = useAppDispatch();
@@ -92,7 +92,6 @@ export const useAuth = () => {
     try {
       await logoutMutation().unwrap();
     } catch (error) {
-      console.error('Logout error:', error);
     } finally {
       dispatch(logout());
       localStorage.removeItem('token');
@@ -103,8 +102,6 @@ export const useAuth = () => {
   const initializeAuth = () => {
     const storedToken = localStorage.getItem('token');
     if (storedToken && !token) {
-      // Token exists but not in state, set token first
-      // Profile data will be fetched automatically by the useGetProfileQuery hook
       dispatch(setCredentials({
         token: storedToken,
         user: {} as UserProfile, // Will be populated once profile query completes

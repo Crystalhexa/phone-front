@@ -31,6 +31,7 @@ export function NavUser() {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const { user, logout } = useAuth();
+  console.log(user)
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -60,7 +61,7 @@ export function NavUser() {
         });
         
         // Redirect to login page
-        router.push('/login');
+        router.push('/');
       } else {
         // API call failed, but still logout locally for UX
         console.error('Logout API failed:', data.message);

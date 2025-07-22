@@ -14,6 +14,7 @@ const purchaseOrderItemSchema = z.object({
   wholesale_price: z.number().positive('Wholesale price must be positive').optional(),
   retail_price: z.number().positive('Retail price must be positive'),
   batch_number: z.string().min(1, 'Batch number is required').max(50).optional(),
+  is_unique: z.boolean().optional(),
   expiry_date: z.string().datetime().optional().nullable(),
 })
 
@@ -229,6 +230,7 @@ async function createBranchInventoryItems(
   orderItems: Array<{ product_id: string }>,
   itemsData: PurchaseOrderItem[]
 ): Promise<void> {
+  
   for (let i = 0; i < batchIds.length; i++) {
     const batchId = batchIds[i]
     const orderItem = orderItems[i]

@@ -64,10 +64,12 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import GRNGenerator from '@/components/GRNGenerator';
 
 // Types
 interface PurchaseOrder {
@@ -93,6 +95,7 @@ interface PurchaseOrder {
   updated_at: string;
   items_count: number;
   items?: any[];
+  
 }
 
 interface PaginationMeta {
@@ -458,6 +461,54 @@ const PurchaseOrdersTable = () => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+   // Add GRN state
+  const [selectedOrderForGRN, setSelectedOrderForGRN] = useState<PurchaseOrder | null>(null);
+  const [showGRN, setShowGRN] = useState(false);
+
+  const fetchOrderWithItems=async(id:string)=>{
+    return selectedOrderForGRN;
+  }
+   // Handle GRN generation
+  const handleGenerateGRN = async (order: PurchaseOrder) => {
+    // Check if order already has items, if not fetch them
+    if (!order.items || order.items.length === 0) {
+      const orderWithItems = await fetchOrderWithItems(order.id);
+      if (orderWithItems) {
+        setSelectedOrderForGRN(orderWithItems);
+      } else {
+        return; // Failed to fetch items
+      }
+    } else {
+      setSelectedOrderForGRN(order);
+    }
+    
+    setShowGRN(true);
+  };
+   const handleBackFromGRN = () => {
+    setShowGRN(false);
+    setSelectedOrderForGRN(null);
+  };
+// If showing GRN, render it instead of the table
+  if (showGRN && selectedOrderForGRN) {
+    return (
+      <div className="container mx-auto p-6">
+        {/* Back button */}
+        <div className="mb-4">
+          <Button 
+            variant="outline" 
+            onClick={handleBackFromGRN}
+            className="flex items-center gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to Purchase Orders
+          </Button>
+        </div>
+        
+        {/* GRN Component */}
+        {/* <GRNGenerator purchaseOrder={selectedOrderForGRN} /> */}
+      </div>
+    );
+  }
   
   const [pagination, setPagination] = useState<PaginationMeta>({
     page: 1,
@@ -504,6 +555,7 @@ const PurchaseOrdersTable = () => {
     };
   }, [filters.search]);
 
+  console.log(orders)
   // Fetch orders function
   const fetchOrders = async (isSearch = false) => {
     if (isSearch) {
@@ -896,6 +948,17 @@ const PurchaseOrdersTable = () => {
                             </PopoverContent>
                           </Popover>
                           <OrderDetailsPopup order={order} />
+                          {/* Add GRN Generation Button */}
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleGenerateGRN(order)}
+                            className="text-green-600 border-green-200 hover:bg-green-50"
+                            title="Generate Goods Received Note"
+                          >
+                            <Printer className="w-3 h-3 mr-1" />
+                            GRN
+                          </Button>
                           <Button 
                             size="sm" 
                             variant="outline"

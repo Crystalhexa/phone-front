@@ -10,6 +10,7 @@ export interface User {
   employee_number?:string;
   employee_name?:string;
   branch_name?:string;
+  branch_id?:string
 }
 export interface UserProfile {
   id: string;
@@ -21,7 +22,8 @@ export interface UserProfile {
   role_id?: string;
   created_at: Date;
   updated_at: Date;
-  avatar?: string
+  avatar?: string;
+  branch_id:string;
 }
 
 export interface Role {

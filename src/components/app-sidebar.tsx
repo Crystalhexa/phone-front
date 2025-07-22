@@ -7,7 +7,6 @@ import { useTheme } from "next-themes"
 import clsx from "clsx"
 import {
   IconChevronDown,
-  IconChevronLeft,
   IconMoon,
   IconSun,
   IconDashboard,
@@ -15,11 +14,8 @@ import {
   IconFolder,
   IconUsers,
   IconSettings,
-  IconHelp,
-  IconSearch,
   IconDatabase,
   IconReport,
-  IconFileWord,
   IconInnerShadowTop,
 } from "@tabler/icons-react"
 
@@ -40,6 +36,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import { NavUser } from "@/components/nav-user"
+import { ShoppingCart } from "lucide-react"
 
 const data = {
   user: {
@@ -137,15 +134,20 @@ const data = {
         { title: "Employees", url: "/dashboard/user/employees" },
         { title: "Users", url: "/dashboard/user/users" },
         { title: "Roles", url: "/dashboard/user/roles" },
+        { title: "Logs", url: "/dashboard/user/logs" },
       ],
     },
+    {
+     title: "POS",
+     url:"/dashboard/pos" ,
+     icon: ShoppingCart
+    }
   ],
   navSecondary: [
     {
       title: "Settings",
       url: "/settings",
       icon: IconSettings,
-      items: [{ title: "Preferences", url: "/settings/preferences" }],
     },
   ],
   documents: [

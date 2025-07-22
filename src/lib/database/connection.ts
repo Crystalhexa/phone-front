@@ -56,7 +56,6 @@ class CircuitBreaker {
         throw new Error('Circuit breaker is OPEN')
       }
     }
-    
     try {
       const result = await operation()
       this.onSuccess()
