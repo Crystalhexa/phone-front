@@ -1,7 +1,6 @@
 // app/api/stock-transfer/route.ts
-import { query, transaction } from '@/lib/database/connection'
-import cuid from 'cuid'
 import { NextRequest, NextResponse } from 'next/server'
+import { query, transaction } from '@/lib/db'
 import { PoolClient } from 'pg'
 
 // ========== Types ==========
@@ -152,10 +151,8 @@ async function createTransferRequest(
   transferData: TransferRequest,
   transferNumber: string
 ): Promise<string> {
-  const stock_transfer_requests_id = cuid()
   const result = await client.query(`
     INSERT INTO stock_transfer_requests (
-    id,
       request_number,
       from_branch_id,
       to_branch_id,
@@ -167,10 +164,9 @@ async function createTransferRequest(
       approved_at,
       dispatched_at,
       completed_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7,$8, NOW(), NOW(), NOW(), NOW())
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), NOW(), NOW())
     RETURNING id
   `, [
-    stock_transfer_requests_id,
     transferNumber,
     transferData.send_branch_id,
     transferData.revived_branch_id,
@@ -202,11 +198,10 @@ async function createTransferItems(
       }
       
       const batchData = batchResult.rows[0]
-      const stock_transfer_items_id = cuid()
+      
       // Insert with all quantities set (requested = approved = dispatched = received)
       await client.query(`
         INSERT INTO stock_transfer_items (
-          id,
           transfer_request_id,
           product_id,
           batch_id,
@@ -217,16 +212,12 @@ async function createTransferItems(
           unit_cost_price,
           unit_wholesale_price,
           unit_retail_price
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ) VALUES ($1, $2, $3, $4, $4, $4, $4, $5, $6, $7)
       `, [
-        stock_transfer_items_id,
         transferRequestId,
         product.product_id,
         batch.batch_id,
         batch.count, // Same quantity for all fields
-        batch.count,
-        batch.count,
-        batch.count,
         batchData.cost_price,
         batchData.wholesale_price,
         batchData.retail_price
@@ -311,10 +302,8 @@ async function executeCompleteTransfer(
       
       if (existingBatchResult.rows.length === 0) {
         // Create new batch item in destination branch
-        const branch_inventory_items_id = cuid();
         await client.query(`
           INSERT INTO branch_inventory_items (
-            id,
             branch_inventory_id,
             purchase_batch_id,
             quantity,
@@ -323,16 +312,15 @@ async function executeCompleteTransfer(
             retail_price,
             received_date,
             expiry_date
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `, [
-          branch_inventory_items_id,
           destInventoryId,
           batch.batch_id,
           batch.count,
           batchData.cost_price,
           batchData.wholesale_price,
           batchData.retail_price,
-          new Date(),
+          batchData.received_date,
           batchData.expiry_date
         ])
       } else {
@@ -366,13 +354,11 @@ async function createStockLedgerEntries(
         WHERE id = $1
       `, [batch.batch_id])
       
-      const batchData = batchResult.rows[0];
-
-      const product_stock_ledgers_id_out = cuid()
+      const batchData = batchResult.rows[0]
+      
       // Create TRANSFER_OUT entry for source branch
       await client.query(`
         INSERT INTO product_stock_ledgers (
-          id,
           product_id,
           branch_id,
           batch_id,
@@ -383,9 +369,8 @@ async function createStockLedgerEntries(
           cost_price,
           selling_price,
           notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `, [
-        product_stock_ledgers_id_out,
         product.product_id,
         sendBranchId,
         batch.batch_id,
@@ -397,12 +382,10 @@ async function createStockLedgerEntries(
         batchData.retail_price,
         `Transfer out to branch ${receiveBranchId}`
       ])
-              const product_stock_ledgers_id_in = cuid()
-
+      
       // Create TRANSFER_IN entry for destination branch
       await client.query(`
         INSERT INTO product_stock_ledgers (
-          id,
           product_id,
           branch_id,
           batch_id,
@@ -413,9 +396,8 @@ async function createStockLedgerEntries(
           cost_price,
           selling_price,
           notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `, [
-        product_stock_ledgers_id_in,
         product.product_id,
         receiveBranchId,
         batch.batch_id,
@@ -438,18 +420,15 @@ async function createTransferLog(
   action: string,
   notes?: string
 ): Promise<void> {
-  const stock_transfer_logs_id = cuid()
   await client.query(`
     INSERT INTO stock_transfer_logs (
-      id,
       transfer_request_id,
       employee_id,
       action_type,
       notes,
       metadata
-    ) VALUES ($1, $2, $3, $4, $5, $6)
+    ) VALUES ($1, $2, $3, $4, $5)
   `, [
-    stock_transfer_logs_id,
     transferRequestId,
     employeeId,
     action,

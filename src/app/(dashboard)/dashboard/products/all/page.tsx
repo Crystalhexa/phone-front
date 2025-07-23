@@ -1089,9 +1089,6 @@ const ProductsTable: React.FC = () => {
                         {product.model && (
                           <div className="text-sm text-muted-foreground">Model: {product.model}</div>
                         )}
-                        <div className="text-sm text-muted-foreground truncate">
-                          {product.description || 'No description'}
-                        </div>
                       </div>
                     </TableCell>
                     <TableCell>

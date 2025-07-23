@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 
 const BatchDetailsViewer = ({ product }:any) => {
+
+  console.log("janath pakaya")
   const formatPrice = (price:any) => `$${price?.toFixed(2) || '0.00'}`
   
   const formatDate = (dateString:any) => {

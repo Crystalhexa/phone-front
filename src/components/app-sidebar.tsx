@@ -33,6 +33,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import { NavUser } from "@/components/nav-user"
@@ -138,9 +139,9 @@ const data = {
       ],
     },
     {
-     title: "POS",
-     url:"/dashboard/pos" ,
-     icon: ShoppingCart
+      title: "POS",
+      url: "/dashboard/pos",
+      icon: ShoppingCart
     }
   ],
   navSecondary: [
@@ -261,11 +262,9 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
                 <span className="text-base font-semibold">Acme Inc.</span>
               </Link>
             </SidebarMenuButton>
-            
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-
       <SidebarContent className="overflow-y-auto space-y-4 px-1.5 py-3">
         <NavGroup items={data.navMain} />
         <div className="border-t border-border mx-2" />
@@ -276,7 +275,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser/>
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
   )
