@@ -242,7 +242,6 @@ model products {
   stock_adjustments     stock_adjustments[]      @relation("ProductVariation")
   purchase_return_items purchase_return_items[]
   sales_return_items    sales_return_items[]
-  serial_numbers        serial_numbers[]
   low_stock_alerts      low_stock_alerts[]
   price_history         product_price_history[]
   price_overrides       price_overrides[]
@@ -332,28 +331,22 @@ model barcodes {
   @@map("barcodes")
 }
 
-model serial_numbers {
-  id          String        @id @default(cuid())
-  product_id  String
-  serial      String        @unique @db.VarChar(100)
-  branch_id   String?
-  batch_id    String? // NEW: Link to purchase batch
-  status      serial_status @default(AVAILABLE)
+
+model sales_order_items_barcode {
+  id               String       @id @default(cuid())
+  purchase_batch_id String
+  code             String       @unique @db.VarChar(50)
+  type             barcode_type @default(INTERNAL)
+  is_active        Boolean      @default(true)
+  created_at       DateTime     @default(now()) @db.Timestamptz(6)
+  status      barcode_status @default(AVAILABLE)
   sold_at     DateTime?     @db.Timestamptz(6)
   returned_at DateTime?     @db.Timestamptz(6)
-  notes       String?       @db.Text
-  created_at  DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime      @updatedAt @db.Timestamptz(6)
+  purchase_batch   purchase_batches @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
 
-  // Relations
-  product products          @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  branch  branches?         @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  batch   purchase_batches? @relation(fields: [batch_id], references: [id], onDelete: SetNull)
 
-  @@index([product_id, status])
-  @@index([branch_id])
-  @@index([batch_id])
-  @@map("serial_numbers")
+  @@index([purchase_batch_id])
+  @@map("sales_order_items_barcode")
 }
 
 model purchase_batches {
@@ -379,7 +372,7 @@ model purchase_batches {
   inventory_items         branch_inventory_items[]
   product_stock_ledgers   product_stock_ledgers[]
   sales_batch_allocations sales_batch_allocations[] // NEW: Track sales from this batch
-  serial_numbers          serial_numbers[]
+  barcodes                sales_order_items_barcode[]
 
   @@index([batch_number])
   @@index([expiry_date])
@@ -387,6 +380,7 @@ model purchase_batches {
   @@index([received_date])
   @@map("purchase_batches")
 }
+
 
 // ================== ENHANCED FIFO SUPPORT ==================
 // NEW: Track which batches are used in each sale
@@ -407,34 +401,6 @@ model sales_batch_allocations {
   @@index([batch_id])
   @@index([allocated_at])
   @@map("sales_batch_allocations")
-}
-
-// ================== PRICE TRACKING ==================
-model product_stock_ledgers {
-  id             String           @id @default(cuid())
-  product_id     String
-  branch_id      String
-  batch_id       String?
-  quantity       Int
-  entry_type     stock_entry_type
-  reference_id   String?          @db.VarChar(50)
-  reference_type String?          @db.VarChar(50)
-  cost_price     Decimal?         @db.Decimal(10, 2) // NEW: Track cost at time of entry
-  selling_price  Decimal?         @db.Decimal(10, 2) // NEW: Track selling price
-  notes          String?          @db.Text
-  created_at     DateTime         @default(now()) @db.Timestamptz(6)
-
-  // Relations
-  product products          @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  branch  branches          @relation(fields: [branch_id], references: [id], onDelete: Cascade)
-  batch   purchase_batches? @relation(fields: [batch_id], references: [id])
-
-  @@index([product_id, created_at])
-  @@index([branch_id, created_at])
-  @@index([batch_id])
-  @@index([reference_type, reference_id])
-  @@index([entry_type, created_at])
-  @@map("product_stock_ledgers")
 }
 
 // ================== BRANCH & INVENTORY MANAGEMENT ==================
@@ -463,13 +429,40 @@ model branches {
   stock_adjustments      stock_adjustments[]       @relation("Branch")
   stock_ledgers          product_stock_ledgers[]
   low_stock_alerts       low_stock_alerts[]
-  serial_numbers         serial_numbers[]
   price_overrides        price_overrides[]
 
   @@index([code])
   @@index([is_main_branch])
   @@index([can_purchase])
   @@map("branches")
+}
+
+// ================== PRICE TRACKING ==================
+model product_stock_ledgers {
+  id             String           @id @default(cuid())
+  product_id     String
+  branch_id      String
+  batch_id       String?
+  quantity       Int
+  entry_type     stock_entry_type
+  reference_id   String?          @db.VarChar(50)
+  reference_type String?          @db.VarChar(50)
+  cost_price     Decimal?         @db.Decimal(10, 2) // NEW: Track cost at time of entry
+  selling_price  Decimal?         @db.Decimal(10, 2) // NEW: Track selling price
+  notes          String?          @db.Text
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+
+  // Relations
+  product products          @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  branch  branches          @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  batch   purchase_batches? @relation(fields: [batch_id], references: [id])
+
+  @@index([product_id, created_at])
+  @@index([branch_id, created_at])
+  @@index([batch_id])
+  @@index([reference_type, reference_id])
+  @@index([entry_type, created_at])
+  @@map("product_stock_ledgers")
 }
 
 model branch_inventory_items {
@@ -913,7 +906,7 @@ enum barcode_type {
   MANUFACTURER
 }
 
-enum serial_status {
+enum barcode_status {
   AVAILABLE
   RESERVED
   SOLD

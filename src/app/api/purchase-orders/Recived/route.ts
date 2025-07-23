@@ -42,21 +42,21 @@ function calculateOrderTotals(items: PurchaseOrderItem[]) {
   const subtotal = items.reduce((sum, item) => {
     return sum + calculateLineTotal(item.quantity, item.cost_price)
   }, 0)
-  
+
   const totalAmount = Number((subtotal).toFixed(2))
-  
+
   return { subtotal, totalAmount }
 }
 
 // ========== Database Operations ==========
 async function createPurchaseOrder(
-    user: any,
-    client: PoolClient,
-    data: PurchaseOrderInput,
-    totals: ReturnType<typeof calculateOrderTotals>
+  user: any,
+  client: PoolClient,
+  data: PurchaseOrderInput,
+  totals: ReturnType<typeof calculateOrderTotals>
 ): Promise<string> {
   const id = generateCuid()
-  
+
   const query = `
     INSERT INTO purchase_orders (
       id, supplier_id, purchased_by, branch_id,
@@ -64,7 +64,7 @@ async function createPurchaseOrder(
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING id, order_number
   `
-  
+
   const values = [
     id,
     data.supplier_id,
@@ -76,7 +76,7 @@ async function createPurchaseOrder(
     totals.totalAmount,
     data.notes || null
   ]
-  
+
   const result = await client.query(query, values)
   return result.rows[0].id
 }
@@ -87,11 +87,11 @@ async function createPurchaseOrderItems(
   items: PurchaseOrderItem[]
 ): Promise<Array<{ id: string; product_id: string }>> {
   const createdItems = []
-  
+
   for (const item of items) {
     const id = generateCuid()
     const lineTotal = calculateLineTotal(item.quantity, item.cost_price)
-    
+
     const query = `
       INSERT INTO purchase_order_items (
         id, purchase_order_id, product_id, quantity_ordered, quantity_received,
@@ -99,7 +99,7 @@ async function createPurchaseOrderItems(
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id, product_id
     `
-    
+
     const values = [
       id,
       purchaseOrderId,
@@ -113,11 +113,11 @@ async function createPurchaseOrderItems(
       item.batch_number,
       item.expiry_date || null
     ]
-    
+
     const result = await client.query(query, values)
     createdItems.push(result.rows[0])
   }
-  
+
   return createdItems
 }
 
@@ -126,14 +126,15 @@ async function createPurchaseBatches(
   orderItems: Array<{ id: string; product_id: string }>,
   itemsData: PurchaseOrderItem[]
 ): Promise<string[]> {
-  const batchIds = []
-  
+  const batchIds: string[] = []
+
+  const today = new Date().toISOString().split("T")[0].replace(/-/g, '') // e.g., "20250722"
   for (let i = 0; i < orderItems.length; i++) {
     const orderItem = orderItems[i]
     const itemData = itemsData[i]
     const batchId = generateCuid()
-    
-    const query = `
+
+    const batchInsertQuery = `
       INSERT INTO purchase_batches (
         id, batch_number, purchase_order_item_id, quantity_ordered,
         quantity_received, cost_price, wholesale_price, retail_price,
@@ -141,26 +142,57 @@ async function createPurchaseBatches(
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `
-    
-    const values = [
+
+    const batchInsertValues = [
       batchId,
       itemData.batch_number,
       orderItem.id,
       itemData.quantity,
-      0, // quantity_received starts at 0
+      0,
       itemData.cost_price,
       itemData.wholesale_price || null,
       itemData.retail_price,
       itemData.expiry_date || null,
       true
     ]
-    
-    const result = await client.query(query, values)
-    batchIds.push(result.rows[0].id)
+
+    const batchResult = await client.query(batchInsertQuery, batchInsertValues)
+    batchIds.push(batchResult.rows[0].id)
+
+    // ✅ Insert barcodes if item is marked as unique
+    if (itemData.is_unique) {
+      const barcodeInsertQuery = `
+        INSERT INTO sales_order_items_barcode (
+          id, purchase_batch_id, code, type, is_active, created_at
+        ) VALUES ($1, $2, $3, 'INTERNAL', true, NOW())
+      `
+
+      for (let j = 0; j < itemData.quantity; j++) {
+        const barcodeId = generateCuid()
+
+        // 🚀 Get next number from the sequence
+        const { rows } = await client.query(`SELECT nextval('barcode_sequence')`);
+        const seq = rows[0].nextval;
+
+        const padded = String(seq).padStart(6, '0');
+        const barcodeCode = `KRE-${today}-${padded}`;
+
+        const values = [
+          barcodeId,
+          batchId,
+          barcodeCode,
+         
+        ];
+
+        await client.query(barcodeInsertQuery, values);
+      }
+
+    }
   }
-  
+
   return batchIds
 }
+
 
 async function updateBranchInventory(
   client: PoolClient,
@@ -174,9 +206,9 @@ async function updateBranchInventory(
       FROM branch_inventory
       WHERE branch_id = $1 AND product_id = $2
     `
-    
+
     const existing = await client.query(checkQuery, [branchId, item.product_id])
-    
+
     if (existing.rows.length === 0) {
       // Create new inventory record
       const id = generateCuid()
@@ -186,7 +218,7 @@ async function updateBranchInventory(
           average_cost_price, last_restock_date
         ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
       `
-      
+
       await client.query(insertQuery, [
         id,
         branchId,
@@ -201,9 +233,9 @@ async function updateBranchInventory(
       const newTotalQty = current.total_quantity + item.quantity_ordered
       const newAvgCost = (
         (current.total_quantity * (current.average_cost_price || 0) +
-         item.quantity_ordered * item.cost_price) / newTotalQty
+          item.quantity_ordered * item.cost_price) / newTotalQty
       ).toFixed(2)
-      
+
       const updateQuery = `
         UPDATE branch_inventory
         SET total_quantity = total_quantity + $1,
@@ -212,7 +244,7 @@ async function updateBranchInventory(
             updated_at = CURRENT_TIMESTAMP
         WHERE branch_id = $3 AND product_id = $4
       `
-      
+
       await client.query(updateQuery, [
         item.quantity_ordered,
         newAvgCost,
@@ -230,37 +262,37 @@ async function createBranchInventoryItems(
   orderItems: Array<{ product_id: string }>,
   itemsData: PurchaseOrderItem[]
 ): Promise<void> {
-  
+
   for (let i = 0; i < batchIds.length; i++) {
     const batchId = batchIds[i]
     const orderItem = orderItems[i]
     const itemData = itemsData[i]
-    
+
     // Get branch inventory ID
     const inventoryQuery = `
       SELECT id FROM branch_inventory
       WHERE branch_id = $1 AND product_id = $2
     `
-    
+
     const inventoryResult = await client.query(inventoryQuery, [branchId, orderItem.product_id])
-    
+
     if (inventoryResult.rows.length === 0) {
       throw new Error(`Branch inventory not found for product ${orderItem.product_id}`)
     }
-    
+
     const branchInventoryId = inventoryResult.rows[0].id
     const id = generateCuid()
-    
+
     // Get next FIFO order
     const fifoQuery = `
       SELECT COALESCE(MAX(fifo_order), 0) + 1 as next_order
       FROM branch_inventory_items
       WHERE branch_inventory_id = $1
     `
-    
+
     const fifoResult = await client.query(fifoQuery, [branchInventoryId])
     const fifoOrder = fifoResult.rows[0].next_order
-    
+
     const insertQuery = `
       INSERT INTO branch_inventory_items (
         id, branch_inventory_id, purchase_batch_id, quantity,
@@ -268,7 +300,7 @@ async function createBranchInventoryItems(
         received_date, expiry_date, is_active, fifo_order
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9, $10, $11)
     `
-    
+
     await client.query(insertQuery, [
       id,
       branchInventoryId,
@@ -298,7 +330,7 @@ async function createStockLedgerEntries(
     const orderItem = orderItems[i]
     const itemData = itemsData[i]
     const id = generateCuid()
-    
+
     const query = `
       INSERT INTO product_stock_ledgers (
         id, product_id, branch_id, batch_id, quantity,
@@ -306,7 +338,7 @@ async function createStockLedgerEntries(
         cost_price, selling_price, notes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `
-    
+
     await client.query(query, [
       id,
       orderItem.product_id,
@@ -329,22 +361,22 @@ export async function POST(request: NextRequest) {
     try {
       // Initialize database if needed
       await initDatabase()
-      
+
       // Extract user details from authenticated request
       const { user: userDetails } = authedReq.user
-      
+
       // Parse request body
       const body = await authedReq.json()
-      
+
       // Validate input
       const validationResult = purchaseOrderSchema.safeParse(body)
-      
+
       if (!validationResult.success) {
         const errors = validationResult.error.errors.map(err => ({
           path: err.path.join('.'),
           message: err.message
         }))
-        
+
         return NextResponse.json<ApiResponse>({
           success: false,
           data: null,
@@ -353,33 +385,33 @@ export async function POST(request: NextRequest) {
           timestamp: new Date().toISOString()
         }, { status: 400 })
       }
-      
+
       const data = validationResult.data
-      
+
       // Calculate totals
       const totals = calculateOrderTotals(data.items)
-      
+
       // Execute transaction
       const result = await transaction(async (client) => {
         // 1. Create purchase order
         const purchaseOrderId = await createPurchaseOrder(userDetails, client, data, totals)
-        
+
         // 2. Create purchase order items
         const orderItems = await createPurchaseOrderItems(client, purchaseOrderId, data.items)
-        
+
         // 3. Create purchase batches
         const batchIds = await createPurchaseBatches(client, orderItems, data.items)
-        
+
         // 4. Update branch inventory
         await updateBranchInventory(client, userDetails.branch_id, data.items.map((item, idx) => ({
           product_id: orderItems[idx].product_id,
           quantity_ordered: item.quantity,
           cost_price: item.cost_price
         })))
-        
+
         // 5. Create branch inventory items
         await createBranchInventoryItems(client, userDetails.branch_id, batchIds, orderItems, data.items)
-        
+
         // 6. Create stock ledger entries
         await createStockLedgerEntries(
           client,
@@ -389,7 +421,7 @@ export async function POST(request: NextRequest) {
           orderItems,
           data.items
         )
-        
+
         // Fetch created order with details
         const orderQuery = `
           SELECT 
@@ -424,21 +456,21 @@ export async function POST(request: NextRequest) {
           WHERE po.id = $1
           GROUP BY po.id
         `
-        
+
         const orderResult = await client.query(orderQuery, [purchaseOrderId])
         return orderResult.rows[0]
       })
-      
+
       return NextResponse.json<ApiResponse>({
         success: true,
         data: result,
         message: 'Purchase order created successfully',
         timestamp: new Date().toISOString()
       }, { status: 201 })
-      
+
     } catch (error: any) {
       console.error('Purchase order creation error:', error)
-      
+
       // Handle specific PostgreSQL errors
       const pgErrors: Record<string, string> = {
         '23505': 'Duplicate entry found',
@@ -448,9 +480,9 @@ export async function POST(request: NextRequest) {
         '22P02': 'Invalid input syntax',
         '22003': 'Numeric value out of range'
       }
-      
+
       const message = pgErrors[error.code] || error.message || 'Failed to create purchase order'
-      
+
       return NextResponse.json<ApiResponse>({
         success: false,
         data: null,

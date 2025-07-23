@@ -85,6 +85,7 @@ interface CurrentPrices {
   wholesale_price: number | null;
   retail_price: number;
   last_updated: string;
+  is_unique: boolean;
 }
 
 interface BranchStock {
@@ -184,6 +185,7 @@ interface CartItem {
       code: string;
     };
   };
+  is_unique?:boolean;
   quantity: number;
   cost_price: number;
   wholesale_price?: number;
@@ -704,6 +706,7 @@ const ProductsTable: React.FC = () => {
     retail_price?: number;
     batch_number?: string;
     expiry_date?: string;
+    is_unique?: boolean;
   }) => {
     const product = selectedProduct;
     if (!product) return;
@@ -721,6 +724,7 @@ const ProductsTable: React.FC = () => {
             retail_price: formData.retail_price ?? item.retail_price,
             batch_number: formData.batch_number ?? item.batch_number,
             expiry_date: formData.expiry_date ?? item.expiry_date,
+            is_unique: formData.is_unique?? item.is_unique,
             line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
           }
           : item
@@ -740,6 +744,7 @@ const ProductsTable: React.FC = () => {
             code: product.brand.code
           } : undefined
         },
+        is_unique:formData.is_unique??product.current_prices?.is_unique,
         quantity: formData.quantity,
         cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
         wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,

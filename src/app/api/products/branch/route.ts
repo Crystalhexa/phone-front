@@ -17,7 +17,6 @@ interface ProductWithPricing {
   costPrice: number
   retailPrice: number
   wholesalePrice: number | null
-  hasSerialNumbers: boolean
   warrantyPeriod: number | null
   specifications: Array<{
     name: string
@@ -190,13 +189,7 @@ async function getProductsWithFIFOPricing(
       po.reason as override_reason,
       po.valid_until as override_valid_until,
       
-      -- Serial number check
-      EXISTS (
-        SELECT 1 FROM serial_numbers sn 
-        WHERE sn.product_id = p.id 
-        AND sn.branch_id = $1
-        LIMIT 1
-      ) as has_serial_numbers,
+      
       
       -- Count for pagination
       COUNT(*) OVER() as total_count
@@ -280,7 +273,6 @@ async function getProductsWithFIFOPricing(
     costPrice: parseFloat(row.cost_price),
     retailPrice: parseFloat(row.retail_price),
     wholesalePrice: row.wholesale_price ? parseFloat(row.wholesale_price) : null,
-    hasSerialNumbers: row.has_serial_numbers,
     warrantyPeriod: row.warranty_period,
     specifications: specsByProduct[row.id] || [],
     barcodes: barcodesByProduct[row.id] || [],

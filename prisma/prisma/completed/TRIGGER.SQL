@@ -1,3 +1,8 @@
+---barcode squence
+CREATE SEQUENCE barcode_sequence START 1 INCREMENT 1;
+
+
+
 -- Automation for order number generation in order table
 --sequence
 CREATE SEQUENCE purchase_order_number_seq START 1;

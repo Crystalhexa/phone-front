@@ -35,6 +35,7 @@ import {
   X,
   ChevronRight,
   Maximize2,
+  Check,
 } from 'lucide-react';
 import CustomFormField, { FormFieldType } from '../form/CustomFormField';
 import { toast } from 'sonner';
@@ -55,6 +56,7 @@ const itemFormSchema = z.object({
   retail_price: z.number().min(0, 'Retail price must be positive'),
   batch_number: z.string().optional(),
   expiry_date: z.string().optional(),
+  is_unique: z.boolean().optional(),
 });
 
 // Types
@@ -85,6 +87,7 @@ interface CartItem {
       code: string;
     };
   };
+  is_unique?: boolean;
   quantity: number;
   cost_price: number;
   wholesale_price?: number;
@@ -130,11 +133,15 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
   orderFormData,
   setOrderFormData
 }) => {
+  console.log(cartItems)
   const [currentOrder, setCurrentOrder] = useState<PurchaseOrder | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingOrderDetails, setEditingOrderDetails] = useState(false);
+  
+  // Store original values for cancel functionality
+  const [originalItemData, setOriginalItemData] = useState<ItemFormData | null>(null);
 
   // Slide-over panel states
   const [cartPanelOpen, setCartPanelOpen] = useState(false);
@@ -164,6 +171,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
       retail_price: 0,
       batch_number: '',
       expiry_date: '',
+      is_unique: false
     },
   });
 
@@ -172,15 +180,22 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
     if (editingItemId) {
       const editingItem = cartItems.find(item => item.id === editingItemId);
       if (editingItem) {
-        itemForm.reset({
+        const itemData = {
           quantity: editingItem.quantity,
           cost_price: editingItem.cost_price,
           wholesale_price: editingItem.wholesale_price || 0,
           retail_price: editingItem.retail_price,
           batch_number: editingItem.batch_number || '',
           expiry_date: editingItem.expiry_date || '',
-        });
+          is_unique: editingItem.is_unique || false,
+        };
+        
+        // Store original data for cancel functionality
+        setOriginalItemData(itemData);
+        itemForm.reset(itemData);
       }
+    } else {
+      setOriginalItemData(null);
     }
   }, [editingItemId, cartItems, itemForm]);
 
@@ -311,6 +326,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
           cost_price: item.cost_price,
           wholesale_price: item.wholesale_price,
           retail_price: item.retail_price,
+          is_unique: item.is_unique
         }))
       };
 
@@ -349,35 +365,76 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
     }
   };
 
-  // Handle inline item editing
-  const handleUpdateCartItem = (itemId: string, updatedData: ItemFormData) => {
-    setCartItems(prev => prev.map(item => {
-      if (item.id === itemId) {
-        const lineTotal = updatedData.quantity * updatedData.cost_price;
-        return {
-          ...item,
-          quantity: updatedData.quantity,
-          cost_price: updatedData.cost_price,
-          wholesale_price: updatedData.wholesale_price,
-          retail_price: updatedData.retail_price,
-          batch_number: updatedData.batch_number,
-          expiry_date: updatedData.expiry_date,
-          line_total: lineTotal,
-        };
-      }
-      return item;
-    }));
+  // Start editing an item
+  const handleStartEditing = (itemId: string) => {
+    setEditingItemId(itemId);
+  };
 
+  // Handle inline item editing with validation
+  const handleSaveCartItem = async () => {
+    if (!editingItemId) return;
+
+    try {
+      const isValid = await itemForm.trigger();
+      if (!isValid) {
+        toast.error('Please fix validation errors before saving');
+        return;
+      }
+
+      const formData = itemForm.getValues();
+      
+      setCartItems(prev => prev.map(item => {
+        if (item.id === editingItemId) {
+          const lineTotal = formData.quantity * formData.cost_price;
+          return {
+            ...item,
+            quantity: formData.quantity,
+            cost_price: formData.cost_price,
+            wholesale_price: formData.wholesale_price,
+            retail_price: formData.retail_price,
+            batch_number: formData.batch_number,
+            expiry_date: formData.expiry_date,
+            is_unique: formData.is_unique,
+            line_total: lineTotal,
+          };
+        }
+        return item;
+      }));
+
+      setEditingItemId(null);
+      toast.success('Item updated successfully!');
+    } catch (error) {
+      console.error('Error saving item:', error);
+      toast.error('Error saving item. Please try again.');
+    }
+  };
+
+  // Cancel editing and restore original values
+  const handleCancelEditing = () => {
+    if (originalItemData) {
+      itemForm.reset(originalItemData);
+    }
     setEditingItemId(null);
-    toast.success('Item updated successfully!');
+    toast.info('Edit cancelled');
   };
 
   const removeCartItem = (itemId: string) => {
+    // Don't allow removal if item is being edited
+    if (editingItemId === itemId) {
+      toast.warning('Please save or cancel your changes before removing this item');
+      return;
+    }
+    
     setCartItems(prev => prev.filter(item => item.id !== itemId));
     toast.success('Item removed from cart');
   };
 
   const clearCart = () => {
+    if (editingItemId) {
+      toast.warning('Please save or cancel your changes before clearing the cart');
+      return;
+    }
+    
     if (window.confirm('Are you sure you want to clear the cart? This action cannot be undone.')) {
       setCartItems([]);
       toast.success('Cart cleared');
@@ -385,10 +442,16 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
   };
 
   const startNewOrder = (type: boolean) => {
+    if (editingItemId) {
+      toast.warning('Please save or cancel your changes before starting a new order');
+      return;
+    }
+    
     if (cartItems.length > 0) {
       const confirmClear = window.confirm('Starting a new order will clear the current cart. Are you sure?');
       if (!confirmClear) return;
     }
+    
     setOrderFormData({
       supplier_id: '',
       order_date: new Date(),
@@ -541,7 +604,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => startNewOrder(false)}
+                      onClick={() => setEditingOrderDetails(false)}
                     >
                       Cancel
                     </Button>
@@ -598,6 +661,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
                         <TableHead className="w-[300px]">Product</TableHead>
+                        <TableHead className="w-[120px]">Is Unique</TableHead>
                         <TableHead className="w-[100px]">Qty</TableHead>
                         <TableHead className="w-[120px]">Cost</TableHead>
                         {currentOrder?.status === 'RECEIVED' && (
@@ -607,7 +671,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                           </>
                         )}
                         <TableHead className="w-[120px]">Total</TableHead>
-                        <TableHead className="w-[80px]">Actions</TableHead>
+                        <TableHead className="w-[120px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -615,7 +679,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                         const isEditingThis = editingItemId === item.id;
 
                         return (
-                          <TableRow key={item.id}>
+                          <TableRow key={item.id} className={isEditingThis ? 'bg-muted/50' : ''}>
                             <TableCell>
                               <div className="space-y-1">
                                 <div className="font-medium text-sm">{item.product.name}</div>
@@ -631,96 +695,125 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                               </div>
                             </TableCell>
                             <TableCell>
-                              <CustomFormField
-                                fieldType={FormFieldType.NUMBER}
-                                control={itemForm.control}
-                                name="quantity"
-                                min={1}
-                                inputClassName="w-full text-sm"
-                                editable={!isEditingThis}
-                                editing={isEditingThis}
-                                onEdit={() => setEditingItemId(item.id)}
-                                onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                onCancel={() => setEditingItemId(null)}
-                                formatDisplayValue={(value) => formatCurrency(Number(item.quantity) || 0)}
-                                editMode="toggle"
-                                readOnlyStyle="bordered"
-                                allowQuickEdit
-                              />
+                              {isEditingThis ? (
+                                <CustomFormField
+                                  fieldType={FormFieldType.CHECKBOX}
+                                  control={itemForm.control}
+                                  name="is_unique"
+                                  label=""
+                                />
+                              ) : (
+                                <Badge variant={item.is_unique ? 'default' : 'secondary'} className="text-xs">
+                                  {item.is_unique ? 'Yes' : 'No'}
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell>
-                              <CustomFormField
-                                fieldType={FormFieldType.NUMBER}
-                                control={itemForm.control}
-                                name="cost_price"
-                                step={0.01}
-                                min={0}
-                                inputClassName="w-full text-sm"
-                                editable={!isEditingThis}
-                                editing={isEditingThis}
-                                onEdit={() => setEditingItemId(item.id)}
-                                onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                onCancel={() => setEditingItemId(null)}
-                                editMode="toggle"
-                                readOnlyStyle="bordered"
-                                formatDisplayValue={(value) => formatCurrency(Number(item.cost_price) || 0)}
-                                allowQuickEdit
-                              />
+                              {isEditingThis ? (
+                                <CustomFormField
+                                  fieldType={FormFieldType.NUMBER}
+                                  control={itemForm.control}
+                                  name="quantity"
+                                  min={1}
+                                  inputClassName="w-full text-sm"
+                                />
+                              ) : (
+                                <span>{item.quantity}</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isEditingThis ? (
+                                <CustomFormField
+                                  fieldType={FormFieldType.NUMBER}
+                                  control={itemForm.control}
+                                  name="cost_price"
+                                  step={0.01}
+                                  min={0}
+                                  inputClassName="w-full text-sm"
+                                />
+                              ) : (
+                                <span>{formatCurrency(item.cost_price)}</span>
+                              )}
                             </TableCell>
                             {currentOrder?.status === 'RECEIVED' && (
                               <>
                                 <TableCell>
-                                  <CustomFormField
-                                    fieldType={FormFieldType.NUMBER}
-                                    control={itemForm.control}
-                                    name="wholesale_price"
-                                    step={0.01}
-                                    min={0}
-                                    inputClassName="w-full text-sm"
-                                    editable={!isEditingThis}
-                                    editing={isEditingThis}
-                                    onEdit={() => setEditingItemId(item.id)}
-                                    onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                    onCancel={() => setEditingItemId(null)}
-                                    editMode="toggle"
-                                    readOnlyStyle="bordered"
-                                    formatDisplayValue={(value) => formatCurrency(Number(item.wholesale_price) || 0)}
-                                    allowQuickEdit
-                                  />
+                                  {isEditingThis ? (
+                                    <CustomFormField
+                                      fieldType={FormFieldType.NUMBER}
+                                      control={itemForm.control}
+                                      name="wholesale_price"
+                                      step={0.01}
+                                      min={0}
+                                      inputClassName="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span>{formatCurrency(item.wholesale_price || 0)}</span>
+                                  )}
                                 </TableCell>
                                 <TableCell>
-                                  <CustomFormField
-                                    fieldType={FormFieldType.NUMBER}
-                                    control={itemForm.control}
-                                    name="retail_price"
-                                    step={0.01}
-                                    min={0}
-                                    inputClassName="w-full text-sm"
-                                    editable={!isEditingThis}
-                                    editing={isEditingThis}
-                                    onEdit={() => setEditingItemId(item.id)}
-                                    onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                    onCancel={() => setEditingItemId(null)}
-                                    editMode="toggle"
-                                    readOnlyStyle="bordered"
-                                    formatDisplayValue={(value) => formatCurrency(Number(item.retail_price) || 0)}
-                                    allowQuickEdit
-                                  />
+                                  {isEditingThis ? (
+                                    <CustomFormField
+                                      fieldType={FormFieldType.NUMBER}
+                                      control={itemForm.control}
+                                      name="retail_price"
+                                      step={0.01}
+                                      min={0}
+                                      inputClassName="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span>{formatCurrency(item.retail_price)}</span>
+                                  )}
                                 </TableCell>
-
                               </>
                             )}
                             <TableCell className="font-medium text-sm">{formatCurrency(item.line_total)}</TableCell>
                             <TableCell>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => removeCartItem(item.id)}
-                                disabled={isEditingThis}
-                                className="w-8 h-8 p-0"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                              <div className="flex items-center gap-1">
+                                {isEditingThis ? (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={handleSaveCartItem}
+                                      className="w-8 h-8 p-0"
+                                      title="Save changes"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={handleCancelEditing}
+                                      className="w-8 h-8 p-0"
+                                      title="Cancel changes"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleStartEditing(item.id)}
+                                      className="w-8 h-8 p-0"
+                                      title="Edit item"
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => removeCartItem(item.id)}
+                                      className="w-8 h-8 p-0"
+                                      title="Remove item"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
@@ -735,6 +828,27 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
           {/* Footer with totals and actions */}
           {cartItems.length > 0 && (
             <div className="border-t bg-muted/10 p-4 space-y-4">
+              {/* Editing Status Bar */}
+              {editingItemId && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Edit className="w-4 h-4" />
+                      Editing item - make your changes and click save
+                    </span>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="default" onClick={handleSaveCartItem}>
+                        <Save className="w-3 h-3 mr-1" />
+                        Save
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={handleCancelEditing}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Totals */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -754,18 +868,38 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row justify-between gap-3">
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={clearCart}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={clearCart}
+                    disabled={editingItemId !== null}
+                  >
                     Clear Cart
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => startNewOrder(false)}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => startNewOrder(false)}
+                    disabled={editingItemId !== null}
+                  >
                     Cancel Order
                   </Button>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => startNewOrder(true)}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => startNewOrder(true)}
+                    disabled={editingItemId !== null}
+                  >
                     New Order
                   </Button>
-                  <Button size="sm" onClick={handleSaveOrder} disabled={loading} className="bg-primary">
+                  <Button 
+                    size="sm" 
+                    onClick={handleSaveOrder} 
+                    disabled={loading || editingItemId !== null} 
+                    className="bg-primary"
+                  >
                     {loading ? 'Finalizing...' : 'Finalize Order'}
                   </Button>
                 </div>

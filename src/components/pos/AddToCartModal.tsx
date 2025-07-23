@@ -16,6 +16,7 @@ const purchaseItemSchema = z.object({
   cost_price: z.coerce.number().min(0, 'Purchase cost must be positive'),
   wholesale_price: z.coerce.number().min(0, 'Wholesale price must be positive').optional(),
   retail_price: z.coerce.number().min(0, 'Retail price must be positive').optional(),
+  is_unique: z.boolean().optional(),
 });
 
 interface Props {
@@ -28,11 +29,12 @@ interface Props {
     cost_price?: number;
     wholesale_price?: number;
     retail_price?: number;
+    is_unique?: boolean;
   }) => void;
 }
 
 export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm }: Props) => {
-  console
+
   const [loading, setLoading] = useState(false);
 
   type PurchaseItemFormData = z.infer<typeof purchaseItemSchema>;
@@ -160,7 +162,13 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
                   description="Price for retail customers"
                 />
               </div>
-
+              <CustomFormField
+                fieldType={FormFieldType.CHECKBOX}
+                control={form.control}
+                name="is_unique"
+                label="Is Unique Item"  
+                description="Check if this item is unique (e.g., one-of-a-kind)"
+              />
               {/* Profit Margin Indicators */}
               {(wholesaleMargin > 0 || retailMargin > 0) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
