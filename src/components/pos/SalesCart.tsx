@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -32,10 +32,12 @@ import {
   Save,
   Settings,
   X,
+  ChevronLeft,
   ChevronRight,
-  Maximize2,
+  Scan,
 } from 'lucide-react';
 import CustomFormField, { FormFieldType } from '../form/CustomFormField';
+import { POSScanner } from '@/components/pos/POSScanner';
 import { toast } from 'sonner';
 
 // Zod schemas
@@ -79,6 +81,7 @@ interface CartItem {
     name: string;
     model?: string;
     sku?: string;
+    barcode: string;
     brand?: {
       name: string;
       code: string;
@@ -112,32 +115,35 @@ interface PurchaseOrder {
 export type OrderFormData = z.infer<typeof orderFormSchema>;
 type ItemFormData = z.infer<typeof itemFormSchema>;
 
-interface PurchaseCartProps {
+interface SalesCartProps {
   onAddToCart: (product: any) => void;
   cartItems: CartItem[];
   setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
   availableProducts?: any[];
   orderFormData: OrderFormData;
   setOrderFormData: React.Dispatch<React.SetStateAction<OrderFormData>>;
+  cartPanelOpen: boolean;
+  setCartPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-export const SalesCart: React.FC<PurchaseCartProps> = ({
+export const SalesCart: React.FC<SalesCartProps> = ({
   onAddToCart,
   cartItems,
   setCartItems,
   availableProducts = [],
   orderFormData,
-  setOrderFormData
+  setOrderFormData,
+  cartPanelOpen,
+  setCartPanelOpen
 }) => {
   const [currentOrder, setCurrentOrder] = useState<PurchaseOrder | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingOrderDetails, setEditingOrderDetails] = useState(false);
+  const [scannerExpanded, setScannerExpanded] = useState(true);
 
-  // Slide-over panel states
-  const [cartPanelOpen, setCartPanelOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  console.log(cartItems)
 
   // Dialog states
   const [createOrderDialogOpen, setCreateOrderDialogOpen] = useState(false);
@@ -233,6 +239,71 @@ export const SalesCart: React.FC<PurchaseCartProps> = ({
     { id: 'PENDING', name: 'Pending', value: 'PENDING' },
     { id: 'RECEIVED', name: 'Received', value: 'RECEIVED' },
   ];
+
+  // Handle scanner-based product addition (specific to cart panel)
+  const handleScannerAddToCart = (formData: {
+    quantity: number;
+    cost_price?: number;
+    wholesale_price?: number;
+    retail_price?: number;
+    batch_number?: string;
+    expiry_date?: string;
+  }, product: any) => {
+    const existingItem = cartItems.find(item => item.product.barcode === product.barcode);
+    if (existingItem) {  
+      toast.error("Product not found or invalid barcode");
+      return;
+    }
+    if (existingItem) {
+      setCartItems(prev => prev.map(item =>
+        item.product.id === product.id
+          ? {
+            ...item,
+            quantity: item.quantity + formData.quantity,
+            cost_price: formData.cost_price ?? item.cost_price,
+            wholesale_price: formData.wholesale_price ?? item.wholesale_price,
+            retail_price: formData.retail_price ?? item.retail_price,
+            batch_number: formData.batch_number ?? item.batch_number,
+            expiry_date: formData.expiry_date ?? item.expiry_date,
+            line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
+          }
+          : item
+      ));
+
+      toast.success(`Updated ${product.name} quantity in cart (Quick Scan)`, {
+        icon: "⚡",
+        duration: 2000,
+      });
+    } else {
+      const newItem: CartItem = {
+        id: `${product.id}-${Date.now()}`,
+        product: {
+          id: product.id,
+          name: product.name,
+          model: product.model,
+          sku: product.sku,
+          barcode: product.barcodes.length > 0 ? product.barcodes[0].barcode : '',
+          brand: product.brand ? {
+            name: product.brand,
+            code: product.brand
+          } : undefined
+        },
+        quantity: formData.quantity,
+        cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
+        wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,
+        retail_price: formData.retail_price ?? product.current_prices?.retail_price ?? 0,
+        batch_number: formData.batch_number,
+        expiry_date: formData.expiry_date,
+        line_total: formData.quantity * (formData.cost_price ?? product.current_prices?.cost_price ?? 0),
+      };
+
+      setCartItems(prev => [...prev, newItem]);
+      toast.success(`Added ${product.name} to cart (Quick Scan)`, {
+        icon: "⚡",
+        duration: 2000,
+      });
+    }
+  };
 
   // Create order - only saves to useState
   const handleCreateOrder = (data: OrderFormData) => {
@@ -423,144 +494,147 @@ export const SalesCart: React.FC<PurchaseCartProps> = ({
     }
   };
 
-  // Cart Panel Component
-  const CartPanel = () => (
-    <>
-      {/* Backdrop */}
-      {cartPanelOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
-          onClick={() => setCartPanelOpen(false)}
-        />
-      )}
-
-      {/* Slide-over Panel */}
-      <div className={`
-        fixed top-0 right-0 h-full bg-background border-l shadow-2xl z-50 transition-all duration-300 ease-in-out
-        ${cartPanelOpen ? 'translate-x-0' : 'translate-x-full'}
-        ${isFullscreen ? 'w-full' : 'w-[90vw] lg:w-[70vw] xl:w-[60vw]'}
-      `}>
-        {/* Panel Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-muted/30">
-          <div className="flex items-center gap-3">
-            <ShoppingCart className="w-5 h-5" />
-            <div>
-              <h2 className="text-lg font-semibold">Purchase Order Cart</h2>
-              {currentOrder && (
-                <p className="text-sm text-muted-foreground">
-                  Order #{currentOrder.order_number} - {currentOrder.supplier_name}
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
-              <Maximize2 className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditingOrderDetails(!editingOrderDetails)}
-            >
-              <Settings className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCartPanelOpen(false)}
-            >
-              <X className="w-4 h-4" />
-            </Button>
+  return (
+    <div className="h-full flex flex-col bg-background">
+      {/* Panel Header */}
+      <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCartPanelOpen(false)}
+            className="p-1"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+          <ShoppingCart className="w-5 h-5" />
+          <div>
+            <h2 className="text-lg font-semibold">Sales Cart</h2>
+            {currentOrder && (
+              <p className="text-sm text-muted-foreground">
+                Order #{currentOrder.order_number} - {currentOrder.supplier_name}
+              </p>
+            )}
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setScannerExpanded(!scannerExpanded)}
+            title="Toggle Quick Scanner"
+          >
+            <Scan className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setEditingOrderDetails(!editingOrderDetails)}
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
-        {/* Panel Content */}
-        <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden">
-          {/* Order Details Section */}
-          <div className="p-4 border-b bg-muted/10">
-            {editingOrderDetails ? (
-              <Form {...orderForm}>
-                <form
-                  onSubmit={orderForm.handleSubmit(handleUpdateOrderDetails)}
-                  className="space-y-3"
-                >
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <CustomFormField
-                      fieldType={FormFieldType.SELECT}
-                      control={orderForm.control}
-                      name="supplier_id"
-                      label="Supplier"
-                      placeholder="Select supplier"
-                      options={supplierOptions}
-                      required
-                    />
-                    <CustomFormField
-                      fieldType={FormFieldType.SELECT}
-                      control={orderForm.control}
-                      name="status"
-                      label="Status"
-                      placeholder="Select status"
-                      options={statusOptions}
-                      required
-                    />
-                  </div>
+      {/* Panel Content */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* Quick Scanner - Compact version for cart panel */}
+        {scannerExpanded && (
+          <div className="p-3 border-b bg-primary/5">
+            <div className="flex items-center gap-2 mb-2">
+              <Scan className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">Quick Scanner</span>
+              <Badge variant="secondary" className="text-xs">Cart Mode</Badge>
+            </div>
+            <POSScanner
+              onProductScanned={handleScannerAddToCart}
+              isCartOpen={true}
+              compact={true}
+              className="bg-transparent border-0 p-0"
+            />
+          </div>
+        )}
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <CustomFormField
-                      fieldType={FormFieldType.DATE_PICKER}
-                      control={orderForm.control}
-                      name="order_date"
-                      label="Order Date"
-                    />
-                    <CustomFormField
-                      fieldType={FormFieldType.DATE_PICKER}
-                      control={orderForm.control}
-                      name="expected_date"
-                      label="Expected Delivery Date"
-                      placeholder="Select expected delivery date"
-                    />
-                  </div>
-
+        {/* Order Details Section */}
+        <div className="p-4 border-b bg-muted/10">
+          {editingOrderDetails ? (
+            <Form {...orderForm}>
+              <form
+                onSubmit={orderForm.handleSubmit(handleUpdateOrderDetails)}
+                className="space-y-3"
+              >
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <CustomFormField
-                    fieldType={FormFieldType.TEXTAREA}
+                    fieldType={FormFieldType.SELECT}
                     control={orderForm.control}
-                    name="notes"
-                    label="Notes"
-                    placeholder="Order notes..."
-                    rows={2}
+                    name="supplier_id"
+                    label="Supplier"
+                    placeholder="Select supplier"
+                    options={supplierOptions}
+                    required
                   />
+                  <CustomFormField
+                    fieldType={FormFieldType.SELECT}
+                    control={orderForm.control}
+                    name="status"
+                    label="Status"
+                    placeholder="Select status"
+                    options={statusOptions}
+                    required
+                  />
+                </div>
 
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => startNewOrder(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" size="sm">
-                      Update Details
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <CustomFormField
+                    fieldType={FormFieldType.DATE_PICKER}
+                    control={orderForm.control}
+                    name="order_date"
+                    label="Order Date"
+                  />
+                  <CustomFormField
+                    fieldType={FormFieldType.DATE_PICKER}
+                    control={orderForm.control}
+                    name="expected_date"
+                    label="Expected Delivery Date"
+                    placeholder="Select expected delivery date"
+                  />
+                </div>
+
+                <CustomFormField
+                  fieldType={FormFieldType.TEXTAREA}
+                  control={orderForm.control}
+                  name="notes"
+                  label="Notes"
+                  placeholder="Order notes..."
+                  rows={2}
+                />
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditingOrderDetails(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm">
+                    Update Details
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          ) : (
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <Label className="text-xs font-medium text-muted-foreground">Supplier</Label>
-                  <p className="mt-1 font-medium">{currentOrder?.supplier_name}</p>
+                  <p className="mt-1 font-medium">{currentOrder?.supplier_name || 'No supplier selected'}</p>
                 </div>
                 <div>
                   <Label className="text-xs font-medium text-muted-foreground">Status</Label>
                   <p className="mt-1">
                     <Badge variant={currentOrder?.status === 'RECEIVED' ? 'default' : 'secondary'} className="text-xs">
-                      {currentOrder?.status}
+                      {currentOrder?.status || 'N/A'}
                     </Badge>
                   </p>
                 </div>
@@ -573,316 +647,289 @@ export const SalesCart: React.FC<PurchaseCartProps> = ({
                   <p className="mt-1">{formatDate(currentOrder?.expected_date)}</p>
                 </div>
                 {currentOrder?.notes && (
-                  <div className="col-span-2 lg:col-span-4">
+                  <div className="col-span-2">
                     <Label className="text-xs font-medium text-muted-foreground">Notes</Label>
                     <p className="mt-1 text-sm">{currentOrder.notes}</p>
                   </div>
                 )}
               </div>
-            )}
-          </div>
+          )}
+        </div>
 
-          {/* Cart Items */}
-          <div className="flex-1 overflow-hidden">
-            {cartItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <Package className="w-16 h-16 mb-4 text-muted-foreground/50" />
-                <p className="text-lg font-medium">No items in cart</p>
-                <p className="text-sm mt-2">Add products from the product table to start building your order</p>
-              </div>
-            ) : (
-              <div className="h-full overflow-y-auto">
-                <Form {...itemForm}>
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background z-10">
-                      <TableRow>
-                        <TableHead className="w-[300px]">Product</TableHead>
-                        <TableHead className="w-[100px]">Qty</TableHead>
-                        <TableHead className="w-[120px]">Cost</TableHead>
-                        {currentOrder?.status === 'RECEIVED' && (
-                          <>
-                            <TableHead className="w-[120px]">Wholesale</TableHead>
-                            <TableHead className="w-[120px]">Retail</TableHead>
-                          </>
-                        )}
-                        <TableHead className="w-[120px]">Total</TableHead>
-                        <TableHead className="w-[80px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cartItems.map((item) => {
-                        const isEditingThis = editingItemId === item.id;
+        {/* Cart Items */}
+        <div className="flex-1 overflow-hidden">
+          {cartItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
+              <Package className="w-16 h-16 mb-4 text-muted-foreground/50" />
+              <p className="text-lg font-medium">No items in cart</p>
+              <p className="text-sm mt-2 text-center">Scan barcodes above or add products from the product table to start building your order</p>
+              {!currentOrder && (
+                <Button 
+                  className="mt-4" 
+                            onClick={() => setEditingOrderDetails(!editingOrderDetails)}
 
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="font-medium text-sm">{item.product.name}</div>
-                                {item.product.model && (
-                                  <div className="text-xs text-muted-foreground">Model: {item.product.model}</div>
-                                )}
-                                {item.product.sku && (
-                                  <div className="text-xs text-muted-foreground">SKU: {item.product.sku}</div>
-                                )}
-                                {item.product.brand && (
-                                  <div className="text-xs text-muted-foreground">Brand: {item.product.brand.name}</div>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <CustomFormField
-                                fieldType={FormFieldType.NUMBER}
-                                control={itemForm.control}
-                                name="quantity"
-                                min={1}
-                                inputClassName="w-full text-sm"
-                                editable={!isEditingThis}
-                                editing={isEditingThis}
-                                onEdit={() => setEditingItemId(item.id)}
-                                onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                onCancel={() => setEditingItemId(null)}
-                                formatDisplayValue={(value) => formatCurrency(Number(item.quantity) || 0)}
-                                editMode="toggle"
-                                readOnlyStyle="bordered"
-                                allowQuickEdit
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <CustomFormField
-                                fieldType={FormFieldType.NUMBER}
-                                control={itemForm.control}
-                                name="cost_price"
-                                step={0.01}
-                                min={0}
-                                inputClassName="w-full text-sm"
-                                editable={!isEditingThis}
-                                editing={isEditingThis}
-                                onEdit={() => setEditingItemId(item.id)}
-                                onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                onCancel={() => setEditingItemId(null)}
-                                editMode="toggle"
-                                readOnlyStyle="bordered"
-                                formatDisplayValue={(value) => formatCurrency(Number(item.cost_price) || 0)}
-                                allowQuickEdit
-                              />
-                            </TableCell>
-                            {currentOrder?.status === 'RECEIVED' && (
-                              <>
-                                <TableCell>
-                                  <CustomFormField
-                                    fieldType={FormFieldType.NUMBER}
-                                    control={itemForm.control}
-                                    name="wholesale_price"
-                                    step={0.01}
-                                    min={0}
-                                    inputClassName="w-full text-sm"
-                                    editable={!isEditingThis}
-                                    editing={isEditingThis}
-                                    onEdit={() => setEditingItemId(item.id)}
-                                    onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                    onCancel={() => setEditingItemId(null)}
-                                    editMode="toggle"
-                                    readOnlyStyle="bordered"
-                                    formatDisplayValue={(value) => formatCurrency(Number(item.wholesale_price) || 0)}
-                                    allowQuickEdit
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  <CustomFormField
-                                    fieldType={FormFieldType.NUMBER}
-                                    control={itemForm.control}
-                                    name="retail_price"
-                                    step={0.01}
-                                    min={0}
-                                    inputClassName="w-full text-sm"
-                                    editable={!isEditingThis}
-                                    editing={isEditingThis}
-                                    onEdit={() => setEditingItemId(item.id)}
-                                    onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                    onCancel={() => setEditingItemId(null)}
-                                    editMode="toggle"
-                                    readOnlyStyle="bordered"
-                                    formatDisplayValue={(value) => formatCurrency(Number(item.retail_price) || 0)}
-                                    allowQuickEdit
-                                  />
-                                </TableCell>
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Order First
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="h-full overflow-y-auto">
+              <Form {...itemForm}>
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead className="w-[200px]">Product</TableHead>
+                      <TableHead className="w-[80px]">Qty</TableHead>
+                      <TableHead className="w-[100px]">Cost</TableHead>
+                      {currentOrder?.status === 'RECEIVED' && (
+                        <>
+                          <TableHead className="w-[100px]">Wholesale</TableHead>
+                          <TableHead className="w-[100px]">Retail</TableHead>
+                        </>
+                      )}
+                      <TableHead className="w-[100px]">Total</TableHead>
+                      <TableHead className="w-[60px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cartItems.map((item) => {
+                      const isEditingThis = editingItemId === item.id;
 
-                              </>
-                            )}
-                            <TableCell className="font-medium text-sm">{formatCurrency(item.line_total)}</TableCell>
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => removeCartItem(item.id)}
-                                disabled={isEditingThis}
-                                className="w-8 h-8 p-0"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </Form>
-              </div>
-            )}
-          </div>
-
-          {/* Footer with totals and actions */}
-          {cartItems.length > 0 && (
-            <div className="border-t bg-muted/10 p-4 space-y-4">
-              {/* Totals */}
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span className="font-medium">{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax (10%):</span>
-                  <span className="font-medium">{formatCurrency(taxAmount)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-semibold border-t pt-2">
-                  <span>Total:</span>
-                  <span>{formatCurrency(totalAmount)}</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row justify-between gap-3">
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={clearCart}>
-                    Clear Cart
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => startNewOrder(false)}>
-                    Cancel Order
-                  </Button>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => startNewOrder(true)}>
-                    New Order
-                  </Button>
-                  <Button size="sm" onClick={handleSaveOrder} disabled={loading} className="bg-primary">
-                    {loading ? 'Finalizing...' : 'Finalize Order'}
-                  </Button>
-                </div>
-              </div>
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="font-medium text-sm">{item.product.name}</div>
+                              {item.product.model && (
+                                <div className="text-xs text-muted-foreground">Model: {item.product.model}</div>
+                              )}
+                              {item.product.sku && (
+                                <div className="text-xs text-muted-foreground">SKU: {item.product.sku}</div>
+                              )}
+                              {item.product.brand && (
+                                <div className="text-xs text-muted-foreground">Brand: {item.product.brand.name}</div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <CustomFormField
+                              fieldType={FormFieldType.NUMBER}
+                              control={itemForm.control}
+                              name="quantity"
+                              min={1}
+                              inputClassName="w-full text-sm"
+                              editable={!isEditingThis}
+                              editing={isEditingThis}
+                              onEdit={() => setEditingItemId(item.id)}
+                              onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
+                              onCancel={() => setEditingItemId(null)}
+                              formatDisplayValue={(value) => String(item.quantity)}
+                              editMode="toggle"
+                              readOnlyStyle="bordered"
+                              allowQuickEdit
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <CustomFormField
+                              fieldType={FormFieldType.NUMBER}
+                              control={itemForm.control}
+                              name="cost_price"
+                              step={0.01}
+                              min={0}
+                              inputClassName="w-full text-sm"
+                              editable={!isEditingThis}
+                              editing={isEditingThis}
+                              onEdit={() => setEditingItemId(item.id)}
+                              onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
+                              onCancel={() => setEditingItemId(null)}
+                              editMode="toggle"
+                              readOnlyStyle="bordered"
+                              formatDisplayValue={(value) => formatCurrency(Number(item.cost_price) || 0)}
+                              allowQuickEdit
+                            />
+                          </TableCell>
+                          {currentOrder?.status === 'RECEIVED' && (
+                            <>
+                              <TableCell>
+                                <CustomFormField
+                                  fieldType={FormFieldType.NUMBER}
+                                  control={itemForm.control}
+                                  name="wholesale_price"
+                                  step={0.01}
+                                  min={0}
+                                  inputClassName="w-full text-sm"
+                                  editable={!isEditingThis}
+                                  editing={isEditingThis}
+                                  onEdit={() => setEditingItemId(item.id)}
+                                  onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
+                                  onCancel={() => setEditingItemId(null)}
+                                  editMode="toggle"
+                                  readOnlyStyle="bordered"
+                                  formatDisplayValue={(value) => formatCurrency(Number(item.wholesale_price) || 0)}
+                                  allowQuickEdit
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <CustomFormField
+                                  fieldType={FormFieldType.NUMBER}
+                                  control={itemForm.control}
+                                  name="retail_price"
+                                  step={0.01}
+                                  min={0}
+                                  inputClassName="w-full text-sm"
+                                  editable={!isEditingThis}
+                                  editing={isEditingThis}
+                                  onEdit={() => setEditingItemId(item.id)}
+                                  onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
+                                  onCancel={() => setEditingItemId(null)}
+                                  editMode="toggle"
+                                  readOnlyStyle="bordered"
+                                  formatDisplayValue={(value) => formatCurrency(Number(item.retail_price) || 0)}
+                                  allowQuickEdit
+                                />
+                              </TableCell>
+                            </>
+                          )}
+                          <TableCell className="font-medium text-sm">{formatCurrency(item.line_total)}</TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => removeCartItem(item.id)}
+                              disabled={isEditingThis}
+                              className="w-8 h-8 p-0"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Form>
             </div>
           )}
         </div>
-      </div>
-    </>
-  );
 
-  return (
-    <div className="space-y-4">
-      {/* Main Action Buttons */}
-      <div className="flex gap-3">
-        {!currentOrder ? (
-          <Dialog open={createOrderDialogOpen} onOpenChange={setCreateOrderDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Sales Order
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-full max-w-2xl p-6">
-              <DialogHeader>
-                <DialogTitle>Create New Purchase Order</DialogTitle>
-                <DialogDescription>
-                  Fill in the details to create a new purchase order
-                </DialogDescription>
-              </DialogHeader>
+        {/* Footer with totals and actions */}
+        {cartItems.length > 0 && (
+          <div className="border-t bg-muted/10 p-4 space-y-4">
+            {/* Totals */}
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Subtotal:</span>
+                <span className="font-medium">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tax (10%):</span>
+                <span className="font-medium">{formatCurrency(taxAmount)}</span>
+              </div>
+              <div className="flex justify-between text-lg font-semibold border-t pt-2">
+                <span>Total:</span>
+                <span>{formatCurrency(totalAmount)}</span>
+              </div>
+            </div>
 
-              <Form {...orderForm}>
-                <form onSubmit={orderForm.handleSubmit(handleCreateOrder)} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <CustomFormField
-                      fieldType={FormFieldType.SELECT}
-                      control={orderForm.control}
-                      name="supplier_id"
-                      label="Supplier"
-                      placeholder="Select supplier"
-                      options={supplierOptions}
-                      required
-                    />
-                    <CustomFormField
-                      fieldType={FormFieldType.SELECT}
-                      control={orderForm.control}
-                      name="status"
-                      label="Status"
-                      placeholder="Select status"
-                      options={statusOptions}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <CustomFormField
-                      fieldType={FormFieldType.DATE_PICKER}
-                      control={orderForm.control}
-                      name="order_date"
-                      label="Order Date"
-                    />
-                    <CustomFormField
-                      fieldType={FormFieldType.DATE_PICKER}
-                      control={orderForm.control}
-                      name="expected_date"
-                      label="Expected Delivery Date"
-                      placeholder="Select expected delivery date"
-                    />
-                  </div>
-
-                  <CustomFormField
-                    fieldType={FormFieldType.TEXTAREA}
-                    control={orderForm.control}
-                    name="notes"
-                    label="Notes"
-                    placeholder="Order notes..."
-                    rows={3}
-                  />
-
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setCreateOrderDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit" disabled={loading}>
-                      {loading ? 'Creating...' : 'Create Order'}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        ) : (
-          // Cart trigger button
-          <Button
-            variant="outline"
-            className="relative"
-            onClick={() => setCartPanelOpen(true)}
-          >
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            View Cart
-            {cartItems.length > 0 && (
-              <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-                {cartItems.length}
-              </Badge>
-            )}
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={clearCart} className="flex-1">
+                  Clear Cart
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => startNewOrder(false)} className="flex-1">
+                  Cancel Order
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => startNewOrder(true)} className="flex-1">
+                  New Order
+                </Button>
+                <Button size="sm" onClick={handleSaveOrder} disabled={loading} className="bg-primary flex-1">
+                  {loading ? 'Finalizing...' : 'Finalize Order'}
+                </Button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Cart Panel */}
-      <CartPanel />
+      {/* Create Order Dialog */}
+      <Dialog open={createOrderDialogOpen} onOpenChange={setCreateOrderDialogOpen}>
+        <DialogContent className="w-full max-w-2xl p-6">
+          <DialogHeader>
+            <DialogTitle>Create New Sales Order</DialogTitle>
+            <DialogDescription>
+              Fill in the details to create a new sales order
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...orderForm}>
+            <form onSubmit={orderForm.handleSubmit(handleCreateOrder)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={orderForm.control}
+                  name="supplier_id"
+                  label="Supplier"
+                  placeholder="Select supplier"
+                  options={supplierOptions}
+                  required
+                />
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={orderForm.control}
+                  name="status"
+                  label="Status"
+                  placeholder="Select status"
+                  options={statusOptions}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <CustomFormField
+                  fieldType={FormFieldType.DATE_PICKER}
+                  control={orderForm.control}
+                  name="order_date"
+                  label="Order Date"
+                />
+                <CustomFormField
+                  fieldType={FormFieldType.DATE_PICKER}
+                  control={orderForm.control}
+                  name="expected_date"
+                  label="Expected Delivery Date"
+                  placeholder="Select expected delivery date"
+                />
+              </div>
+
+              <CustomFormField
+                fieldType={FormFieldType.TEXTAREA}
+                control={orderForm.control}
+                name="notes"
+                label="Notes"
+                placeholder="Order notes..."
+                rows={3}
+              />
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreateOrderDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Creating...' : 'Create Order'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
-
-export default SalesCart;

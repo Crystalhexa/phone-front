@@ -1,7 +1,9 @@
 // components/products/ProductsHeader.tsx
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import SalesCart from '@/components/pos/SalesCart';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ShoppingCart, Plus } from 'lucide-react';
 import { CartItem } from '@/types/pos';
 import { OrderFormData } from '@/components/pos/PurchaseCart';
 
@@ -11,6 +13,8 @@ interface PosHeaderProps {
   orderFormData: OrderFormData;
   setOrderFormData: React.Dispatch<React.SetStateAction<OrderFormData>>;
   onAddToCart: (formData: any) => void;
+  cartPanelOpen: boolean;
+  setCartPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const PosHeader: React.FC<PosHeaderProps> = ({
@@ -18,9 +22,13 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
   setCartItems,
   orderFormData,
   setOrderFormData,
-  onAddToCart
+  onAddToCart,
+  cartPanelOpen,
+  setCartPanelOpen
 }) => {
   const { user } = useAuth();
+
+  const hasActiveOrder = orderFormData.supplier_id !== '';
 
   return (
     <div className="flex justify-between items-start">
@@ -35,15 +43,31 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
           Branch: <span className="font-medium">{user?.branch_name ?? "—"}</span>
         </p>
       </div>
-
+      
       <div className="flex gap-2 flex-wrap">
-        <SalesCart
-          onAddToCart={onAddToCart}
-          cartItems={cartItems}
-          setCartItems={setCartItems}
-          orderFormData={orderFormData}
-          setOrderFormData={setOrderFormData}
-        />
+        {/* Cart Toggle Button */}
+        <Button
+          variant={cartPanelOpen ? "default" : "outline"}
+          className="relative"
+          onClick={() => setCartPanelOpen(!cartPanelOpen)}
+          disabled={!hasActiveOrder}
+        >
+          <ShoppingCart className="w-4 h-4 mr-2" />
+          {cartPanelOpen ? 'Hide Cart' : 'Show Cart'}
+          {cartItems.length > 0 && (
+            <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
+              {cartItems.length}
+            </Badge>
+          )}
+        </Button>
+
+        {/* Create Order Button - if no active order */}
+        {!hasActiveOrder && (
+          <Button onClick={() => setCartPanelOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Sales Order
+          </Button>
+        )}
       </div>
     </div>
   );

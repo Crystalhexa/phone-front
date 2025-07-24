@@ -145,27 +145,15 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      {orderFormData.supplier_id ? (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => onAddToCart(product)}
-                          disabled={!product.is_active}
+                        
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           Add
                         </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled
-                          title="Create a purchase order first"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add
-                        </Button>
-                      )}
                       <Button
                         size="sm"
                         variant="outline"

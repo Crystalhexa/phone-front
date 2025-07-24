@@ -79,6 +79,7 @@ export interface Filters {
 export interface CartItem {
   id: string;
   product: {
+    barcode: string;
     id: string;
     name: string;
     model?: string;

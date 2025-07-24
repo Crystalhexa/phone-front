@@ -11,7 +11,8 @@ import { CartSummaryBar } from '@/components/table/PosTable/CartSummaryBar';
 import { PosFilters } from '@/components/table/PosTable/PosFilters';
 import { PosTableContent } from '@/components/table/PosTable/PosTableContent';
 import { PosPagination } from '@/components/table/PosTable/PosPagination';
-
+import { SalesCart } from '@/components/pos/SalesCart';
+import { POSScanner } from '@/components/pos/POSScanner';
 
 const ProductsTable: React.FC = () => {
   const {
@@ -29,6 +30,9 @@ const ProductsTable: React.FC = () => {
   const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<ProductResponse | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  
+  // Add cart panel state
+  const [cartPanelOpen, setCartPanelOpen] = useState(false);
 
   const [orderFormData, setOrderFormData] = useState<OrderFormData>({
     supplier_id: '',
@@ -80,23 +84,71 @@ const ProductsTable: React.FC = () => {
   }));
 
   const handleAddToCart = (product: ProductResponse) => {
-    if (!orderFormData.supplier_id) {
-      toast.error("🚫 Please create a purchase order first!", {
-        position: "top-right",
-        description: "You need to create a purchase order before adding products to cart."
-      });
-      return;
-    }
-
-    if (product.overall_stock_status === 'OUT_OF_STOCK') {
-      toast.warning("⚠️ This product is out of stock!", {
-        position: "top-right",
-        description: "Consider checking stock levels before ordering."
-      });
-    }
-
+    console.log('Adding product to cart:', product);
     setSelectedProduct(product);
     setModalOpen(true);
+  };
+
+  // Handle scanner-based product addition
+  const handleScannerAddToCart = (formData: {
+    quantity: number;
+    cost_price?: number;
+    wholesale_price?: number;
+    retail_price?: number;
+    batch_number?: string;
+    expiry_date?: string;
+  }, product: any) => {
+
+    console.log( product.barcode, "Scanned product barcode");
+    const existingItem = cartItems.find(item => item.product.barcode === product.barcode);
+    console.log(existingItem, "Existing item in cart");
+    if (existingItem) {
+      toast.error("Product not found or invalid barcode");
+      return;
+    }
+    if (existingItem) {
+      setCartItems(prev => prev.map(item =>
+        item.product.id === product.id
+          ? {
+            ...item,
+            quantity: item.quantity + formData.quantity,
+            cost_price: formData.cost_price ?? item.cost_price,
+            wholesale_price: formData.wholesale_price ?? item.wholesale_price,
+            retail_price: formData.retail_price ?? item.retail_price,
+            batch_number: formData.batch_number ?? item.batch_number,
+            expiry_date: formData.expiry_date ?? item.expiry_date,
+            line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
+          }
+          : item
+      ));
+
+      toast.success(`Updated ${product.name} quantity in cart (Scanned)`, {
+        icon: "📱",
+      });
+    } else {
+      const newItem: CartItem = {
+        id: `${product.id}-${Date.now()}`,
+        product: {
+          id: product.id,
+          name: product.name,
+          model: product.model,
+          sku: product.sku,
+          barcode: product.barcode,
+        },
+        quantity: formData.quantity,
+        cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
+        wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,
+        retail_price: formData.retail_price ?? product.current_prices?.retail_price ?? 0,
+        batch_number: formData.batch_number,
+        expiry_date: formData.expiry_date,
+        line_total: formData.quantity * (formData.cost_price ?? product.current_prices?.cost_price ?? 0),
+      };
+
+      setCartItems(prev => [...prev, newItem]);
+      toast.success(`Added ${product.name} to cart (Scanned)`, {
+        icon: "📱",
+      });
+    }
   };
 
   const handleConfirmAddToCart = (formData: {
@@ -137,6 +189,7 @@ const ProductsTable: React.FC = () => {
           name: product.name,
           model: product.model,
           sku: product.sku,
+          barcode: product.barcodes.length > 0 ? product.barcodes[0].barcode : '',
           brand: product.brand ? {
             name: product.brand,
             code: product.brand
@@ -160,56 +213,91 @@ const ProductsTable: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-3">
-      {/* Header */}
-      <PosHeader
-        cartItems={cartItems}
-        setCartItems={setCartItems}
-        orderFormData={orderFormData}
-        setOrderFormData={setOrderFormData}
-        onAddToCart={handleConfirmAddToCart}
-      />
+    <div className="flex h-screen overflow-hidden">
+      {/* Main Content Area */}
+      <div className={`flex-1 transition-all duration-300 ease-in-out ${cartPanelOpen ? 'mr-[600px]' : 'mr-0'}`}>
+        <div className="container mx-auto p-6 space-y-3 h-full overflow-y-auto">
+          {/* Header */}
+          <PosHeader
+            cartItems={cartItems}
+            setCartItems={setCartItems}
+            orderFormData={orderFormData}
+            setOrderFormData={setOrderFormData}
+            onAddToCart={handleConfirmAddToCart}
+            cartPanelOpen={cartPanelOpen}
+            setCartPanelOpen={setCartPanelOpen}
+          />
 
-      {/* Cart Summary Bar */}
-      <CartSummaryBar
-        cartItems={cartItems}
-        orderFormData={orderFormData}
-      />
+          {/* POS Scanner - Only show when cart is not open or in compact mode */}
+          <div className={`transition-all duration-300 ${cartPanelOpen ? 'opacity-75' : 'opacity-100'}`}>
+            <POSScanner
+              onProductScanned={handleScannerAddToCart}
+              isCartOpen={cartPanelOpen}
+              compact={cartPanelOpen}
+              className={cartPanelOpen ? "bg-muted/30" : ""}
+            />
+          </div>
 
-      {/* Filters Section */}
-      <PosFilters
-        filters={filters}
-        setFilters={setFilters}
-        filtersExpanded={filtersExpanded}
-        setFiltersExpanded={setFiltersExpanded}
-        pagination={pagination}
-        setPagination={setPagination}
-        onRefresh={handleRefresh}
-        onResetFilters={resetFilters}
-        categoryOptions={categoryOptions}
-        subcategoryOptions={subcategoryOptions}
-        brandOptions={brandOptions}
-        onCategorySearch={handleCategorySearch}
-        onBrandSearch={handleBrandSearch}
-        categorySearchTerm={categorySearchTerm}
-        brandSearchTerm={brandSearchTerm}
-      />
+          {/* Cart Summary Bar */}
+          <CartSummaryBar
+            cartItems={cartItems}
+            orderFormData={orderFormData}
+          />
 
-      {/* Products Table */}
-      <PosTableContent
-        products={products}
-        loading={loading}
-        pagination={pagination}
-        orderFormData={orderFormData}
-        onAddToCart={handleAddToCart}
-      />
+          {/* Filters Section */}
+          <PosFilters
+            filters={filters}
+            setFilters={setFilters}
+            filtersExpanded={filtersExpanded}
+            setFiltersExpanded={setFiltersExpanded}
+            pagination={pagination}
+            setPagination={setPagination}
+            onRefresh={handleRefresh}
+            onResetFilters={resetFilters}
+            categoryOptions={categoryOptions}
+            subcategoryOptions={subcategoryOptions}
+            brandOptions={brandOptions}
+            onCategorySearch={handleCategorySearch}
+            onBrandSearch={handleBrandSearch}
+            categorySearchTerm={categorySearchTerm}
+            brandSearchTerm={brandSearchTerm}
+          />
 
-      {/* Pagination */}
-      <PosPagination
-        pagination={pagination}
-        setPagination={setPagination}
-        loading={loading}
-      />
+          {/* Products Table */}
+          <PosTableContent
+            products={products}
+            loading={loading}
+            pagination={pagination}
+            orderFormData={orderFormData}
+            onAddToCart={handleAddToCart}
+          />
+
+          {/* Pagination */}
+          <PosPagination
+            pagination={pagination}
+            setPagination={setPagination}
+            loading={loading}
+          />
+        </div>
+      </div>
+
+      {/* Cart Panel - Fixed on the right */}
+      <div className={`
+        fixed top-0 right-0 h-full bg-background border-l shadow-2xl z-50 
+        transition-transform duration-300 ease-in-out
+        ${cartPanelOpen ? 'translate-x-0' : 'translate-x-full'}
+        w-[600px]
+      `}>
+        <SalesCart
+          onAddToCart={handleConfirmAddToCart}
+          cartItems={cartItems}
+          setCartItems={setCartItems}
+          orderFormData={orderFormData}
+          setOrderFormData={setOrderFormData}
+          cartPanelOpen={cartPanelOpen}
+          setCartPanelOpen={setCartPanelOpen}
+        />
+      </div>
     </div>
   );
 };
