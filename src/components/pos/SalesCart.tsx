@@ -8,8 +8,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  DialogTitle
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -106,7 +105,6 @@ interface PurchaseOrder {
   status: 'PENDING' | 'RECEIVED';
   notes?: string;
   subtotal: number;
-  tax_amount: number;
   total_amount: number;
   items?: CartItem[];
   is_saved: boolean;
@@ -225,8 +223,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
 
   // Calculate totals for display
   const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
-  const taxAmount = subtotal * 0.1;
-  const totalAmount = subtotal + taxAmount;
+  const totalAmount = subtotal;
 
   // Prepare supplier options for select
   const supplierOptions = suppliers.map(supplier => ({
@@ -241,70 +238,66 @@ export const SalesCart: React.FC<SalesCartProps> = ({
   ];
 
   // Handle scanner-based product addition (specific to cart panel)
-  const handleScannerAddToCart = (formData: {
-    quantity: number;
-    cost_price?: number;
-    wholesale_price?: number;
-    retail_price?: number;
-    batch_number?: string;
-    expiry_date?: string;
-  }, product: any) => {
-    const existingItem = cartItems.find(item => item.product.barcode === product.barcode);
-    if (existingItem) {  
-      toast.error("Product not found or invalid barcode");
-      return;
-    }
-    if (existingItem) {
-      setCartItems(prev => prev.map(item =>
-        item.product.id === product.id
-          ? {
-            ...item,
-            quantity: item.quantity + formData.quantity,
-            cost_price: formData.cost_price ?? item.cost_price,
-            wholesale_price: formData.wholesale_price ?? item.wholesale_price,
-            retail_price: formData.retail_price ?? item.retail_price,
-            batch_number: formData.batch_number ?? item.batch_number,
-            expiry_date: formData.expiry_date ?? item.expiry_date,
-            line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
-          }
-          : item
-      ));
-
-      toast.success(`Updated ${product.name} quantity in cart (Quick Scan)`, {
-        icon: "⚡",
-        duration: 2000,
-      });
-    } else {
-      const newItem: CartItem = {
-        id: `${product.id}-${Date.now()}`,
-        product: {
-          id: product.id,
-          name: product.name,
-          model: product.model,
-          sku: product.sku,
-          barcode: product.barcodes.length > 0 ? product.barcodes[0].barcode : '',
-          brand: product.brand ? {
-            name: product.brand,
-            code: product.brand
-          } : undefined
-        },
-        quantity: formData.quantity,
-        cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
-        wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,
-        retail_price: formData.retail_price ?? product.current_prices?.retail_price ?? 0,
-        batch_number: formData.batch_number,
-        expiry_date: formData.expiry_date,
-        line_total: formData.quantity * (formData.cost_price ?? product.current_prices?.cost_price ?? 0),
-      };
-
-      setCartItems(prev => [...prev, newItem]);
-      toast.success(`Added ${product.name} to cart (Quick Scan)`, {
-        icon: "⚡",
-        duration: 2000,
-      });
-    }
-  };
-
+   const handleScannerAddToCart = (formData: {
+      quantity: number;
+      cost_price?: number;
+      wholesale_price?: number;
+      retail_price?: number;
+      batch_number?: string;
+      expiry_date?: string;
+    }, product: any) => {
+  
+      console.log( product.barcode, "Scanned product barcode");
+      const existingItem = cartItems.find(item => item.product.barcode === product.barcode);
+      console.log(existingItem, "Existing item in cart");
+      if (existingItem) {
+        toast.error("Product that blong to this barcode alredy in the cart");
+        return;
+      }
+      if (existingItem) {
+        setCartItems(prev => prev.map(item =>
+          item.product.id === product.id
+            ? {
+              ...item,
+              quantity: item.quantity + formData.quantity,
+              cost_price: formData.cost_price ?? item.cost_price,
+              wholesale_price: formData.wholesale_price ?? item.wholesale_price,
+              retail_price: formData.retail_price ?? item.retail_price,
+              batch_number: formData.batch_number ?? item.batch_number,
+              expiry_date: formData.expiry_date ?? item.expiry_date,
+              line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
+            }
+            : item
+        ));
+  
+        toast.success(`Updated ${product.name} quantity in cart (Scanned)`, {
+          icon: "📱",
+        });
+      } else {
+        const newItem: CartItem = {
+          id: `${product.id}-${Date.now()}`,
+          product: {
+            id: product.id,
+            name: product.name,
+            model: product.model,
+            sku: product.sku,
+            barcode: product.barcode,
+          },
+          quantity: formData.quantity,
+          cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
+          wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,
+          retail_price: formData.retail_price ?? product.current_prices?.retail_price ?? 0,
+          batch_number: formData.batch_number,
+          expiry_date: formData.expiry_date,
+          line_total: formData.quantity * (formData.cost_price ?? product.current_prices?.cost_price ?? 0),
+        };
+  
+        setCartItems(prev => [...prev, newItem]);
+        toast.success(`Added ${product.name} to cart (Scanned)`, {
+          icon: "📱",
+        });
+      }
+    };
   // Create order - only saves to useState
   const handleCreateOrder = (data: OrderFormData) => {
     const supplier = suppliers.find(s => s.id === data.supplier_id);
@@ -320,7 +313,6 @@ export const SalesCart: React.FC<SalesCartProps> = ({
       status: data.status,
       notes: data.notes || '',
       subtotal: 0,
-      tax_amount: 0,
       total_amount: 0,
       items: [],
       is_saved: false
@@ -666,8 +658,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
               {!currentOrder && (
                 <Button 
                   className="mt-4" 
-                            onClick={() => setEditingOrderDetails(!editingOrderDetails)}
-
+                  onClick={() => setEditingOrderDetails(!editingOrderDetails)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Create Order First
@@ -682,13 +673,8 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                     <TableRow>
                       <TableHead className="w-[200px]">Product</TableHead>
                       <TableHead className="w-[80px]">Qty</TableHead>
-                      <TableHead className="w-[100px]">Cost</TableHead>
-                      {currentOrder?.status === 'RECEIVED' && (
-                        <>
                           <TableHead className="w-[100px]">Wholesale</TableHead>
                           <TableHead className="w-[100px]">Retail</TableHead>
-                        </>
-                      )}
                       <TableHead className="w-[100px]">Total</TableHead>
                       <TableHead className="w-[60px]">Actions</TableHead>
                     </TableRow>
@@ -696,7 +682,6 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                   <TableBody>
                     {cartItems.map((item) => {
                       const isEditingThis = editingItemId === item.id;
-
                       return (
                         <TableRow key={item.id}>
                           <TableCell>
@@ -750,8 +735,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                               allowQuickEdit
                             />
                           </TableCell>
-                          {currentOrder?.status === 'RECEIVED' && (
-                            <>
+                         
                               <TableCell>
                                 <CustomFormField
                                   fieldType={FormFieldType.NUMBER}
@@ -790,8 +774,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                                   allowQuickEdit
                                 />
                               </TableCell>
-                            </>
-                          )}
+                          
                           <TableCell className="font-medium text-sm">{formatCurrency(item.line_total)}</TableCell>
                           <TableCell>
                             <Button
@@ -824,8 +807,6 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Tax (10%):</span>
-                <span className="font-medium">{formatCurrency(taxAmount)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
                 <span>Total:</span>

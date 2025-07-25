@@ -129,15 +129,18 @@ model employees {
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
-  user                  users?                    @relation(fields: [user_id], references: [id], onDelete: SetNull)
-  branch                branches?                 @relation(fields: [branch_id], references: [id], onDelete: SetNull)
-  requested_transfers   stock_transfer_requests[] @relation("RequestedBy")
-  approved_transfers    stock_transfer_requests[] @relation("ApprovedBy")
-  stock_transfer_logs   stock_transfer_logs[]
-  stock_adjustments     stock_adjustments[]       @relation("AdjustedBy")
-  price_overrides       price_overrides[]         @relation("ApprovedBy")
-  price_changes         product_price_history[]   @relation("CreatedBy")
-  purchase_batches      purchase_batches[]        @relation("ReceivedBy") // <-- Add this line
+  user                users?                    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  branch              branches?                 @relation(fields: [branch_id], references: [id], onDelete: SetNull)
+  requested_transfers stock_transfer_requests[] @relation("RequestedBy")
+  approved_transfers  stock_transfer_requests[] @relation("ApprovedBy")
+  stock_transfer_logs stock_transfer_logs[]
+  stock_adjustments   stock_adjustments[]       @relation("AdjustedBy")
+  price_overrides     price_overrides[]         @relation("ApprovedBy")
+  price_changes       product_price_history[]   @relation("CreatedBy")
+  purchase_batches    purchase_batches[]        @relation("ReceivedBy") // <-- Add this line
+  items_sold          item_barcodes[]           @relation("SoldBy")
+  items_returned      item_barcodes[]           @relation("ReturnedBy")
+  item_movements      item_movement_history[]
 
   @@index([employee_number])
   @@index([email])
@@ -246,6 +249,7 @@ model products {
   price_history         product_price_history[]
   price_overrides       price_overrides[]
   current_prices        product_current_prices?
+  item_barcodes         item_barcodes[] // Individual tracked items
 
   @@index([subcategory_id])
   @@index([brand_id])
@@ -331,27 +335,82 @@ model barcodes {
   @@map("barcodes")
 }
 
-
-model sales_order_items_barcode {
-  id               String       @id @default(cuid())
+model item_barcodes {
+  id                String         @id @default(cuid())
   purchase_batch_id String
-  code             String       @unique @db.VarChar(50)
-  type             barcode_type @default(INTERNAL)
-  is_active        Boolean      @default(true)
-  created_at       DateTime     @default(now()) @db.Timestamptz(6)
-  status      barcode_status @default(AVAILABLE)
-  sold_at     DateTime?     @db.Timestamptz(6)
-  returned_at DateTime?     @db.Timestamptz(6)
-  purchase_batch   purchase_batches @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
+  product_id        String // Added for easier querying
+  code              String         @unique @db.VarChar(50)
+  type              barcode_type   @default(INTERNAL)
+  status            barcode_status @default(AVAILABLE)
 
+  purchased_at  DateTime @default(now()) @db.Timestamptz(6)
+  purchase_cost Decimal  @db.Decimal(10, 2)
+  supplier_id   String? // Track original supplier
+
+  sales_order_item_id String?
+  sold_at             DateTime? @db.Timestamptz(6)
+  sold_price          Decimal?  @db.Decimal(10, 2)
+  sold_to_customer    String? // Customer ID
+  sold_by_employee    String? // Employee who sold it
+
+  returned_at   DateTime? @db.Timestamptz(6)
+  return_reason String?   @db.Text
+  returned_by   String? // Employee who processed return
+
+  warranty_expiry DateTime?      @db.Date
+  condition       item_condition @default(GOOD)
+  location_branch String? // Current branch location
+  notes           String?        @db.Text
+  is_active       Boolean        @default(true)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?       @updatedAt @db.Timestamptz(6)
+
+  purchase_batch        purchase_batches        @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
+  product               products                @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  supplier              suppliers?              @relation(fields: [supplier_id], references: [id])
+  sales_order_item      sales_order_items?      @relation(fields: [sales_order_item_id], references: [id])
+  customer              customers?              @relation(fields: [sold_to_customer], references: [id])
+  sold_by               employees?              @relation("SoldBy", fields: [sold_by_employee], references: [id])
+  returned_by_emp       employees?              @relation("ReturnedBy", fields: [returned_by], references: [id])
+  current_branch        branches?               @relation(fields: [location_branch], references: [id])
+  item_movement_history item_movement_history[]
 
   @@index([purchase_batch_id])
-  @@map("sales_order_items_barcode")
+  @@index([product_id])
+  @@index([status])
+  @@index([sold_at])
+  @@index([purchased_at])
+  @@index([supplier_id])
+  @@index([sold_to_customer])
+  @@index([location_branch])
+  @@map("item_barcodes")
+}
+
+model item_movement_history {
+  id            String             @id @default(cuid())
+  item_id       String // item_barcodes.id
+  from_branch   String?
+  to_branch     String?
+  movement_type item_movement_type
+  reference_id  String? // Purchase order, sales order, transfer request ID
+  moved_by      String? // Employee ID
+  reason        String?            @db.Text
+  moved_at      DateTime           @default(now()) @db.Timestamptz(6)
+
+  item     item_barcodes @relation(fields: [item_id], references: [id], onDelete: Cascade)
+  from_br  branches?     @relation("FromBranch", fields: [from_branch], references: [id])
+  to_br    branches?     @relation("ToBranch", fields: [to_branch], references: [id])
+  employee employees?    @relation(fields: [moved_by], references: [id])
+
+  @@index([item_id])
+  @@index([moved_at])
+  @@index([movement_type])
+  @@map("item_movement_history")
 }
 
 model purchase_batches {
   id                     String    @id @default(cuid())
-  batch_number           String?    @unique @db.VarChar(50)
+  batch_number           String?   @unique @db.VarChar(50)
   purchase_order_item_id String    @unique
   quantity_ordered       Int
   quantity_received      Int       @default(0)
@@ -372,7 +431,7 @@ model purchase_batches {
   inventory_items         branch_inventory_items[]
   product_stock_ledgers   product_stock_ledgers[]
   sales_batch_allocations sales_batch_allocations[] // NEW: Track sales from this batch
-  barcodes                sales_order_items_barcode[]
+  item_barcodes           item_barcodes[]
 
   @@index([batch_number])
   @@index([expiry_date])
@@ -380,7 +439,6 @@ model purchase_batches {
   @@index([received_date])
   @@map("purchase_batches")
 }
-
 
 // ================== ENHANCED FIFO SUPPORT ==================
 // NEW: Track which batches are used in each sale
@@ -430,6 +488,9 @@ model branches {
   stock_ledgers          product_stock_ledgers[]
   low_stock_alerts       low_stock_alerts[]
   price_overrides        price_overrides[]
+  current_items          item_barcodes[] // Items currently in this branch
+  movements_from         item_movement_history[]   @relation("FromBranch")
+  movements_to           item_movement_history[]   @relation("ToBranch")
 
   @@index([code])
   @@index([is_main_branch])
@@ -565,7 +626,7 @@ model stock_transfer_requests {
   dispatched_at  DateTime?       @db.Timestamptz(6)
   completed_at   DateTime?       @db.Timestamptz(6)
   created_at     DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime        @default(now()) @db.Timestamptz(6)
 
   // Relations
   from_branch branches               @relation("FromBranch", fields: [from_branch_id], references: [id])
@@ -602,10 +663,8 @@ model stock_transfer_items {
   transfer_request stock_transfer_requests @relation(fields: [transfer_request_id], references: [id], onDelete: Cascade)
   product          products                @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
-  @@unique([transfer_request_id, product_id, batch_id])
   @@map("stock_transfer_items")
 }
-
 
 model stock_transfer_logs {
   id                  String          @id @default(cuid())
@@ -670,6 +729,7 @@ model suppliers {
 
   // Relations
   purchase_orders purchase_orders[]
+  item_barcodes   item_barcodes[] // Track items from this supplier
 
   @@index([code])
   @@index([name])
@@ -723,9 +783,9 @@ model purchase_order_items {
   created_at        DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
-  purchase_order purchase_orders          @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
-  product        products                 @relation(fields: [product_id], references: [id])
-  batch          purchase_batches?        @relation("OrderItemToBatch")
+  purchase_order purchase_orders   @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  product        products          @relation(fields: [product_id], references: [id])
+  batch          purchase_batches? @relation("OrderItemToBatch")
 
   @@unique([purchase_order_id, product_id])
   @@map("purchase_order_items")
@@ -791,7 +851,8 @@ model customers {
   updated_at          DateTime      @default(now()) @db.Timestamptz(6)
 
   // Relations
-  sales_orders sales_orders[]
+  sales_orders    sales_orders[]
+  purchased_items item_barcodes[] // Track items sold to this customer
 
   @@index([customer_number])
   @@index([phone])
@@ -812,6 +873,7 @@ model sales_orders {
   payment_method payment_method?
   payment_status payment_status  @default(PENDING)
   subtotal       Decimal         @default(0) @db.Decimal(12, 2)
+  total_amount   Decimal         @default(0) @db.Decimal(12, 2)
   discount       Decimal         @default(0) @db.Decimal(10, 2)
   total_cost     Decimal?        @default(0) @db.Decimal(12, 2) // NEW: Total cost for profit calculation
   profit_amount  Decimal?        @default(0) @db.Decimal(12, 2) // NEW: Calculated profit
@@ -850,6 +912,7 @@ model sales_order_items {
   sales_order       sales_orders              @relation(fields: [sales_order_id], references: [id], onDelete: Cascade)
   product           products                  @relation(fields: [product_id], references: [id])
   batch_allocations sales_batch_allocations[] // NEW: FIFO batch allocations
+  item_barcodes     item_barcodes[] // Track individual items sold
 
   @@unique([sales_order_id, product_id])
   @@index([product_id])
@@ -1035,17 +1098,32 @@ enum price_type {
   COST
 }
 
+enum receipt_status {
+  PENDING
+  COMPLETED
+  PARTIAL
+  CANCELLED
+}
+
+enum item_movement_type {
+  PURCHASE_RECEIVED
+  SALE_DISPATCHED
+  TRANSFER_OUT
+  TRANSFER_IN
+  RETURN_RECEIVED
+  RETURN_DISPATCHED
+  ADJUSTMENT
+  DAMAGED
+  LOST
+  LOCATION_CHANGE
+}
+
 enum item_condition {
   GOOD
   DAMAGED
   EXPIRED
   DEFECTIVE
   RETURNED
-}
-
-enum receipt_status {
-  PENDING
-  COMPLETED
-  PARTIAL
-  CANCELLED
+  REPAIRED
+  REFURBISHED
 }

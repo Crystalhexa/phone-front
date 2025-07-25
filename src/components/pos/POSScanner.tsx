@@ -268,66 +268,66 @@ export const POSScanner: React.FC<POSScannerProps> = ({
     );
   }
 
-  return (
-    <div className={`bg-card rounded-lg border p-4 ${className}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <Scan className="w-5 h-5 text-primary" />
-        <h3 className="text-lg font-semibold">Barcode Scanner</h3>
-        <Badge variant="outline" className="text-xs">F2</Badge>
-      </div>
+  // return (
+  //   <div className={`bg-card rounded-lg border p-4 ${className}`}>
+  //     <div className="flex items-center gap-2 mb-3">
+  //       <Scan className="w-5 h-5 text-primary" />
+  //       <h3 className="text-lg font-semibold">Barcode Scanner</h3>
+  //       <Badge variant="outline" className="text-xs">F2</Badge>
+  //     </div>
       
-      <div className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <Input
-            ref={inputRef}
-            value={scanInput}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Scan barcode here..."
-            className="pl-10 pr-12 font-mono text-lg"
-            disabled={isScanning}
-          />
-          {isScanning ? (
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : (
-            <Scan className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          )}
-        </div>
+  //     <div className="space-y-3">
+  //       <div className="relative">
+  //         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+  //         <Input
+  //           ref={inputRef}
+  //           value={scanInput}
+  //           onChange={(e) => handleInputChange(e.target.value)}
+  //           onKeyPress={handleKeyPress}
+  //           placeholder="Scan barcode here..."
+  //           className="pl-10 pr-12 font-mono text-lg"
+  //           disabled={isScanning}
+  //         />
+  //         {isScanning ? (
+  //           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+  //             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  //           </div>
+  //         ) : (
+  //           <Scan className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+  //         )}
+  //       </div>
         
-        <div className="text-sm text-muted-foreground space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span>Scanner ready - Press F2 to focus</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span>Supports both individual items and bulk products</span>
-          </div>
-        </div>
-      </div>
+  //       <div className="text-sm text-muted-foreground space-y-1">
+  //         <div className="flex items-center gap-2">
+  //           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+  //           <span>Scanner ready - Press F2 to focus</span>
+  //         </div>
+  //         <div className="flex items-center gap-2">
+  //           <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+  //           <span>Supports both individual items and bulk products</span>
+  //         </div>
+  //       </div>
+  //     </div>
 
-      {/* Quantity Modal */}
-      <QuantityModal
-        product={scannedProduct}
-        isOpen={showQuantityModal}
-        quantity={quantity}
-        setQuantity={setQuantity}
-        batchNumber={batchNumber}
-        setBatchNumber={setBatchNumber}
-        expiryDate={expiryDate}
-        setExpiryDate={setExpiryDate}
-        onConfirm={() => scannedProduct && handleAddToCart(scannedProduct, quantity)}
-        onCancel={() => {
-          setShowQuantityModal(false);
-          setScannedProduct(null);
-          inputRef.current?.focus();
-        }}
-      />
-    </div>
-  );
+  //     {/* Quantity Modal */}
+  //     <QuantityModal
+  //       product={scannedProduct}
+  //       isOpen={showQuantityModal}
+  //       quantity={quantity}
+  //       setQuantity={setQuantity}
+  //       batchNumber={batchNumber}
+  //       setBatchNumber={setBatchNumber}
+  //       expiryDate={expiryDate}
+  //       setExpiryDate={setExpiryDate}
+  //       onConfirm={() => scannedProduct && handleAddToCart(scannedProduct, quantity)}
+  //       onCancel={() => {
+  //         setShowQuantityModal(false);
+  //         setScannedProduct(null);
+  //         inputRef.current?.focus();
+  //       }}
+  //     />
+  //   </div>
+  // );
 };
 
 interface QuantityModalProps {
