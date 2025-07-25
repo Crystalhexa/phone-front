@@ -25,16 +25,12 @@ interface PosTableContentProps {
   products: ProductResponse[];
   loading: boolean;
   pagination: any;
-  orderFormData: OrderFormData;
-  onAddToCart: (product: ProductResponse) => void;
 }
 
 export const PosTableContent: React.FC<PosTableContentProps> = ({
   products,
   loading,
   pagination,
-  orderFormData,
-  onAddToCart
 }) => {
   const router = useRouter();
 
@@ -145,15 +141,6 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onAddToCart(product)}
-                        
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Add
-                        </Button>
                       <Button
                         size="sm"
                         variant="outline"

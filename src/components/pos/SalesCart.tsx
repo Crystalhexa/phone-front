@@ -1,6 +1,6 @@
 "use client"
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
 import { Form } from '@/components/ui/form';
 import {
   Table,
@@ -34,349 +33,409 @@ import {
   ChevronLeft,
   ChevronRight,
   Scan,
+  AlertCircle,
+  Info,
 } from 'lucide-react';
-import CustomFormField, { FormFieldType } from '../form/CustomFormField';
 import { POSScanner } from '@/components/pos/POSScanner';
 import { toast } from 'sonner';
+import { SearchableDropdown } from '../form/SearchableDropdown';
+import { useCustomerData } from '../table/CustomerTable/CustomerData';
+import CustomFormField, { FormFieldType } from '../CustomFormField';
 
-// Zod schemas
+// Zod schemas aligned with sales order API
 export const orderFormSchema = z.object({
-  supplier_id: z.string().min(1, 'Supplier is required'),
-  order_date: z.coerce.date().optional(),
-  expected_date: z.coerce.date().optional(),
-  status: z.enum(['PENDING', 'RECEIVED']),
+  customer_id: z.string().optional(),
+  payment_method: z.enum(['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'MOBILE_PAYMENT', 'CREDIT', 'CHEQUE', 'INSTALLMENT']).default('CASH'),
+  payment_status: z.enum(['PENDING', 'PAID', 'PARTIAL']).default('PAID'),
+  discount: z.number().min(0).default(0),
   notes: z.string().optional(),
+  delivery_date: z.string().optional(),
 });
 
-const itemFormSchema = z.object({
+const batchItemFormSchema = z.object({
   quantity: z.number().min(1, 'Quantity must be at least 1'),
-  cost_price: z.number().min(0, 'Cost price must be positive'),
-  wholesale_price: z.number().min(0, 'Wholesale price must be positive').optional(),
-  retail_price: z.number().min(0, 'Retail price must be positive'),
-  batch_number: z.string().optional(),
-  expiry_date: z.string().optional(),
+  unit_price: z.number().min(0, 'Unit price must be positive'),
+  discount: z.number().min(0).optional().default(0),
+  batch_id: z.string().min(1, 'Batch selection is required'),
 });
 
-// Types
-interface Supplier {
+// Types based on barcode scanner API responses
+interface ScannedProduct {
+  barcode_id?: string;
+  barcode: string;
+  scan_type: 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL';
+  product_id: string;
+  name: string;
+  model?: string;
+  sku: string;
+  brand?: {
+    name: string;
+    code: string;
+  };
+  category?: {
+    category: string;
+    subcategory: string;
+  };
+  pricing: {
+    cost_price: number;
+    wholesale_price?: number;
+    retail_price: number;
+    selling_price: number;
+  };
+  inventory: {
+    available_quantity: number;
+    is_low_stock: boolean;
+  };
+  item_details?: {
+    item_id: string;
+    status: string;
+    condition: string;
+    warranty_expiry?: string;
+    location_branch: string;
+    purchased_at: string;
+    supplier_name?: string;
+  };
+  batch_info?: {
+    batch_id: string;
+    batch_number: string;
+    expiry_date?: string;
+    branch_quantity?: number;
+    branch_available?: number;
+  };
+  batches?: Array<{
+    batch_id: string;
+    batch_number: string;
+    quantity: number;
+    cost_price: number;
+    wholesale_price?: number;
+    retail_price: number;
+    expiry_date?: string;
+    received_date?: string;
+  }>;
+  requires_quantity_input: boolean;
+  max_quantity?: number;
+  warranty_period?: number;
+}
+
+interface Customer {
   id: string;
   name: string;
-  code: string;
-  contact_name?: string;
+  customer_number: string;
   phone?: string;
   email?: string;
-  address?: string;
-  sales_rep_name: string;
-  sales_rep_phone?: string;
-  payment_terms?: string;
-  credit_limit?: number;
+  customer_type: 'RETAIL' | 'WHOLESALE' | 'CORPORATE' | 'DISTRIBUTOR' | 'VIP';
+  discount_percentage?: number;
   is_active: boolean;
 }
 
+// Cart item types aligned with sales order API request
 interface CartItem {
   id: string;
+  type: 'BATCH' | 'INDIVIDUAL';
+  product_id: string;
   product: {
-    id: string;
     name: string;
     model?: string;
-    sku?: string;
+    sku: string;
     barcode: string;
     brand?: {
       name: string;
       code: string;
     };
   };
-  quantity: number;
-  cost_price: number;
-  wholesale_price?: number;
-  retail_price: number;
+  unit_price: number;
+  discount: number;
+  quantity?: number; // For display purposes
+  total_quantity: number; // Calculated total
   line_total: number;
-  batch_number?: string;
-  expiry_date?: string;
+  batches?: Array<{
+    batch_id: string;
+    batch_number: string;
+    quantity: number;
+    cost_price: number;
+    retail_price: number;
+    expiry_date?: string;
+  }>;
+  item_barcodes?: string[]; // For individual items
+  item_details?: {
+    item_id: string;
+    barcode: string;
+    condition: string;
+    warranty_expiry?: string;
+  }[];
 }
 
-interface PurchaseOrder {
-  id: string;
-  order_number: string;
-  supplier_id: string;
-  supplier_name: string;
-  order_date?: Date;
-  expected_date?: Date;
-  status: 'PENDING' | 'RECEIVED';
+interface SalesOrder {
+  customer?: {
+    customer_id: string;
+    name?: string;
+    customer_type?: string;
+  };
+  items: Array<{
+    type: 'BATCH' | 'INDIVIDUAL';
+    product_id: string;
+    unit_price: number;
+    discount?: number;
+    batches?: Array<{
+      batch_id: string;
+      quantity: number;
+    }>;
+    item_barcodes?: string[];
+  }>;
+  payment_method: string;
+  payment_status: string;
+  discount: number;
   notes?: string;
-  subtotal: number;
-  total_amount: number;
-  items?: CartItem[];
-  is_saved: boolean;
 }
 
-export type OrderFormData = z.infer<typeof orderFormSchema>;
-type ItemFormData = z.infer<typeof itemFormSchema>;
+export type OrderFormData = z.infer<typeof orderFormSchema> & {
+  discount: number;
+  payment_method: 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'MOBILE_PAYMENT' | 'CREDIT' | 'CHEQUE' | 'INSTALLMENT';
+  payment_status: 'PENDING' | 'PAID' | 'PARTIAL';
+};
+type BatchItemFormData = z.infer<typeof batchItemFormSchema>;
 
 interface SalesCartProps {
-  onAddToCart: (product: any) => void;
-  cartItems: CartItem[];
-  setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
-  availableProducts?: any[];
-  orderFormData: OrderFormData;
-  setOrderFormData: React.Dispatch<React.SetStateAction<OrderFormData>>;
   cartPanelOpen: boolean;
   setCartPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export const SalesCart: React.FC<SalesCartProps> = ({
-  onAddToCart,
-  cartItems,
-  setCartItems,
-  availableProducts = [],
-  orderFormData,
-  setOrderFormData,
   cartPanelOpen,
   setCartPanelOpen
 }) => {
-  const [currentOrder, setCurrentOrder] = useState<PurchaseOrder | null>(null);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editingOrderDetails, setEditingOrderDetails] = useState(false);
   const [scannerExpanded, setScannerExpanded] = useState(true);
-
-  console.log(cartItems)
-
-  // Dialog states
-  const [createOrderDialogOpen, setCreateOrderDialogOpen] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [batchSelectionDialog, setBatchSelectionDialog] = useState<{
+    open: boolean;
+    product?: ScannedProduct;
+  }>({ open: false });
+  const [pendingScannedProduct, setPendingScannedProduct] = useState<ScannedProduct | null>(null);
 
   // Form instances
   const orderForm = useForm<OrderFormData>({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
-      supplier_id: '',
-      order_date: new Date(),
-      expected_date: new Date(),
-      status: 'PENDING',
+      customer_id: '',
+      payment_method: 'CASH',
+      payment_status: 'PAID',
+      discount: 0,
       notes: '',
     },
   });
 
-  const itemForm = useForm<ItemFormData>({
-    resolver: zodResolver(itemFormSchema),
+  const batchForm = useForm<BatchItemFormData>({
+    resolver: zodResolver(batchItemFormSchema),
     defaultValues: {
       quantity: 1,
-      cost_price: 0,
-      wholesale_price: 0,
-      retail_price: 0,
-      batch_number: '',
-      expiry_date: '',
+      unit_price: 0,
+      discount: 0,
+      batch_id: '',
     },
   });
 
-  // Update form values when editing an item
-  useEffect(() => {
-    if (editingItemId) {
-      const editingItem = cartItems.find(item => item.id === editingItemId);
-      if (editingItem) {
-        itemForm.reset({
-          quantity: editingItem.quantity,
-          cost_price: editingItem.cost_price,
-          wholesale_price: editingItem.wholesale_price || 0,
-          retail_price: editingItem.retail_price,
-          batch_number: editingItem.batch_number || '',
-          expiry_date: editingItem.expiry_date || '',
-        });
-      }
-    }
-  }, [editingItemId, cartItems, itemForm]);
+  const {
+    data: customerData,
+    isLoading: customersLoading,
+    handleSearch: handleCustomerSearch,
+    searchTerm: customerSearchTerm,
+  } = useCustomerData();
 
-  // Fetch suppliers
-  useEffect(() => {
-    const fetchSuppliers = async () => {
-      try {
-        const response = await fetch('/api/suppliers');
-        const data = await response.json();
-        if (data.success) {
-          setSuppliers(data.data.suppliers || []);
-        }
-      } catch (error) {
-        console.error('Error fetching suppliers:', error);
-      }
-    };
-
-    fetchSuppliers();
-  }, []);
-
-  // Calculate totals and update current order when cart changes
-  useEffect(() => {
-    if (currentOrder) {
-      const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
-      const taxAmount = subtotal * 0.1;
-      const totalAmount = subtotal + taxAmount;
-
-      setCurrentOrder(prev => prev ? {
-        ...prev,
-        subtotal,
-        tax_amount: taxAmount,
-        total_amount: totalAmount,
-        items: cartItems
-      } : null);
-    }
-  }, [cartItems, currentOrder?.id]);
-
-  // Calculate totals for display
-  const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
-  const totalAmount = subtotal;
-
-  // Prepare supplier options for select
-  const supplierOptions = suppliers.map(supplier => ({
-    id: supplier.id,
-    name: `${supplier.name} (${supplier.code})`,
-    value: supplier.id,
+  // Prepare customer options
+  const customers = customerData?.data?.customers || [];
+  const customerOptions = customers.map(customer => ({
+    id: customer.id,
+    name: `${customer.name} (${customer.customer_number})`,
+    value: customer.id,
   }));
 
-  const statusOptions = [
-    { id: 'PENDING', name: 'Pending', value: 'PENDING' },
-    { id: 'RECEIVED', name: 'Received', value: 'RECEIVED' },
+  const paymentMethodOptions = [
+    { id: 'CASH', name: 'Cash', value: 'CASH' },
+    { id: 'CREDIT_CARD', name: 'Credit Card', value: 'CREDIT_CARD' },
+    { id: 'DEBIT_CARD', name: 'Debit Card', value: 'DEBIT_CARD' },
+    { id: 'BANK_TRANSFER', name: 'Bank Transfer', value: 'BANK_TRANSFER' },
+    { id: 'MOBILE_PAYMENT', name: 'Mobile Payment', value: 'MOBILE_PAYMENT' },
+    { id: 'CREDIT', name: 'Credit', value: 'CREDIT' },
   ];
 
-  // Handle scanner-based product addition (specific to cart panel)
-   const handleScannerAddToCart = (formData: {
-      quantity: number;
-      cost_price?: number;
-      wholesale_price?: number;
-      retail_price?: number;
-      batch_number?: string;
-      expiry_date?: string;
-    }, product: any) => {
-  
-      console.log( product.barcode, "Scanned product barcode");
-      const existingItem = cartItems.find(item => item.product.barcode === product.barcode);
-      console.log(existingItem, "Existing item in cart");
-      if (existingItem) {
-        toast.error("Product that blong to this barcode alredy in the cart");
-        return;
-      }
-      if (existingItem) {
-        setCartItems(prev => prev.map(item =>
-          item.product.id === product.id
-            ? {
-              ...item,
-              quantity: item.quantity + formData.quantity,
-              cost_price: formData.cost_price ?? item.cost_price,
-              wholesale_price: formData.wholesale_price ?? item.wholesale_price,
-              retail_price: formData.retail_price ?? item.retail_price,
-              batch_number: formData.batch_number ?? item.batch_number,
-              expiry_date: formData.expiry_date ?? item.expiry_date,
-              line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
-            }
-            : item
-        ));
-  
-        toast.success(`Updated ${product.name} quantity in cart (Scanned)`, {
-          icon: "📱",
+  // Calculate totals
+  const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
+  const orderDiscount = orderForm.watch('discount') || 0;
+  const totalAmount = subtotal - orderDiscount;
+
+  // Handle scanner responses based on scan type
+  const handleScannerAddToCart = (formData: any, scannedProduct: ScannedProduct) => {
+    console.log('Scanned product:', scannedProduct);
+
+    // Check if product already exists in cart
+    const existingItem = cartItems.find(item => 
+      item.product.barcode === scannedProduct.barcode ||
+      (scannedProduct.scan_type === 'INDIVIDUAL_ITEM' && 
+       item.item_barcodes?.includes(scannedProduct.barcode_id || ''))
+    );
+
+    if (existingItem) {
+      toast.error("Product already in cart");
+      return;
+    }
+
+    if (scannedProduct.scan_type === 'INDIVIDUAL_ITEM') {
+      // Individual item - add directly to cart
+      addIndividualItemToCart(scannedProduct);
+    } else {
+      // Product level - show batch selection dialog
+      setPendingScannedProduct(scannedProduct);
+      
+      if (scannedProduct.batches && scannedProduct.batches.length > 0) {
+        // Set default values for batch form
+        batchForm.reset({
+          quantity: 1,
+          unit_price: scannedProduct.pricing.selling_price,
+          discount: 0,
+          batch_id: scannedProduct.batches[0].batch_id, // Select first batch by default
         });
+        setBatchSelectionDialog({ open: true, product: scannedProduct });
       } else {
-        const newItem: CartItem = {
-          id: `${product.id}-${Date.now()}`,
-          product: {
-            id: product.id,
-            name: product.name,
-            model: product.model,
-            sku: product.sku,
-            barcode: product.barcode,
-          },
-          quantity: formData.quantity,
-          cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
-          wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,
-          retail_price: formData.retail_price ?? product.current_prices?.retail_price ?? 0,
-          batch_number: formData.batch_number,
-          expiry_date: formData.expiry_date,
-          line_total: formData.quantity * (formData.cost_price ?? product.current_prices?.cost_price ?? 0),
-        };
-  
-        setCartItems(prev => [...prev, newItem]);
-        toast.success(`Added ${product.name} to cart (Scanned)`, {
-          icon: "📱",
-        });
+        toast.error("No available batches for this product");
       }
-    };
-  // Create order - only saves to useState
-  const handleCreateOrder = (data: OrderFormData) => {
-    const supplier = suppliers.find(s => s.id === data.supplier_id);
-    const tempOrderNumber = `PO-${Date.now()}`;
+    }
+  };
 
-    const newOrder: PurchaseOrder = {
-      id: `temp-${Date.now()}`,
-      order_number: tempOrderNumber,
-      supplier_id: data.supplier_id,
-      supplier_name: supplier?.name || '',
-      order_date: data.order_date,
-      expected_date: data.expected_date,
-      status: data.status,
-      notes: data.notes || '',
-      subtotal: 0,
-      total_amount: 0,
-      items: [],
-      is_saved: false
+  const addIndividualItemToCart = (scannedProduct: ScannedProduct) => {
+    if (!scannedProduct.item_details || !scannedProduct.barcode_id) {
+      toast.error("Invalid individual item data");
+      return;
+    }
+
+    const newItem: CartItem = {
+      id: `individual-${scannedProduct.barcode_id}-${Date.now()}`,
+      type: 'INDIVIDUAL',
+      product_id: scannedProduct.product_id,
+      product: {
+        name: scannedProduct.name,
+        model: scannedProduct.model,
+        sku: scannedProduct.sku,
+        barcode: scannedProduct.barcode,
+        brand: scannedProduct.brand,
+      },
+      unit_price: scannedProduct.pricing.selling_price,
+      discount: 0,
+      quantity: 1,
+      total_quantity: 1,
+      line_total: scannedProduct.pricing.selling_price,
+      item_barcodes: [scannedProduct.barcode_id],
+      item_details: [{
+        item_id: scannedProduct.item_details.item_id,
+        barcode: scannedProduct.barcode,
+        condition: scannedProduct.item_details.condition,
+        warranty_expiry: scannedProduct.item_details.warranty_expiry,
+      }],
     };
 
-    setCurrentOrder(newOrder);
-    setOrderFormData(data);
-    setCreateOrderDialogOpen(false);
-    orderForm.reset();
-    toast.success(`🎉 Purchase Order #${tempOrderNumber} created successfully!`, {
-      position: "top-right",
+    setCartItems(prev => [...prev, newItem]);
+    toast.success(`Added ${scannedProduct.name} to cart (Individual Item)`, {
+      icon: "📱",
     });
   };
 
-  // Update order details
-  const handleUpdateOrderDetails = (data: OrderFormData) => {
-    if (!currentOrder) return;
+  const handleBatchSelection = (batchData: BatchItemFormData) => {
+    if (!pendingScannedProduct) return;
 
-    const supplier = suppliers.find(s => s.id === data.supplier_id);
-    setCurrentOrder(prev => prev ? {
-      ...prev,
-      supplier_id: data.supplier_id,
-      supplier_name: supplier?.name || '',
-      order_date: data.order_date,
-      expected_date: data.expected_date,
-      status: data.status,
-      notes: data.notes || '',
-    } : null);
+    const selectedBatch = pendingScannedProduct.batches?.find(
+      batch => batch.batch_id === batchData.batch_id
+    );
 
-    setOrderFormData(data);
-    setEditingOrderDetails(false);
-    toast.success('Order details updated successfully!');
+    if (!selectedBatch) {
+      toast.error("Selected batch not found");
+      return;
+    }
+
+    if (batchData.quantity > selectedBatch.quantity) {
+      toast.error(`Insufficient stock. Available: ${selectedBatch.quantity}`);
+      return;
+    }
+
+    const lineTotal = (batchData.unit_price * batchData.quantity) - batchData.discount;
+
+    const newItem: CartItem = {
+      id: `batch-${pendingScannedProduct.product_id}-${Date.now()}`,
+      type: 'BATCH',
+      product_id: pendingScannedProduct.product_id,
+      product: {
+        name: pendingScannedProduct.name,
+        model: pendingScannedProduct.model,
+        sku: pendingScannedProduct.sku,
+        barcode: pendingScannedProduct.barcode,
+        brand: pendingScannedProduct.brand,
+      },
+      unit_price: batchData.unit_price,
+      discount: batchData.discount,
+      quantity: batchData.quantity,
+      total_quantity: batchData.quantity,
+      line_total: lineTotal,
+      batches: [{
+        batch_id: selectedBatch.batch_id,
+        batch_number: selectedBatch.batch_number,
+        quantity: batchData.quantity,
+        cost_price: selectedBatch.cost_price,
+        retail_price: selectedBatch.retail_price,
+        expiry_date: selectedBatch.expiry_date,
+      }],
+    };
+
+    setCartItems(prev => [...prev, newItem]);
+    toast.success(`Added ${pendingScannedProduct.name} to cart (Batch: ${selectedBatch.batch_number})`, {
+      icon: "📱",
+    });
+
+    // Close dialog and reset
+    setBatchSelectionDialog({ open: false });
+    setPendingScannedProduct(null);
+    batchForm.reset();
   };
 
-  // Save complete order to database
-  const handleSaveOrder = async () => {
-    if (!currentOrder) {
-      alert('No order to save');
-      return;
-    }
-
+  // Place sales order
+  const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
-      alert('Please add items to the cart before saving the order');
+      toast.error('Please add items to cart before placing order');
       return;
     }
 
+    const orderFormData = orderForm.getValues();
     setLoading(true);
+
     try {
-      const orderData = {
-        supplier_id: currentOrder.supplier_id,
-        order_date: currentOrder.order_date,
-        expected_date: currentOrder.expected_date,
-        status: currentOrder.status,
-        notes: currentOrder.notes,
+      // Prepare order data according to sales order API structure
+      const orderData: SalesOrder = {
+        customer: orderFormData.customer_id ? {
+          customer_id: orderFormData.customer_id
+        } : undefined,
         items: cartItems.map(item => ({
-          product_id: item.product.id,
-          quantity: item.quantity,
-          cost_price: item.cost_price,
-          wholesale_price: item.wholesale_price,
-          retail_price: item.retail_price,
-        }))
+          type: item.type,
+          product_id: item.product_id,
+          unit_price: item.unit_price,
+          discount: item.discount,
+          ...(item.type === 'BATCH' && item.batches ? {
+            batches: item.batches.map(batch => ({
+              batch_id: batch.batch_id,
+              quantity: batch.quantity
+            }))
+          } : {}),
+          ...(item.type === 'INDIVIDUAL' && item.item_barcodes ? {
+            item_barcodes: item.item_barcodes
+          } : {})
+        })),
+        payment_method: orderFormData.payment_method || 'CASH',
+        payment_status: orderFormData.payment_status || 'PAID',
+        discount: orderFormData.discount || 0,
+        notes: orderFormData.notes,
       };
 
-      const response = await fetch('/api/purchase-orders/Recived', {
+      console.log('Placing order:', orderData);
+
+      const response = await fetch('/api/sales-orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -387,51 +446,22 @@ export const SalesCart: React.FC<SalesCartProps> = ({
       const result = await response.json();
 
       if (result.success) {
-        setCurrentOrder(prev => prev ? {
-          ...prev,
-          id: result.data.id,
-          order_number: result.data.order_number,
-          is_saved: true
-        } : null);
-
-        toast.success(`Order saved successfully! Order number: ${result.data.order_number}`);
-        setCartPanelOpen(false);
-
-        // Clear cart and reset for new order
+        toast.success(`Order placed successfully! Order #${result.data.order_number}`);
+        
+        // Clear cart and reset form
         setCartItems([]);
-        setCurrentOrder(null);
+        orderForm.reset();
+        setCartPanelOpen(false);
       } else {
-        toast.error('Error saving order: ' + (result.message || 'Unknown error'));
+        toast.error('Error placing order: ' + (result.message || 'Unknown error'));
+        console.error('Order placement failed:', result);
       }
     } catch (error) {
-      console.error('Error saving order:', error);
-      toast.error('Error saving order. Please try again.');
+      console.error('Error placing order:', error);
+      toast.error('Error placing order. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle inline item editing
-  const handleUpdateCartItem = (itemId: string, updatedData: ItemFormData) => {
-    setCartItems(prev => prev.map(item => {
-      if (item.id === itemId) {
-        const lineTotal = updatedData.quantity * updatedData.cost_price;
-        return {
-          ...item,
-          quantity: updatedData.quantity,
-          cost_price: updatedData.cost_price,
-          wholesale_price: updatedData.wholesale_price,
-          retail_price: updatedData.retail_price,
-          batch_number: updatedData.batch_number,
-          expiry_date: updatedData.expiry_date,
-          line_total: lineTotal,
-        };
-      }
-      return item;
-    }));
-
-    setEditingItemId(null);
-    toast.success('Item updated successfully!');
   };
 
   const removeCartItem = (itemId: string) => {
@@ -440,50 +470,17 @@ export const SalesCart: React.FC<SalesCartProps> = ({
   };
 
   const clearCart = () => {
-    if (window.confirm('Are you sure you want to clear the cart? This action cannot be undone.')) {
+    if (window.confirm('Are you sure you want to clear the cart?')) {
       setCartItems([]);
       toast.success('Cart cleared');
     }
   };
 
-  const startNewOrder = (type: boolean) => {
-    if (cartItems.length > 0) {
-      const confirmClear = window.confirm('Starting a new order will clear the current cart. Are you sure?');
-      if (!confirmClear) return;
-    }
-    setOrderFormData({
-      supplier_id: '',
-      order_date: new Date(),
-      expected_date: undefined,
-      status: 'PENDING',
-      notes: ''
-    })
-    setCartItems([]);
-    setCurrentOrder(null);
-    setEditingOrderDetails(false);
-    if (!type) return;
-
-    setCreateOrderDialogOpen(true);
-  };
-
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-LK', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'LKR'
     }).format(amount);
-  };
-
-  const formatDate = (date: Date | string | undefined) => {
-    if (!date) return '-';
-    try {
-      return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    } catch {
-      return '-';
-    }
   };
 
   return (
@@ -502,11 +499,9 @@ export const SalesCart: React.FC<SalesCartProps> = ({
           <ShoppingCart className="w-5 h-5" />
           <div>
             <h2 className="text-lg font-semibold">Sales Cart</h2>
-            {currentOrder && (
-              <p className="text-sm text-muted-foreground">
-                Order #{currentOrder.order_number} - {currentOrder.supplier_name}
-              </p>
-            )}
+            <p className="text-sm text-muted-foreground">
+              {cartItems.length} item{cartItems.length !== 1 ? 's' : ''} in cart
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -518,25 +513,18 @@ export const SalesCart: React.FC<SalesCartProps> = ({
           >
             <Scan className="w-4 h-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setEditingOrderDetails(!editingOrderDetails)}
-          >
-            <Settings className="w-4 h-4" />
-          </Button>
         </div>
       </div>
 
       {/* Panel Content */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Quick Scanner - Compact version for cart panel */}
+        {/* Quick Scanner */}
         {scannerExpanded && (
           <div className="p-3 border-b bg-primary/5">
             <div className="flex items-center gap-2 mb-2">
               <Scan className="w-4 h-4 text-primary" />
               <span className="text-sm font-medium">Quick Scanner</span>
-              <Badge variant="secondary" className="text-xs">Cart Mode</Badge>
+              <Badge variant="secondary" className="text-xs">Sales Mode</Badge>
             </div>
             <POSScanner
               onProductScanned={handleScannerAddToCart}
@@ -549,103 +537,28 @@ export const SalesCart: React.FC<SalesCartProps> = ({
 
         {/* Order Details Section */}
         <div className="p-4 border-b bg-muted/10">
-          {editingOrderDetails ? (
-            <Form {...orderForm}>
-              <form
-                onSubmit={orderForm.handleSubmit(handleUpdateOrderDetails)}
-                className="space-y-3"
-              >
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <CustomFormField
-                    fieldType={FormFieldType.SELECT}
-                    control={orderForm.control}
-                    name="supplier_id"
-                    label="Supplier"
-                    placeholder="Select supplier"
-                    options={supplierOptions}
-                    required
-                  />
-                  <CustomFormField
-                    fieldType={FormFieldType.SELECT}
-                    control={orderForm.control}
-                    name="status"
-                    label="Status"
-                    placeholder="Select status"
-                    options={statusOptions}
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <CustomFormField
-                    fieldType={FormFieldType.DATE_PICKER}
-                    control={orderForm.control}
-                    name="order_date"
-                    label="Order Date"
-                  />
-                  <CustomFormField
-                    fieldType={FormFieldType.DATE_PICKER}
-                    control={orderForm.control}
-                    name="expected_date"
-                    label="Expected Delivery Date"
-                    placeholder="Select expected delivery date"
-                  />
-                </div>
-
-                <CustomFormField
-                  fieldType={FormFieldType.TEXTAREA}
+          <Form {...orderForm}>
+            <form className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <Controller
+                  name="customer_id"
                   control={orderForm.control}
-                  name="notes"
-                  label="Notes"
-                  placeholder="Order notes..."
-                  rows={2}
+                  render={({ field }) => (
+                    <SearchableDropdown
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                      placeholder="Select customer (optional)"
+                      searchPlaceholder="Search customers..."
+                      options={customerOptions}
+                      emptyMessage="No customer found"
+                      onSearch={handleCustomerSearch}
+                      searchTerm={customerSearchTerm}
+                    />
+                  )}
                 />
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEditingOrderDetails(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" size="sm">
-                    Update Details
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          ) : (
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Supplier</Label>
-                  <p className="mt-1 font-medium">{currentOrder?.supplier_name || 'No supplier selected'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Status</Label>
-                  <p className="mt-1">
-                    <Badge variant={currentOrder?.status === 'RECEIVED' ? 'default' : 'secondary'} className="text-xs">
-                      {currentOrder?.status || 'N/A'}
-                    </Badge>
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Order Date</Label>
-                  <p className="mt-1">{formatDate(currentOrder?.order_date)}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Expected Date</Label>
-                  <p className="mt-1">{formatDate(currentOrder?.expected_date)}</p>
-                </div>
-                {currentOrder?.notes && (
-                  <div className="col-span-2">
-                    <Label className="text-xs font-medium text-muted-foreground">Notes</Label>
-                    <p className="mt-1 text-sm">{currentOrder.notes}</p>
-                  </div>
-                )}
               </div>
-          )}
+            </form>
+          </Form>
         </div>
 
         {/* Cart Items */}
@@ -653,146 +566,79 @@ export const SalesCart: React.FC<SalesCartProps> = ({
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
               <Package className="w-16 h-16 mb-4 text-muted-foreground/50" />
-              <p className="text-lg font-medium">No items in cart</p>
-              <p className="text-sm mt-2 text-center">Scan barcodes above or add products from the product table to start building your order</p>
-              {!currentOrder && (
-                <Button 
-                  className="mt-4" 
-                  onClick={() => setEditingOrderDetails(!editingOrderDetails)}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Order First
-                </Button>
-              )}
+              <p className="text-lg font-medium">Cart is empty</p>
+              <p className="text-sm mt-2 text-center">
+                Scan barcodes above to add products to your cart
+              </p>
             </div>
           ) : (
             <div className="h-full overflow-y-auto">
-              <Form {...itemForm}>
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow>
-                      <TableHead className="w-[200px]">Product</TableHead>
-                      <TableHead className="w-[80px]">Qty</TableHead>
-                          <TableHead className="w-[100px]">Wholesale</TableHead>
-                          <TableHead className="w-[100px]">Retail</TableHead>
-                      <TableHead className="w-[100px]">Total</TableHead>
-                      <TableHead className="w-[60px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cartItems.map((item) => {
-                      const isEditingThis = editingItemId === item.id;
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <div className="font-medium text-sm">{item.product.name}</div>
-                              {item.product.model && (
-                                <div className="text-xs text-muted-foreground">Model: {item.product.model}</div>
-                              )}
-                              {item.product.sku && (
-                                <div className="text-xs text-muted-foreground">SKU: {item.product.sku}</div>
-                              )}
-                              {item.product.brand && (
-                                <div className="text-xs text-muted-foreground">Brand: {item.product.brand.name}</div>
-                              )}
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="w-[200px]">Product</TableHead>
+                    <TableHead className="w-[80px]">Type</TableHead>
+                    <TableHead className="w-[80px]">Qty</TableHead>
+                    <TableHead className="w-[100px]">Unit Price</TableHead>
+                    <TableHead className="w-[80px]">Discount</TableHead>
+                    <TableHead className="w-[100px]">Total</TableHead>
+                    <TableHead className="w-[60px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cartItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium text-sm">{item.product.name}</div>
+                          {item.product.model && (
+                            <div className="text-xs text-muted-foreground">
+                              Model: {item.product.model}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <CustomFormField
-                              fieldType={FormFieldType.NUMBER}
-                              control={itemForm.control}
-                              name="quantity"
-                              min={1}
-                              inputClassName="w-full text-sm"
-                              editable={!isEditingThis}
-                              editing={isEditingThis}
-                              onEdit={() => setEditingItemId(item.id)}
-                              onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                              onCancel={() => setEditingItemId(null)}
-                              formatDisplayValue={(value) => String(item.quantity)}
-                              editMode="toggle"
-                              readOnlyStyle="bordered"
-                              allowQuickEdit
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <CustomFormField
-                              fieldType={FormFieldType.NUMBER}
-                              control={itemForm.control}
-                              name="cost_price"
-                              step={0.01}
-                              min={0}
-                              inputClassName="w-full text-sm"
-                              editable={!isEditingThis}
-                              editing={isEditingThis}
-                              onEdit={() => setEditingItemId(item.id)}
-                              onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                              onCancel={() => setEditingItemId(null)}
-                              editMode="toggle"
-                              readOnlyStyle="bordered"
-                              formatDisplayValue={(value) => formatCurrency(Number(item.cost_price) || 0)}
-                              allowQuickEdit
-                            />
-                          </TableCell>
-                         
-                              <TableCell>
-                                <CustomFormField
-                                  fieldType={FormFieldType.NUMBER}
-                                  control={itemForm.control}
-                                  name="wholesale_price"
-                                  step={0.01}
-                                  min={0}
-                                  inputClassName="w-full text-sm"
-                                  editable={!isEditingThis}
-                                  editing={isEditingThis}
-                                  onEdit={() => setEditingItemId(item.id)}
-                                  onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                  onCancel={() => setEditingItemId(null)}
-                                  editMode="toggle"
-                                  readOnlyStyle="bordered"
-                                  formatDisplayValue={(value) => formatCurrency(Number(item.wholesale_price) || 0)}
-                                  allowQuickEdit
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <CustomFormField
-                                  fieldType={FormFieldType.NUMBER}
-                                  control={itemForm.control}
-                                  name="retail_price"
-                                  step={0.01}
-                                  min={0}
-                                  inputClassName="w-full text-sm"
-                                  editable={!isEditingThis}
-                                  editing={isEditingThis}
-                                  onEdit={() => setEditingItemId(item.id)}
-                                  onSave={() => itemForm.handleSubmit((data) => handleUpdateCartItem(item.id, data))()}
-                                  onCancel={() => setEditingItemId(null)}
-                                  editMode="toggle"
-                                  readOnlyStyle="bordered"
-                                  formatDisplayValue={(value) => formatCurrency(Number(item.retail_price) || 0)}
-                                  allowQuickEdit
-                                />
-                              </TableCell>
-                          
-                          <TableCell className="font-medium text-sm">{formatCurrency(item.line_total)}</TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => removeCartItem(item.id)}
-                              disabled={isEditingThis}
-                              className="w-8 h-8 p-0"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Form>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            SKU: {item.product.sku}
+                          </div>
+                          {item.product.brand && (
+                            <div className="text-xs text-muted-foreground">
+                              Brand: {item.product.brand.name}
+                            </div>
+                          )}
+                          {item.type === 'BATCH' && item.batches && (
+                            <div className="text-xs text-blue-600">
+                              Batch: {item.batches.map(b => b.batch_number).join(', ')}
+                            </div>
+                          )}
+                          {item.type === 'INDIVIDUAL' && (
+                            <div className="text-xs text-green-600">
+                              Individual Item
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={item.type === 'INDIVIDUAL' ? 'default' : 'secondary'}>
+                          {item.type === 'INDIVIDUAL' ? 'ITEM' : 'BATCH'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{item.total_quantity}</TableCell>
+                      <TableCell>{formatCurrency(item.unit_price)}</TableCell>
+                      <TableCell>{formatCurrency(item.discount)}</TableCell>
+                      <TableCell className="font-medium">{formatCurrency(item.line_total)}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => removeCartItem(item.id)}
+                          className="w-8 h-8 p-0"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
@@ -807,6 +653,8 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
+                <span>Order Discount:</span>
+                <span className="font-medium">-{formatCurrency(orderDiscount)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold border-t pt-2">
                 <span>Total:</span>
@@ -820,16 +668,13 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                 <Button variant="outline" size="sm" onClick={clearCart} className="flex-1">
                   Clear Cart
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => startNewOrder(false)} className="flex-1">
-                  Cancel Order
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => startNewOrder(true)} className="flex-1">
-                  New Order
-                </Button>
-                <Button size="sm" onClick={handleSaveOrder} disabled={loading} className="bg-primary flex-1">
-                  {loading ? 'Finalizing...' : 'Finalize Order'}
+                <Button 
+                  size="sm" 
+                  onClick={handlePlaceOrder} 
+                  disabled={loading || cartItems.length === 0} 
+                  className="bg-primary flex-1"
+                >
+                  {loading ? 'Processing...' : 'Place Order'}
                 </Button>
               </div>
             </div>
@@ -837,78 +682,77 @@ export const SalesCart: React.FC<SalesCartProps> = ({
         )}
       </div>
 
-      {/* Create Order Dialog */}
-      <Dialog open={createOrderDialogOpen} onOpenChange={setCreateOrderDialogOpen}>
-        <DialogContent className="w-full max-w-2xl p-6">
+      {/* Batch Selection Dialog */}
+      <Dialog open={batchSelectionDialog.open} onOpenChange={(open) => {
+        if (!open) {
+          setBatchSelectionDialog({ open: false });
+          setPendingScannedProduct(null);
+          batchForm.reset();
+        }
+      }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Create New Sales Order</DialogTitle>
+            <DialogTitle>Select Batch & Quantity</DialogTitle>
             <DialogDescription>
-              Fill in the details to create a new sales order
+              {pendingScannedProduct?.name} - Choose batch and enter quantity
             </DialogDescription>
           </DialogHeader>
 
-          <Form {...orderForm}>
-            <form onSubmit={orderForm.handleSubmit(handleCreateOrder)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {pendingScannedProduct && (
+            <Form {...batchForm}>
+              <form onSubmit={batchForm.handleSubmit(handleBatchSelection)} className="space-y-4">
                 <CustomFormField
                   fieldType={FormFieldType.SELECT}
-                  control={orderForm.control}
-                  name="supplier_id"
-                  label="Supplier"
-                  placeholder="Select supplier"
-                  options={supplierOptions}
-                  required
+                  control={batchForm.control}
+                  name="batch_id"
+                  label="Select Batch"
+                  placeholder="Choose a batch"
+                  options={pendingScannedProduct.batches?.map(batch => ({
+                    id: batch.batch_id,
+                    name: `${batch.batch_number} (Qty: ${batch.quantity}) - Exp: ${batch.expiry_date || 'N/A'}`,
+                    value: batch.batch_id,
+                  })) || []}
                 />
-                <CustomFormField
-                  fieldType={FormFieldType.SELECT}
-                  control={orderForm.control}
-                  name="status"
-                  label="Status"
-                  placeholder="Select status"
-                  options={statusOptions}
-                  required
-                />
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <CustomFormField
-                  fieldType={FormFieldType.DATE_PICKER}
-                  control={orderForm.control}
-                  name="order_date"
-                  label="Order Date"
-                />
-                <CustomFormField
-                  fieldType={FormFieldType.DATE_PICKER}
-                  control={orderForm.control}
-                  name="expected_date"
-                  label="Expected Delivery Date"
-                  placeholder="Select expected delivery date"
-                />
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <CustomFormField
+                    fieldType={FormFieldType.NUMBER}
+                    control={batchForm.control}
+                    name="quantity"
+                    label="Quantity"
+                  />
 
-              <CustomFormField
-                fieldType={FormFieldType.TEXTAREA}
-                control={orderForm.control}
-                name="notes"
-                label="Notes"
-                placeholder="Order notes..."
-                rows={3}
-              />
+                  <CustomFormField
+                    fieldType={FormFieldType.NUMBER}
+                    control={batchForm.control}
+                    name="unit_price"
+                    label="Unit Price"
+                  />
+                </div>
 
-              <div className="flex justify-end gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCreateOrderDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Creating...' : 'Create Order'}
-                </Button>
-              </div>
-            </form>
-          </Form>
+                <CustomFormField
+                  fieldType={FormFieldType.NUMBER}
+                  control={batchForm.control}
+                  name="discount"
+                  label="Item Discount"
+                />
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setBatchSelectionDialog({ open: false })}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="flex-1">
+                    Add to Cart
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

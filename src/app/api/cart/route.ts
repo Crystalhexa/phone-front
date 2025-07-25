@@ -5,6 +5,7 @@ import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
 
 // ========== Types ==========
 export interface ScannedProduct {
+  barcode_id?: string // For individual items, this is the item barcode ID
   barcode: string
   scan_type: 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL'
   product_id: string
@@ -186,6 +187,7 @@ async function handleIndividualItemScan(
   const retailPrice = item.current_retail_price || item.retail_price
 
   return {
+    barcode_id: item.item_id,
     barcode: item.barcode,
     scan_type: 'INDIVIDUAL_ITEM',
     product_id: item.product_id,
@@ -231,7 +233,7 @@ async function handleIndividualItemScan(
   }
 }
 
-// ========== Product Level Scan Handler ==========
+// ========== Updated Product Level Scan Handler ==========
 async function handleProductLevelScan(
   barcode: string, 
   branchId: string
@@ -251,7 +253,7 @@ async function handleProductLevelScan(
       b.code as brand_code,
       sc.name as subcategory_name,
       c.name as category_name,
-      -- Current pricing (preferred)
+      -- Current pricing
       pcp.cost_price,
       pcp.wholesale_price,
       pcp.retail_price,
@@ -262,27 +264,40 @@ async function handleProductLevelScan(
       (bi.total_quantity - bi.reserved_quantity) as available_quantity,
       bi.low_stock_threshold,
       bi.average_cost_price,
-      -- Count available batches in this branch
-      COUNT(bii.id) FILTER (WHERE bii.quantity > bii.reserved_quantity AND bii.is_active = true) as available_batches_count,
-      SUM(bii.quantity - bii.reserved_quantity) FILTER (WHERE bii.quantity > bii.reserved_quantity AND bii.is_active = true) as total_available_quantity,
-      -- Count individual items available
-      COUNT(ib.id) FILTER (WHERE ib.status = 'AVAILABLE' AND ib.location_branch = $2 AND ib.is_active = true) as individual_items_count
+      -- Available batches with FIFO ordering
+      json_agg(
+        json_build_object(
+          'batch_id', pb.id,
+          'batch_number', pb.batch_number,
+          'quantity', (bii.quantity - bii.reserved_quantity),
+          'cost_price', pb.cost_price,
+          'wholesale_price', pb.wholesale_price,
+          'retail_price', pb.retail_price,
+          'expiry_date', pb.expiry_date,
+          'received_date', pb.received_date
+        ) ORDER BY 
+          COALESCE(pb.fifo_sequence, 999999) ASC,
+          pb.received_date ASC NULLS LAST,
+          pb.expiry_date ASC NULLS LAST,
+          pb.created_at ASC
+      ) FILTER (
+        WHERE bii.quantity > bii.reserved_quantity 
+          AND bii.is_active = true 
+          AND pb.is_active = true
+          AND (pb.expiry_date IS NULL OR pb.expiry_date > CURRENT_DATE)
+      ) as batches
     FROM barcodes bc
     JOIN products p ON bc.product_id = p.id
     LEFT JOIN brands b ON p.brand_id = b.id
     LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
     LEFT JOIN categories c ON sc.category_id = c.id
     LEFT JOIN product_current_prices pcp ON p.id = pcp.product_id
-    -- Branch inventory check
     LEFT JOIN branch_inventory bi ON p.id = bi.product_id AND bi.branch_id = $2
-    -- Available batches in this branch
     LEFT JOIN branch_inventory_items bii ON bi.id = bii.branch_inventory_id 
                                           AND bii.is_active = true
-    -- Individual items in this branch
-    LEFT JOIN item_barcodes ib ON p.id = ib.product_id 
-                                AND ib.location_branch = $2 
-                                AND ib.is_active = true
-    WHERE bc.code = $1 AND bc.is_active = true
+    LEFT JOIN purchase_batches pb ON bii.purchase_batch_id = pb.id
+                                   AND pb.is_active = true
+    WHERE bc.code = $1 AND bc.is_active = true AND p.is_active = true
     GROUP BY bc.id, bc.code, bc.type, p.id, p.name, p.model, p.sku, p.warranty_period,
              b.name, b.code, sc.name, c.name, pcp.cost_price, pcp.wholesale_price, 
              pcp.retail_price, pcp.last_updated, bi.total_quantity, bi.reserved_quantity, 
@@ -307,18 +322,15 @@ async function handleProductLevelScan(
     throw new Error(`Product '${product.product_name}' is out of stock in this branch`)
   }
 
-  // Check if there are available batches in this branch
-  if (!product.available_batches_count || product.available_batches_count <= 0) {
+  // Get batches (already ordered by FIFO)
+  const batches = product.batches || []
+
+  // Check if there are available batches
+  if (batches.length === 0) {
     throw new Error(`No available batches for product '${product.product_name}' in this branch`)
   }
 
-  // Verify inventory consistency
-  if (product.total_available_quantity && Math.abs(product.total_available_quantity - product.available_quantity) > 0.01) {
-    console.warn(`Inventory mismatch for product ${product.product_id} in branch ${branchId}: 
-                  inventory=${product.available_quantity}, batch_sum=${product.total_available_quantity}`)
-  }
-
-  // Use current pricing if available, otherwise use average cost
+  // Use current pricing or fallback to average cost
   const costPrice = product.cost_price || product.average_cost_price || 0
   const wholesalePrice = product.wholesale_price
   const retailPrice = product.retail_price || 0
@@ -340,7 +352,7 @@ async function handleProductLevelScan(
     } : undefined,
     pricing: {
       cost_price: parseFloat(costPrice.toString()),
-      wholesale_price: wholesalePrice ? parseFloat(wholesalePrice) : undefined,
+      wholesale_price: wholesalePrice ? parseFloat(wholesalePrice.toString()) : undefined,
       retail_price: parseFloat(retailPrice.toString()),
       selling_price: parseFloat(retailPrice.toString())
     },
@@ -348,12 +360,21 @@ async function handleProductLevelScan(
       available_quantity: product.available_quantity || 0,
       is_low_stock: (product.available_quantity || 0) <= (product.low_stock_threshold || 0)
     },
+    batch_info: batches.map((batch: any) => ({
+      batch_id: batch.batch_id,
+      batch_number: batch.batch_number,
+      quantity: batch.quantity,
+      cost_price: parseFloat(batch.cost_price || '0'),
+      wholesale_price: batch.wholesale_price ? parseFloat(batch.wholesale_price) : undefined,
+      retail_price: parseFloat(batch.retail_price || '0'),
+      expiry_date: batch.expiry_date,
+      received_date: batch.received_date
+    })),
     requires_quantity_input: true,
     max_quantity: product.available_quantity || 0,
     warranty_period: product.warranty_period
   }
 }
-
 // ========== Enhanced Barcode Lookup (fallback for unknown formats) ==========
 async function enhancedBarcodeSearch(
   barcode: string, 
@@ -541,6 +562,7 @@ export async function GET(request: NextRequest) {
       const infoQuery = `
         SELECT 
           'INDIVIDUAL_ITEM' as type,
+          ib.id,
           ib.code,
           ib.status,
           ib.condition,

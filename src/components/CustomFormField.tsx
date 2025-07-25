@@ -44,6 +44,7 @@ export enum FormFieldType {
   SKELETON = "skeleton",
   PASSWORD = "PASSWORD",
   EMAIL = "EMAIL",
+  NUMBER = "NUMBER",
 }
 
 interface CustomProps {

@@ -7,6 +7,7 @@ export interface ApiResponse<T = any> {
   message: string
   errors?: any[] | null
   timestamp: string
+  metadata?:any
 }
 
 export interface QueryOptions {

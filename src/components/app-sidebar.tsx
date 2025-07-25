@@ -70,9 +70,9 @@ const data = {
       url: "/inventory",
       icon: IconDatabase,
       items: [
-        { title: "Inventory Overview", url: "/inventory/overview" },
-        { title: "Stock Levels", url: "/inventory/stock" },
-        { title: "Stock Logs", url: "/inventory/logs" },
+        { title: "Inventory Overview", url: "/dashboard/inventory/overview" },
+        { title: "Stock Levels", url: "/dashboard/inventory/stock-level" },
+        { title: "Stock Logs", url: "/dashboard/inventory/stock-logs" },
       ],
     },
     {
