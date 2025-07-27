@@ -264,66 +264,66 @@ async function createItemMovementHistory(
   ])
 }
 
-async function updateProductPriceHistory(
-  client: PoolClient,
-  productId: string,
-  itemData: PurchaseOrderItem,
-  createdBy?: string
-): Promise<void> {
-  // Check if there's already an active price for today
-  const checkQuery = `
-    SELECT 1 FROM product_price_history 
-    WHERE product_id = $1 
-    AND DATE(effective_date) = CURRENT_DATE 
-    AND is_active = true
-  `
+// async function updateProductPriceHistory(
+//   client: PoolClient,
+//   productId: string,
+//   itemData: PurchaseOrderItem,
+//   createdBy?: string
+// ): Promise<void> {
+//   // Check if there's already an active price for today
+//   const checkQuery = `
+//     SELECT 1 FROM product_price_history 
+//     WHERE product_id = $1 
+//     AND DATE(effective_date) = CURRENT_DATE 
+//     AND is_active = true
+//   `
   
-  const existing = await client.query(checkQuery, [productId])
+//   const existing = await client.query(checkQuery, [productId])
   
-  if (existing.rows.length === 0) {
-    const priceHistoryId = generateCuid()
+//   if (existing.rows.length === 0) {
+//     const priceHistoryId = generateCuid()
     
-    const insertQuery = `
-      INSERT INTO product_price_history (
-        id, product_id, effective_date, cost_price, wholesale_price,
-        retail_price, is_active, created_by, reason
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    `
+//     const insertQuery = `
+//       INSERT INTO product_price_history (
+//         id, product_id, effective_date, cost_price, wholesale_price,
+//         retail_price, is_active, created_by, reason
+//       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+//     `
 
-    await client.query(insertQuery, [
-      priceHistoryId,
-      productId,
-      new Date().toISOString(),
-      itemData.cost_price,
-      itemData.wholesale_price || null,
-      itemData.retail_price,
-      true,
-      createdBy,
-      'Purchase order price update'
-    ])
+//     await client.query(insertQuery, [
+//       priceHistoryId,
+//       productId,
+//       new Date().toISOString(),
+//       itemData.cost_price,
+//       itemData.wholesale_price || null,
+//       itemData.retail_price,
+//       true,
+//       createdBy,
+//       'Purchase order price update'
+//     ])
 
-    // Update current prices table
-    const upsertCurrentPriceQuery = `
-      INSERT INTO product_current_prices (
-        product_id, cost_price, wholesale_price, retail_price, last_updated
-      ) VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (product_id) 
-      DO UPDATE SET 
-        cost_price = EXCLUDED.cost_price,
-        wholesale_price = EXCLUDED.wholesale_price,
-        retail_price = EXCLUDED.retail_price,
-        last_updated = EXCLUDED.last_updated
-    `
+//     // // Update current prices table
+//     // const upsertCurrentPriceQuery = `
+//     //   INSERT INTO product_current_prices (
+//     //     product_id, cost_price, wholesale_price, retail_price, last_updated
+//     //   ) VALUES ($1, $2, $3, $4, $5)
+//     //   ON CONFLICT (product_id) 
+//     //   DO UPDATE SET 
+//     //     cost_price = EXCLUDED.cost_price,
+//     //     wholesale_price = EXCLUDED.wholesale_price,
+//     //     retail_price = EXCLUDED.retail_price,
+//     //     last_updated = EXCLUDED.last_updated
+//     // `
 
-    await client.query(upsertCurrentPriceQuery, [
-      productId,
-      itemData.cost_price,
-      itemData.wholesale_price || null,
-      itemData.retail_price,
-      new Date().toISOString()
-    ])
-  }
-}
+//     // await client.query(upsertCurrentPriceQuery, [
+//     //   productId,
+//     //   itemData.cost_price,
+//     //   itemData.wholesale_price || null,
+//     //   itemData.retail_price,
+//     //   new Date().toISOString()
+//     // ])
+//   }
+// }
 
 async function updateBranchInventory(
   client: PoolClient,
@@ -547,16 +547,6 @@ export async function POST(request: NextRequest) {
           userDetails,
           data.supplier_id
         )
-
-        // 4. Update product price history for each item
-        for (let i = 0; i < orderItems.length; i++) {
-          await updateProductPriceHistory(
-            client, 
-            orderItems[i].product_id, 
-            data.items[i], 
-            userDetails?.employee_id
-          )
-        }
 
         // 5. Update branch inventory
         await updateBranchInventory(

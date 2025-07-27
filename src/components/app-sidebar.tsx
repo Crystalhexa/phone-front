@@ -104,7 +104,7 @@ const data = {
       url: "/transfers",
       icon: IconReport,
       items: [
-        { title: "Transfer Requests", url: "/transfers/requests" },
+        { title: "Transfer Requests", url: "/dashboard/transfer/transection" },
         { title: "Deliveries", url: "/transfers/deliveries" },
         { title: "Logs", url: "/transfers/logs" },
       ],

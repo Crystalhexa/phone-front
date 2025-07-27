@@ -29,6 +29,13 @@ export interface ScannedProduct {
   inventory: {
     available_quantity: number
     is_low_stock: boolean
+    total_batches?: number // For product-level items
+    fifo_next_batch?: {
+      batch_id: string
+      batch_number: string
+      available_quantity: number
+      expiry_date?: string
+    } // For product-level items
   }
   // For individual items
   item_details?: {
@@ -253,11 +260,6 @@ async function handleProductLevelScan(
       b.code as brand_code,
       sc.name as subcategory_name,
       c.name as category_name,
-      -- Current pricing
-      pcp.cost_price,
-      pcp.wholesale_price,
-      pcp.retail_price,
-      pcp.last_updated as price_last_updated,
       -- Branch-specific inventory
       bi.total_quantity,
       bi.reserved_quantity,
@@ -274,9 +276,12 @@ async function handleProductLevelScan(
           'wholesale_price', pb.wholesale_price,
           'retail_price', pb.retail_price,
           'expiry_date', pb.expiry_date,
-          'received_date', pb.received_date
+          'received_date', pb.received_date,
+          'fifo_sequence', pb.fifo_sequence,
+          'fifo_order', bii.fifo_order
         ) ORDER BY 
           COALESCE(pb.fifo_sequence, 999999) ASC,
+          COALESCE(bii.fifo_order, 999999) ASC,
           pb.received_date ASC NULLS LAST,
           pb.expiry_date ASC NULLS LAST,
           pb.created_at ASC
@@ -291,7 +296,6 @@ async function handleProductLevelScan(
     LEFT JOIN brands b ON p.brand_id = b.id
     LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
     LEFT JOIN categories c ON sc.category_id = c.id
-    LEFT JOIN product_current_prices pcp ON p.id = pcp.product_id
     LEFT JOIN branch_inventory bi ON p.id = bi.product_id AND bi.branch_id = $2
     LEFT JOIN branch_inventory_items bii ON bi.id = bii.branch_inventory_id 
                                           AND bii.is_active = true
@@ -299,8 +303,7 @@ async function handleProductLevelScan(
                                    AND pb.is_active = true
     WHERE bc.code = $1 AND bc.is_active = true AND p.is_active = true
     GROUP BY bc.id, bc.code, bc.type, p.id, p.name, p.model, p.sku, p.warranty_period,
-             b.name, b.code, sc.name, c.name, pcp.cost_price, pcp.wholesale_price, 
-             pcp.retail_price, pcp.last_updated, bi.total_quantity, bi.reserved_quantity, 
+             b.name, b.code, sc.name, c.name, bi.total_quantity, bi.reserved_quantity, 
              bi.low_stock_threshold, bi.average_cost_price
   `
 
@@ -330,10 +333,17 @@ async function handleProductLevelScan(
     throw new Error(`No available batches for product '${product.product_name}' in this branch`)
   }
 
-  // Use current pricing or fallback to average cost
-  const costPrice = product.cost_price || product.average_cost_price || 0
-  const wholesalePrice = product.wholesale_price
-  const retailPrice = product.retail_price || 0
+  // Calculate FIFO-based pricing from first available batch
+  const firstBatch = batches[0]
+  const fifoBasedPricing = {
+    cost_price: parseFloat(firstBatch.cost_price || '0'),
+    wholesale_price: firstBatch.wholesale_price ? parseFloat(firstBatch.wholesale_price) : undefined,
+    retail_price: parseFloat(firstBatch.retail_price || '0'),
+    selling_price: parseFloat(firstBatch.retail_price || '0')
+  }
+
+  // Use average cost price as fallback for cost pricing
+  const fallbackCostPrice = product.average_cost_price ? parseFloat(product.average_cost_price) : 0
 
   return {
     barcode: product.barcode,
@@ -351,14 +361,25 @@ async function handleProductLevelScan(
       subcategory: product.subcategory_name
     } : undefined,
     pricing: {
-      cost_price: parseFloat(costPrice.toString()),
-      wholesale_price: wholesalePrice ? parseFloat(wholesalePrice.toString()) : undefined,
-      retail_price: parseFloat(retailPrice.toString()),
-      selling_price: parseFloat(retailPrice.toString())
+      // Primary pricing based on FIFO (first batch out)
+      
+      // Fallback pricing (for backward compatibility)
+      cost_price: fifoBasedPricing.cost_price || fallbackCostPrice,
+      wholesale_price: fifoBasedPricing.wholesale_price,
+      retail_price: fifoBasedPricing.retail_price,
+      selling_price: fifoBasedPricing.selling_price,
+     
     },
     inventory: {
       available_quantity: product.available_quantity || 0,
-      is_low_stock: (product.available_quantity || 0) <= (product.low_stock_threshold || 0)
+      is_low_stock: (product.available_quantity || 0) <= (product.low_stock_threshold || 0),
+      total_batches: batches.length,
+      fifo_next_batch: firstBatch ? {
+        batch_id: firstBatch.batch_id,
+        batch_number: firstBatch.batch_number,
+        available_quantity: firstBatch.quantity,
+        expiry_date: firstBatch.expiry_date
+      } : undefined
     },
     batch_info: batches.map((batch: any) => ({
       batch_id: batch.batch_id,
@@ -368,7 +389,10 @@ async function handleProductLevelScan(
       wholesale_price: batch.wholesale_price ? parseFloat(batch.wholesale_price) : undefined,
       retail_price: parseFloat(batch.retail_price || '0'),
       expiry_date: batch.expiry_date,
-      received_date: batch.received_date
+      received_date: batch.received_date,
+      fifo_sequence: batch.fifo_sequence,
+      fifo_order: batch.fifo_order,
+      is_next_to_sell: batch === firstBatch // Flag the FIFO batch
     })),
     requires_quantity_input: true,
     max_quantity: product.available_quantity || 0,

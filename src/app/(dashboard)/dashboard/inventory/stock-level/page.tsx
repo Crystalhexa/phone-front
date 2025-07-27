@@ -1,8 +1,5 @@
 "use client"
 import React, { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import {
   Table,
   TableBody,
@@ -59,9 +56,12 @@ import {
   Edit,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SearchableDropdown } from '@/components/form/SearchableDropdown';
+import { useBranchData } from '@/components/table/BranchTable/useBranchData';
+import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 
 interface StockLevel {
-  id: string;  
+  id: string;
   product_id: string;
   product_name: string;
   product_sku: string;
@@ -105,7 +105,27 @@ const StockLevelsComponent: React.FC = () => {
   }>({ open: false });
   const [error, setError] = useState<string | null>(null);
 
+  const {
+    data: branchOptions,
+    isLoading: isSearching,
+    handleSearch: handleBranchSearch,
+    searchTerm,
+    handlePageSizeChange,
+  } = useBranchData();
+  const {
+    data: category,
+    handleSearch: handleCategorySearch,
+    searchTerm: categorySearchTerm,
+  } = useCategoryData();
 
+  const categories = category?.data?.categories || [];
+  const categoryOptions = categories
+    .filter((cat) => typeof cat.id === 'string' && typeof cat.name === 'string')
+    .map(cat => ({
+      id: cat.id as string,
+      name: cat.name as string,
+      description: cat.description
+    }));
   const [filters, setFilters] = useState<StockLevelsFilters>({
     search: '',
     branch_id: '',
@@ -117,7 +137,7 @@ const StockLevelsComponent: React.FC = () => {
   const fetchStockLevels = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const params = new URLSearchParams({
         page: currentPage.toString(),
@@ -144,11 +164,11 @@ const StockLevelsComponent: React.FC = () => {
       console.log('Fetching stock levels with params:', params.toString());
 
       const response = await fetch(`/api/inventory/stock-levels?${params}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
       console.log('API Response:', result);
 
@@ -157,7 +177,7 @@ const StockLevelsComponent: React.FC = () => {
         const stockData = Array.isArray(result.data) ? result.data : [];
         console.log('Stock Data:', result.data);
         setStockLevels(stockData);
-        
+
         // Set pagination info
         if (result.metadata?.pagination) {
           setTotalPages(result.metadata.pagination.total_pages || 1);
@@ -257,7 +277,7 @@ const StockLevelsComponent: React.FC = () => {
       });
 
       const response = await fetch(`/api/inventory/stock-levels?${params}`);
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -380,11 +400,11 @@ const StockLevelsComponent: React.FC = () => {
                 onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="stock_status">Stock Status</Label>
-              <Select 
-                value={filters.stock_status} 
+              <Select
+                value={filters.stock_status}
                 onValueChange={(value) => setFilters(prev => ({ ...prev, stock_status: value === 'ALL' ? '' : value }))}
               >
                 <SelectTrigger>
@@ -399,41 +419,38 @@ const StockLevelsComponent: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
-              <Label htmlFor="branch">Branch</Label>
-              <Select 
-                value={filters.branch_id} 
+
+              <SearchableDropdown
+                value={filters.branch_id}
                 onValueChange={(value) => setFilters(prev => ({ ...prev, branch_id: value === 'ALL' ? '' : value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All branches" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Branches</SelectItem>
-                  <SelectItem value="branch1">Main Branch</SelectItem>
-                  <SelectItem value="branch2">Branch 2</SelectItem>
-                </SelectContent>
-              </Select>
+                placeholder="Select Branch"
+                searchPlaceholder="Search branches..."
+                options={branchOptions?.data?.branches || []} // array of branches: { id, name, ... }
+                disabled={false}
+                emptyMessage="No branches found"
+                onSearch={handleBranchSearch} // optional, for remote search
+                searchTerm={searchTerm}
+                isSearching={isSearching}
+              />
             </div>
-            
+
             <div>
-              <Label htmlFor="category">Category</Label>
-              <Select 
-                value={filters.category} 
-                onValueChange={(value) => setFilters(prev => ({ ...prev, category: value === 'ALL' ? '' : value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Categories</SelectItem>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="clothing">Clothing</SelectItem>
-                </SelectContent>
-              </Select>
+              <SearchableDropdown
+                value={filters.category}
+                onValueChange={(value) =>
+          setFilters((prev) => ({ ...prev, category_id: value, subcategory_id: '' }))
+                }
+                placeholder="Category"
+                searchPlaceholder="Search categories..."
+                options={categoryOptions}
+                emptyMessage="No categories"
+                onSearch={handleCategorySearch}
+                searchTerm={categorySearchTerm}
+              />
             </div>
-            
+
             <div className="flex items-end">
               <Button
                 variant={filters.low_stock_only ? "default" : "outline"}
@@ -630,7 +647,7 @@ const StockLevelsComponent: React.FC = () => {
                   </Badge>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Low Stock Threshold</Label>

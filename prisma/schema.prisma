@@ -135,8 +135,6 @@ model employees {
   approved_transfers   stock_transfer_requests[] @relation("ApprovedBy")
   stock_transfer_logs  stock_transfer_logs[]
   stock_adjustments    stock_adjustments[]       @relation("AdjustedBy")
-  price_overrides      price_overrides[]         @relation("ApprovedBy")
-  price_changes        product_price_history[]   @relation("CreatedBy")
   purchase_batches     purchase_batches[]        @relation("ReceivedBy") // <-- Add this line
   items_sold           item_barcodes[]           @relation("SoldBy")
   items_returned       item_barcodes[]           @relation("ReturnedBy")
@@ -247,9 +245,6 @@ model products {
   purchase_return_items purchase_return_items[]
   sales_return_items    sales_return_items[]
   low_stock_alerts      low_stock_alerts[]
-  price_history         product_price_history[]
-  price_overrides       price_overrides[]
-  current_prices        product_current_prices?
   item_barcodes         item_barcodes[] // Individual tracked items
 
   @@index([subcategory_id])
@@ -259,67 +254,6 @@ model products {
   @@map("products")
 }
 
-// ================== NEW: DYNAMIC PRICING SYSTEM ==================
-model product_price_history {
-  id              String   @id @default(cuid())
-  product_id      String
-  effective_date  DateTime @db.Timestamptz(6)
-  cost_price      Decimal  @db.Decimal(10, 2)
-  wholesale_price Decimal? @db.Decimal(10, 2)
-  retail_price    Decimal  @db.Decimal(10, 2)
-  is_active       Boolean  @default(true)
-  created_by      String
-  reason          String?  @db.Text
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-
-  // Relations
-  product             products  @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  created_by_employee employees @relation("CreatedBy", fields: [created_by], references: [id])
-
-  @@index([product_id, effective_date])
-  @@index([effective_date, is_active])
-  @@index([product_id, is_active])
-  @@map("product_price_history")
-}
-
-// NEW: Current active prices view for quick access
-model product_current_prices {
-  product_id      String   @id
-  cost_price      Decimal  @db.Decimal(10, 2)
-  wholesale_price Decimal? @db.Decimal(10, 2)
-  retail_price    Decimal  @db.Decimal(10, 2)
-  last_updated    DateTime @db.Timestamptz(6)
-
-  // Relations
-  product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
-
-  @@map("product_current_prices")
-}
-
-// NEW: Price override system
-model price_overrides {
-  id             String     @id @default(cuid())
-  product_id     String
-  branch_id      String
-  override_price Decimal    @db.Decimal(10, 2)
-  original_price Decimal    @db.Decimal(10, 2)
-  price_type     price_type @default(RETAIL) // RETAIL, WHOLESALE
-  reason         String     @db.Text
-  valid_from     DateTime   @db.Timestamptz(6)
-  valid_until    DateTime?  @db.Timestamptz(6)
-  approved_by    String
-  is_active      Boolean    @default(true)
-  created_at     DateTime   @default(now()) @db.Timestamptz(6)
-
-  // Relations
-  product  products  @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  branch   branches  @relation(fields: [branch_id], references: [id], onDelete: Cascade)
-  approver employees @relation("ApprovedBy", fields: [approved_by], references: [id])
-
-  @@index([product_id, branch_id, is_active])
-  @@index([valid_from, valid_until])
-  @@map("price_overrides")
-}
 
 model barcodes {
   id         String       @id @default(cuid())
@@ -488,7 +422,6 @@ model branches {
   stock_adjustments      stock_adjustments[]       @relation("Branch")
   stock_ledgers          product_stock_ledgers[]
   low_stock_alerts       low_stock_alerts[]
-  price_overrides        price_overrides[]
   current_items          item_barcodes[] // Items currently in this branch
   movements_from         item_movement_history[]   @relation("FromBranch")
   movements_to           item_movement_history[]   @relation("ToBranch")
