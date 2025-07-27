@@ -14,36 +14,59 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 
+// Updated interface based on API response
 interface ScannedProduct {
+  barcode_id?: string;
   barcode: string;
+  scan_type: 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL';
   product_id: string;
   name: string;
   model?: string;
-  sku?: string;
-  brand?: string;
+  sku: string;
+  brand?: {
+    name: string;
+    code: string;
+  };
+  category?: {
+    category: string;
+    subcategory: string;
+  };
   pricing: {
     cost_price: number;
     wholesale_price?: number;
+    retail_price: number;
     selling_price: number;
   };
   inventory: {
     available_quantity: number;
-    location?: string;
+    is_low_stock: boolean;
   };
-  max_quantity: number;
-  scan_type: 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL';
+  item_details?: {
+    item_id: string;
+    status: string;
+    condition: string;
+    warranty_expiry?: string;
+    location_branch: string;
+    purchased_at: string;
+    supplier_name?: string;
+  };
+  batch_info?: Array<{
+    batch_id: string;
+    batch_number: string;
+    quantity: number;
+    cost_price: number;
+    wholesale_price?: number;
+    retail_price: number;
+    expiry_date?: string;
+    received_date?: string;
+  }>;
   requires_quantity_input: boolean;
+  max_quantity?: number;
+  warranty_period?: number;
 }
 
 interface POSScannerProps {
-  onProductScanned: (formData: {
-    quantity: number;
-    cost_price?: number;
-    wholesale_price?: number;
-    retail_price?: number;
-    batch_number?: string;
-    expiry_date?: string;
-  }, product: any) => void;
+  onProductScanned: (formData: any, product: ScannedProduct) => void;
   isCartOpen?: boolean;
   compact?: boolean;
   className?: string;
@@ -98,7 +121,6 @@ export const POSScanner: React.FC<POSScannerProps> = ({
 
     setIsScanning(true);
     try {
-      // Mock API call - replace with your actual API endpoint
       const response = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -109,22 +131,43 @@ export const POSScanner: React.FC<POSScannerProps> = ({
 
       if (result.success) {
         const product = result.data as ScannedProduct;
+        console.log('Scanned product data:', product);
 
-        if (product.requires_quantity_input || product.scan_type === 'PRODUCT_LEVEL') {
-          // Show quantity input modal for product-level items
+        // For individual items, add directly to cart without quantity modal
+        if (product.scan_type === 'INDIVIDUAL_ITEM') {
+          handleDirectAddToCart(product);
+          playBeep('success');
+          
+          toast.success(`${product.name} added to cart`, {
+            description: `Individual Item - ${product.item_details?.condition || 'N/A'} condition`,
+            icon: "📱",
+          });
+        } 
+        // For product level items, show quantity modal if requires quantity input
+        else if (product.requires_quantity_input || product.scan_type === 'PRODUCT_LEVEL') {
           setScannedProduct(product);
           setQuantity(1);
-          setBatchNumber('');
-          setExpiryDate('');
+          setBatchNumber(product.batch_info?.[0]?.batch_number || '');
+          setExpiryDate(product.batch_info?.[0]?.expiry_date || '');
           setShowQuantityModal(true);
+          playBeep('success');
           
-          // Play success sound
+          toast.success(`${product.name} scanned - enter quantity`, {
+            description: `Product Level - ${product.batch_info?.length || 0} batches available`,
+            icon: "📦",
+          });
+        } 
+        // Fallback for other cases
+        else {
+          handleDirectAddToCart(product);
           playBeep('success');
-        } else {
-          // Directly add individual items
-          handleAddToCart(product, 1);
-          playBeep('success');
+          
+          toast.success(`${product.name} added to cart`, {
+            description: `${product.scan_type} - ${product.brand?.name || 'No Brand'}`,
+            icon: "📱",
+          });
         }
+
       } else {
         toast.error(result.message || 'Product not found');
         playBeep('error');
@@ -139,34 +182,39 @@ export const POSScanner: React.FC<POSScannerProps> = ({
     }
   };
 
-  const handleAddToCart = (product: ScannedProduct, qty: number) => {
-
+  const handleDirectAddToCart = (product: ScannedProduct) => {
+    // Pass the product directly to the cart component
+    // The cart will handle grouping logic for individual items
     const formData = {
       barcode: product.barcode,
+      barcode_id: product.barcode_id,
+      quantity: 1, // Individual items always have quantity 1
+      scan_type: product.scan_type,
+    };
+
+    onProductScanned(formData, product);
+    
+    // Refocus scanner input after adding to cart
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleAddToCart = (product: ScannedProduct, qty: number) => {
+    const formData = {
+      barcode: product.barcode,
+      barcode_id: product.barcode_id,
       quantity: qty,
+      scan_type: product.scan_type,
       cost_price: product.pricing.cost_price,
       wholesale_price: product.pricing.wholesale_price,
-      retail_price: product.pricing.selling_price,
+      retail_price: product.pricing.retail_price,
+      selling_price: product.pricing.selling_price,
       batch_number: batchNumber || undefined,
       expiry_date: expiryDate || undefined,
     };
 
-    // Convert ScannedProduct to your CartItem format
-    const cartProduct = {
-      id: product.product_id,
-      barcode: product.barcode,
-      name: product.name,
-      model: product.model,
-      sku: product.sku,
-      brand: product.brand,
-      current_prices: {
-        cost_price: product.pricing.cost_price,
-        wholesale_price: product.pricing.wholesale_price,
-        retail_price: product.pricing.selling_price,
-      }
-    };
-
-    onProductScanned(formData, cartProduct);
+    onProductScanned(formData, product);
     setShowQuantityModal(false);
     setScannedProduct(null);
     
@@ -226,6 +274,13 @@ export const POSScanner: React.FC<POSScannerProps> = ({
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-LK', {
+      style: 'currency',
+      currency: 'LKR'
+    }).format(amount);
+  };
+
   if (compact) {
     return (
       <div className={`relative ${className}`}>
@@ -263,71 +318,73 @@ export const POSScanner: React.FC<POSScannerProps> = ({
             setScannedProduct(null);
             inputRef.current?.focus();
           }}
+          formatCurrency={formatCurrency}
         />
       </div>
     );
   }
 
-  // return (
-  //   <div className={`bg-card rounded-lg border p-4 ${className}`}>
-  //     <div className="flex items-center gap-2 mb-3">
-  //       <Scan className="w-5 h-5 text-primary" />
-  //       <h3 className="text-lg font-semibold">Barcode Scanner</h3>
-  //       <Badge variant="outline" className="text-xs">F2</Badge>
-  //     </div>
+  return (
+    <div className={`bg-card rounded-lg border p-4 ${className}`}>
+      <div className="flex items-center gap-2 mb-3">
+        <Scan className="w-5 h-5 text-primary" />
+        <h3 className="text-lg font-semibold">Barcode Scanner</h3>
+        <Badge variant="outline" className="text-xs">F2</Badge>
+      </div>
       
-  //     <div className="space-y-3">
-  //       <div className="relative">
-  //         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-  //         <Input
-  //           ref={inputRef}
-  //           value={scanInput}
-  //           onChange={(e) => handleInputChange(e.target.value)}
-  //           onKeyPress={handleKeyPress}
-  //           placeholder="Scan barcode here..."
-  //           className="pl-10 pr-12 font-mono text-lg"
-  //           disabled={isScanning}
-  //         />
-  //         {isScanning ? (
-  //           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-  //             <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-  //           </div>
-  //         ) : (
-  //           <Scan className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-  //         )}
-  //       </div>
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            ref={inputRef}
+            value={scanInput}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Scan barcode here..."
+            className="pl-10 pr-12 font-mono text-lg"
+            disabled={isScanning}
+          />
+          {isScanning ? (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <Scan className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          )}
+        </div>
         
-  //       <div className="text-sm text-muted-foreground space-y-1">
-  //         <div className="flex items-center gap-2">
-  //           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-  //           <span>Scanner ready - Press F2 to focus</span>
-  //         </div>
-  //         <div className="flex items-center gap-2">
-  //           <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-  //           <span>Supports both individual items and bulk products</span>
-  //         </div>
-  //       </div>
-  //     </div>
+        <div className="text-sm text-muted-foreground space-y-1">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span>Scanner ready - Press F2 to focus</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span>Supports both individual items and bulk products</span>
+          </div>
+        </div>
+      </div>
 
-  //     {/* Quantity Modal */}
-  //     <QuantityModal
-  //       product={scannedProduct}
-  //       isOpen={showQuantityModal}
-  //       quantity={quantity}
-  //       setQuantity={setQuantity}
-  //       batchNumber={batchNumber}
-  //       setBatchNumber={setBatchNumber}
-  //       expiryDate={expiryDate}
-  //       setExpiryDate={setExpiryDate}
-  //       onConfirm={() => scannedProduct && handleAddToCart(scannedProduct, quantity)}
-  //       onCancel={() => {
-  //         setShowQuantityModal(false);
-  //         setScannedProduct(null);
-  //         inputRef.current?.focus();
-  //       }}
-  //     />
-  //   </div>
-  // );
+      {/* Quantity Modal */}
+      <QuantityModal
+        product={scannedProduct}
+        isOpen={showQuantityModal}
+        quantity={quantity}
+        setQuantity={setQuantity}
+        batchNumber={batchNumber}
+        setBatchNumber={setBatchNumber}
+        expiryDate={expiryDate}
+        setExpiryDate={setExpiryDate}
+        onConfirm={() => scannedProduct && handleAddToCart(scannedProduct, quantity)}
+        onCancel={() => {
+          setShowQuantityModal(false);
+          setScannedProduct(null);
+          inputRef.current?.focus();
+        }}
+        formatCurrency={formatCurrency}
+      />
+    </div>
+  );
 };
 
 interface QuantityModalProps {
@@ -341,6 +398,7 @@ interface QuantityModalProps {
   setExpiryDate: (date: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
+  formatCurrency: (amount: number) => string;
 }
 
 const QuantityModal: React.FC<QuantityModalProps> = ({
@@ -353,7 +411,8 @@ const QuantityModal: React.FC<QuantityModalProps> = ({
   expiryDate,
   setExpiryDate,
   onConfirm,
-  onCancel
+  onCancel,
+  formatCurrency
 }) => {
   const quantityInputRef = useRef<HTMLInputElement>(null);
 
@@ -380,6 +439,7 @@ const QuantityModal: React.FC<QuantityModalProps> = ({
   };
 
   const total = quantity * product.pricing.selling_price;
+  const maxQuantity = product.max_quantity || product.inventory.available_quantity || 1;
 
   return (
     <Dialog open={isOpen} onOpenChange={() => onCancel()}>
@@ -387,10 +447,10 @@ const QuantityModal: React.FC<QuantityModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="w-5 h-5" />
-            Add to Cart
+            Select Quantity & Batch
           </DialogTitle>
           <DialogDescription>
-            Specify quantity and details for this product
+            Configure quantity and batch details for this product
           </DialogDescription>
         </DialogHeader>
 
@@ -401,17 +461,49 @@ const QuantityModal: React.FC<QuantityModalProps> = ({
             {product.model && (
               <p className="text-sm text-muted-foreground">Model: {product.model}</p>
             )}
-            {product.sku && (
-              <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
+            <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
+            {product.brand && (
+              <p className="text-sm text-muted-foreground">Brand: {product.brand.name}</p>
             )}
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Unit Price:</span>
-              <span className="font-medium">${product.pricing.selling_price.toFixed(2)}</span>
+            
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex justify-between">
+                <span>Cost Price:</span>
+                <span>{formatCurrency(product.pricing.cost_price)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Retail Price:</span>
+                <span>{formatCurrency(product.pricing.retail_price)}</span>
+              </div>
+              <div className="flex justify-between font-medium col-span-2">
+                <span>Selling Price:</span>
+                <span>{formatCurrency(product.pricing.selling_price)}</span>
+              </div>
             </div>
+
             <div className="flex justify-between items-center">
               <span className="text-sm">Available:</span>
-              <Badge variant="outline">{product.inventory.available_quantity}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{product.inventory.available_quantity}</Badge>
+                {product.inventory.is_low_stock && (
+                  <Badge variant="destructive" className="text-xs">Low Stock</Badge>
+                )}
+              </div>
             </div>
+
+            {product.batch_info && product.batch_info.length > 0 && (
+              <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                <p className="font-medium mb-1">Available Batches:</p>
+                {product.batch_info.map((batch, index) => (
+                  <div key={batch.batch_id} className="mt-1">
+                    <p>• {batch.batch_number} (Qty: {batch.quantity})</p>
+                    {batch.expiry_date && (
+                      <p className="ml-2 text-xs">Expires: {new Date(batch.expiry_date).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Quantity Input */}
@@ -422,38 +514,14 @@ const QuantityModal: React.FC<QuantityModalProps> = ({
               id="quantity"
               type="number"
               min="1"
-              max={product.max_quantity}
+              max={maxQuantity}
               value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => setQuantity(Math.max(1, Math.min(maxQuantity, parseInt(e.target.value) || 1)))}
               onKeyPress={handleKeyPress}
               className="text-center text-lg font-medium"
             />
             <div className="text-xs text-muted-foreground text-center">
-              Max: {product.max_quantity}
-            </div>
-          </div>
-
-          {/* Optional Fields */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="batch">Batch Number</Label>
-              <Input
-                id="batch"
-                value={batchNumber}
-                onChange={(e) => setBatchNumber(e.target.value)}
-                placeholder="Optional"
-                className="text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="expiry">Expiry Date</Label>
-              <Input
-                id="expiry"
-                type="date"
-                value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-                className="text-sm"
-              />
+              Max: {maxQuantity}
             </div>
           </div>
 
@@ -462,7 +530,7 @@ const QuantityModal: React.FC<QuantityModalProps> = ({
             <div className="flex justify-between items-center">
               <span className="font-medium">Line Total:</span>
               <span className="text-xl font-bold text-primary">
-                ${total.toFixed(2)}
+                {formatCurrency(total)}
               </span>
             </div>
           </div>

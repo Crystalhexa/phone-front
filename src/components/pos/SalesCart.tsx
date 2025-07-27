@@ -42,7 +42,7 @@ import { SearchableDropdown } from '../form/SearchableDropdown';
 import { useCustomerData } from '../table/CustomerTable/CustomerData';
 import CustomFormField, { FormFieldType } from '../CustomFormField';
 
-// Zod schemas aligned with sales order API
+// Zod schemas aligned with new API structure
 export const orderFormSchema = z.object({
   customer_id: z.string().optional(),
   payment_method: z.enum(['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'MOBILE_PAYMENT', 'CREDIT', 'CHEQUE', 'INSTALLMENT']).default('CASH'),
@@ -55,7 +55,7 @@ export const orderFormSchema = z.object({
 const batchItemFormSchema = z.object({
   quantity: z.number().min(1, 'Quantity must be at least 1'),
   unit_price: z.number().min(0, 'Unit price must be positive'),
-  discount: z.number().min(0).optional().default(0),
+  discount_per_unit: z.number().min(0).optional().default(0),
   batch_id: z.string().min(1, 'Batch selection is required'),
 });
 
@@ -95,14 +95,7 @@ interface ScannedProduct {
     purchased_at: string;
     supplier_name?: string;
   };
-  batch_info?: {
-    batch_id: string;
-    batch_number: string;
-    expiry_date?: string;
-    branch_quantity?: number;
-    branch_available?: number;
-  };
-  batches?: Array<{
+  batch_info?: Array<{
     batch_id: string;
     batch_number: string;
     quantity: number;
@@ -128,10 +121,10 @@ interface Customer {
   is_active: boolean;
 }
 
-// Cart item types aligned with sales order API request
+// Updated cart item types aligned with API structure
 interface CartItem {
   id: string;
-  type: 'BATCH' | 'INDIVIDUAL';
+  category: 'BATCH' | 'INDIVIDUAL';
   product_id: string;
   product: {
     name: string;
@@ -144,10 +137,10 @@ interface CartItem {
     };
   };
   unit_price: number;
-  discount: number;
-  quantity?: number; // For display purposes
-  total_quantity: number; // Calculated total
+  discount_per_unit?: number;
+  total_quantity: number;
   line_total: number;
+  // For batch items
   batches?: Array<{
     batch_id: string;
     batch_number: string;
@@ -156,20 +149,21 @@ interface CartItem {
     retail_price: number;
     expiry_date?: string;
   }>;
-  item_barcodes?: string[]; // For individual items
-  item_details?: {
+  // For individual items - use item_barcodes as per API
+  item_barcodes?: string[];
+  item_details?: Array<{
     item_id: string;
-    barcode: string;
+    barcode_id: string;
     condition: string;
     warranty_expiry?: string;
-  }[];
+    status: string;
+  }>;
 }
 
-interface SalesOrder {
+// Final order structure for API
+interface Cart {
   customer?: {
     customer_id: string;
-    name?: string;
-    customer_type?: string;
   };
   items: Array<{
     type: 'BATCH' | 'INDIVIDUAL';
@@ -231,7 +225,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
     defaultValues: {
       quantity: 1,
       unit_price: 0,
-      discount: 0,
+      discount_per_unit: 0,
       batch_id: '',
     },
   });
@@ -269,32 +263,20 @@ export const SalesCart: React.FC<SalesCartProps> = ({
   const handleScannerAddToCart = (formData: any, scannedProduct: ScannedProduct) => {
     console.log('Scanned product:', scannedProduct);
 
-    // Check if product already exists in cart
-    const existingItem = cartItems.find(item => 
-      item.product.barcode === scannedProduct.barcode ||
-      (scannedProduct.scan_type === 'INDIVIDUAL_ITEM' && 
-       item.item_barcodes?.includes(scannedProduct.barcode_id || ''))
-    );
-
-    if (existingItem) {
-      toast.error("Product already in cart");
-      return;
-    }
-
     if (scannedProduct.scan_type === 'INDIVIDUAL_ITEM') {
-      // Individual item - add directly to cart
+      // Individual item - add directly to cart or update existing
       addIndividualItemToCart(scannedProduct);
     } else {
       // Product level - show batch selection dialog
       setPendingScannedProduct(scannedProduct);
       
-      if (scannedProduct.batches && scannedProduct.batches.length > 0) {
+      if (scannedProduct.batch_info && scannedProduct.batch_info.length > 0) {
         // Set default values for batch form
         batchForm.reset({
           quantity: 1,
           unit_price: scannedProduct.pricing.selling_price,
-          discount: 0,
-          batch_id: scannedProduct.batches[0].batch_id, // Select first batch by default
+          discount_per_unit: 0,
+          batch_id: scannedProduct.batch_info[0].batch_id,
         });
         setBatchSelectionDialog({ open: true, product: scannedProduct });
       } else {
@@ -309,41 +291,82 @@ export const SalesCart: React.FC<SalesCartProps> = ({
       return;
     }
 
-    const newItem: CartItem = {
-      id: `individual-${scannedProduct.barcode_id}-${Date.now()}`,
-      type: 'INDIVIDUAL',
-      product_id: scannedProduct.product_id,
-      product: {
-        name: scannedProduct.name,
-        model: scannedProduct.model,
-        sku: scannedProduct.sku,
-        barcode: scannedProduct.barcode,
-        brand: scannedProduct.brand,
-      },
-      unit_price: scannedProduct.pricing.selling_price,
-      discount: 0,
-      quantity: 1,
-      total_quantity: 1,
-      line_total: scannedProduct.pricing.selling_price,
-      item_barcodes: [scannedProduct.barcode_id],
-      item_details: [{
-        item_id: scannedProduct.item_details.item_id,
-        barcode: scannedProduct.barcode,
-        condition: scannedProduct.item_details.condition,
-        warranty_expiry: scannedProduct.item_details.warranty_expiry,
-      }],
-    };
+    // Check if there's already an individual item for this product
+    const existingItemIndex = cartItems.findIndex(item => 
+      item.category === 'INDIVIDUAL' && item.product_id === scannedProduct.product_id
+    );
 
-    setCartItems(prev => [...prev, newItem]);
-    toast.success(`Added ${scannedProduct.name} to cart (Individual Item)`, {
-      icon: "📱",
-    });
+    if (existingItemIndex !== -1) {
+      // Update existing individual item
+      setCartItems(prev => prev.map((item, index) => {
+        if (index === existingItemIndex) {
+          const newItemBarcodes = [...(item.item_barcodes || []), scannedProduct.barcode_id!];
+          const newItemDetails = [
+            ...(item.item_details || []),
+            {
+              item_id: scannedProduct.item_details!.item_id,
+              barcode_id: scannedProduct.barcode_id!,
+              condition: scannedProduct.item_details!.condition,
+              warranty_expiry: scannedProduct.item_details!.warranty_expiry,
+              status: scannedProduct.item_details!.status,
+            }
+          ];
+
+          const newTotalQuantity = newItemBarcodes.length;
+          const newLineTotal = (item.unit_price * newTotalQuantity) - ((item.discount_per_unit || 0) * newTotalQuantity);
+
+          return {
+            ...item,
+            item_barcodes: newItemBarcodes,
+            item_details: newItemDetails,
+            total_quantity: newTotalQuantity,
+            line_total: newLineTotal,
+          };
+        }
+        return item;
+      }));
+
+      toast.success(`Added another ${scannedProduct.name} to existing cart item`, {
+        icon: "📱",
+      });
+    } else {
+      // Create new individual item
+      const newItem: CartItem = {
+        id: `individual-${scannedProduct.product_id}-${Date.now()}`,
+        category: 'INDIVIDUAL',
+        product_id: scannedProduct.product_id,
+        product: {
+          name: scannedProduct.name,
+          model: scannedProduct.model,
+          sku: scannedProduct.sku,
+          barcode: scannedProduct.barcode,
+          brand: scannedProduct.brand,
+        },
+        unit_price: scannedProduct.pricing.selling_price,
+        discount_per_unit: 0,
+        total_quantity: 1,
+        line_total: scannedProduct.pricing.selling_price,
+        item_barcodes: [scannedProduct.barcode_id],
+        item_details: [{
+          item_id: scannedProduct.item_details.item_id,
+          barcode_id: scannedProduct.barcode_id,
+          condition: scannedProduct.item_details.condition,
+          warranty_expiry: scannedProduct.item_details.warranty_expiry,
+          status: scannedProduct.item_details.status,
+        }],
+      };
+
+      setCartItems(prev => [...prev, newItem]);
+      toast.success(`Added ${scannedProduct.name} to cart (Individual Item)`, {
+        icon: "📱",
+      });
+    }
   };
 
   const handleBatchSelection = (batchData: BatchItemFormData) => {
     if (!pendingScannedProduct) return;
 
-    const selectedBatch = pendingScannedProduct.batches?.find(
+    const selectedBatch = pendingScannedProduct.batch_info?.find(
       batch => batch.batch_id === batchData.batch_id
     );
 
@@ -357,38 +380,93 @@ export const SalesCart: React.FC<SalesCartProps> = ({
       return;
     }
 
-    const lineTotal = (batchData.unit_price * batchData.quantity) - batchData.discount;
+    const lineTotal = (batchData.unit_price * batchData.quantity) - ((batchData.discount_per_unit || 0) * batchData.quantity);
 
-    const newItem: CartItem = {
-      id: `batch-${pendingScannedProduct.product_id}-${Date.now()}`,
-      type: 'BATCH',
-      product_id: pendingScannedProduct.product_id,
-      product: {
-        name: pendingScannedProduct.name,
-        model: pendingScannedProduct.model,
-        sku: pendingScannedProduct.sku,
-        barcode: pendingScannedProduct.barcode,
-        brand: pendingScannedProduct.brand,
-      },
-      unit_price: batchData.unit_price,
-      discount: batchData.discount,
-      quantity: batchData.quantity,
-      total_quantity: batchData.quantity,
-      line_total: lineTotal,
-      batches: [{
-        batch_id: selectedBatch.batch_id,
-        batch_number: selectedBatch.batch_number,
-        quantity: batchData.quantity,
-        cost_price: selectedBatch.cost_price,
-        retail_price: selectedBatch.retail_price,
-        expiry_date: selectedBatch.expiry_date,
-      }],
-    };
+    // Check if there's an existing batch item for this product
+    const existingBatchItemIndex = cartItems.findIndex(item => 
+      item.category === 'BATCH' && item.product_id === pendingScannedProduct.product_id
+    );
 
-    setCartItems(prev => [...prev, newItem]);
-    toast.success(`Added ${pendingScannedProduct.name} to cart (Batch: ${selectedBatch.batch_number})`, {
-      icon: "📱",
-    });
+    if (existingBatchItemIndex !== -1) {
+      // Update existing batch item
+      setCartItems(prev => prev.map((item, index) => {
+        if (index === existingBatchItemIndex) {
+          // Check if this specific batch already exists
+          const existingBatchIndex = item.batches?.findIndex(b => b.batch_id === selectedBatch.batch_id);
+          
+          let newBatches;
+          if (existingBatchIndex !== undefined && existingBatchIndex !== -1) {
+            // Update existing batch quantity
+            newBatches = item.batches?.map((batch, bIndex) => 
+              bIndex === existingBatchIndex 
+                ? { ...batch, quantity: batch.quantity + batchData.quantity }
+                : batch
+            ) || [];
+          } else {
+            // Add new batch
+            newBatches = [
+              ...(item.batches || []),
+              {
+                batch_id: selectedBatch.batch_id,
+                batch_number: selectedBatch.batch_number,
+                quantity: batchData.quantity,
+                cost_price: selectedBatch.cost_price,
+                retail_price: selectedBatch.retail_price,
+                expiry_date: selectedBatch.expiry_date,
+              }
+            ];
+          }
+
+          const newTotalQuantity = newBatches.reduce((sum, batch) => sum + batch.quantity, 0);
+          const newLineTotal = item.line_total + lineTotal;
+
+          return {
+            ...item,
+            batches: newBatches,
+            total_quantity: newTotalQuantity,
+            line_total: newLineTotal,
+            unit_price: batchData.unit_price, // Update unit price
+            discount_per_unit: batchData.discount_per_unit,
+          };
+        }
+        return item;
+      }));
+
+      toast.success(`Updated batch ${selectedBatch.batch_number} in cart`, {
+        icon: "📱",
+      });
+    } else {
+      // Create new batch item
+      const newItem: CartItem = {
+        id: `batch-${pendingScannedProduct.product_id}-${Date.now()}`,
+        category: 'BATCH',
+        product_id: pendingScannedProduct.product_id,
+        product: {
+          name: pendingScannedProduct.name,
+          model: pendingScannedProduct.model,
+          sku: pendingScannedProduct.sku,
+          barcode: pendingScannedProduct.barcode,
+          brand: pendingScannedProduct.brand,
+        },
+        unit_price: batchData.unit_price,
+        discount_per_unit: batchData.discount_per_unit,
+        total_quantity: batchData.quantity,
+        line_total: lineTotal,
+        batches: [{
+          batch_id: selectedBatch.batch_id,
+          batch_number: selectedBatch.batch_number,
+          quantity: batchData.quantity,
+          cost_price: selectedBatch.cost_price,
+          retail_price: selectedBatch.retail_price,
+          expiry_date: selectedBatch.expiry_date,
+        }],
+      };
+
+      setCartItems(prev => [...prev, newItem]);
+      toast.success(`Added ${pendingScannedProduct.name} to cart (Batch: ${selectedBatch.batch_number})`, {
+        icon: "📱",
+      });
+    }
 
     // Close dialog and reset
     setBatchSelectionDialog({ open: false });
@@ -396,7 +474,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
     batchForm.reset();
   };
 
-  // Place sales order
+  // Place sales order with correct API structure
   const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
       toast.error('Please add items to cart before placing order');
@@ -407,40 +485,42 @@ export const SalesCart: React.FC<SalesCartProps> = ({
     setLoading(true);
 
     try {
-      // Prepare order data according to sales order API structure
-      const orderData: SalesOrder = {
-        customer: orderFormData.customer_id ? {
-          customer_id: orderFormData.customer_id
-        } : undefined,
+      // Prepare order data according to API structure
+      const cart: Cart = {
+        ...(orderFormData.customer_id && {
+          customer: {
+            customer_id: orderFormData.customer_id
+          }
+        }),
         items: cartItems.map(item => ({
-          type: item.type,
+          type: item.category,
           product_id: item.product_id,
           unit_price: item.unit_price,
-          discount: item.discount,
-          ...(item.type === 'BATCH' && item.batches ? {
+          ...(item.discount_per_unit && { discount: item.discount_per_unit }),
+          ...(item.category === 'BATCH' && item.batches ? {
             batches: item.batches.map(batch => ({
               batch_id: batch.batch_id,
               quantity: batch.quantity
             }))
           } : {}),
-          ...(item.type === 'INDIVIDUAL' && item.item_barcodes ? {
+          ...(item.category === 'INDIVIDUAL' && item.item_barcodes ? {
             item_barcodes: item.item_barcodes
           } : {})
         })),
         payment_method: orderFormData.payment_method || 'CASH',
         payment_status: orderFormData.payment_status || 'PAID',
         discount: orderFormData.discount || 0,
-        notes: orderFormData.notes,
+        ...(orderFormData.notes && { notes: orderFormData.notes })
       };
 
-      console.log('Placing order:', orderData);
+      console.log('Placing order:', cart);
 
       const response = await fetch('/api/sales-orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(cart)
       });
 
       const result = await response.json();
@@ -556,6 +636,14 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                     />
                   )}
                 />
+
+                <CustomFormField
+                  fieldType={FormFieldType.NUMBER}
+                  control={orderForm.control}
+                  name="discount"
+                  label="Order Discount"
+                  placeholder="0.00"
+                />
               </div>
             </form>
           </Form>
@@ -576,7 +664,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
-                    <TableHead className="w-[200px]">Product</TableHead>
+                    <TableHead className="w-[250px]">Product</TableHead>
                     <TableHead className="w-[80px]">Type</TableHead>
                     <TableHead className="w-[80px]">Qty</TableHead>
                     <TableHead className="w-[100px]">Unit Price</TableHead>
@@ -604,26 +692,52 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                               Brand: {item.product.brand.name}
                             </div>
                           )}
-                          {item.type === 'BATCH' && item.batches && (
-                            <div className="text-xs text-blue-600">
-                              Batch: {item.batches.map(b => b.batch_number).join(', ')}
+                          
+                          {/* Show batch details */}
+                          {item.category === 'BATCH' && item.batches && (
+                            <div className="text-xs bg-blue-50 p-2 rounded mt-2">
+                              <div className="font-medium text-blue-800 mb-1">Batches:</div>
+                              {item.batches.map((batch, idx) => (
+                                <div key={batch.batch_id} className="text-blue-600">
+                                  • {batch.batch_number}: {batch.quantity} units
+                                  {batch.expiry_date && (
+                                    <span className="ml-2 text-xs">
+                                      (Exp: {new Date(batch.expiry_date).toLocaleDateString()})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           )}
-                          {item.type === 'INDIVIDUAL' && (
-                            <div className="text-xs text-green-600">
-                              Individual Item
+                          
+                          {/* Show individual item details */}
+                          {item.category === 'INDIVIDUAL' && item.item_details && (
+                            <div className="text-xs bg-green-50 p-2 rounded mt-2">
+                              <div className="font-medium text-green-800 mb-1">
+                                Individual Items ({item.item_details.length}):
+                              </div>
+                              {item.item_details.map((detail, idx) => (
+                                <div key={detail.barcode_id} className="text-green-600">
+                                  • {detail.barcode_id} - {detail.condition}
+                                  {detail.warranty_expiry && (
+                                    <span className="ml-2 text-xs">
+                                      (Warranty: {new Date(detail.warranty_expiry).toLocaleDateString()})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={item.type === 'INDIVIDUAL' ? 'default' : 'secondary'}>
-                          {item.type === 'INDIVIDUAL' ? 'ITEM' : 'BATCH'}
+                        <Badge variant={item.category === 'INDIVIDUAL' ? 'default' : 'secondary'}>
+                          {item.category}
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium">{item.total_quantity}</TableCell>
                       <TableCell>{formatCurrency(item.unit_price)}</TableCell>
-                      <TableCell>{formatCurrency(item.discount)}</TableCell>
+                      <TableCell>{formatCurrency(item.discount_per_unit || 0)}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(item.line_total)}</TableCell>
                       <TableCell>
                         <Button
@@ -661,6 +775,39 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                 <span>{formatCurrency(totalAmount)}</span>
               </div>
             </div>
+
+            {/* Payment Details */}
+            <Form {...orderForm}>
+              <div className="grid grid-cols-2 gap-3">
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={orderForm.control}
+                  name="payment_method"
+                  label="Payment Method"
+                  options={paymentMethodOptions}
+                />
+                
+                <CustomFormField
+                  fieldType={FormFieldType.SELECT}
+                  control={orderForm.control}
+                  name="payment_status"
+                  label="Payment Status"
+                  options={[
+                    { id: 'PENDING', name: 'Pending', value: 'PENDING' },
+                    { id: 'PAID', name: 'Paid', value: 'PAID' },
+                    { id: 'PARTIAL', name: 'Partial', value: 'PARTIAL' },
+                  ]}
+                />
+              </div>
+
+              <CustomFormField
+                fieldType={FormFieldType.TEXTAREA}
+                control={orderForm.control}
+                name="notes"
+                label="Notes (Optional)"
+                placeholder="Add notes for this order..."
+              />
+            </Form>
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-2">
@@ -707,7 +854,7 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                   name="batch_id"
                   label="Select Batch"
                   placeholder="Choose a batch"
-                  options={pendingScannedProduct.batches?.map(batch => ({
+                  options={pendingScannedProduct.batch_info?.map(batch => ({
                     id: batch.batch_id,
                     name: `${batch.batch_number} (Qty: ${batch.quantity}) - Exp: ${batch.expiry_date || 'N/A'}`,
                     value: batch.batch_id,
@@ -733,8 +880,8 @@ export const SalesCart: React.FC<SalesCartProps> = ({
                 <CustomFormField
                   fieldType={FormFieldType.NUMBER}
                   control={batchForm.control}
-                  name="discount"
-                  label="Item Discount"
+                  name="discount_per_unit"
+                  label="Discount Per Unit"
                 />
 
                 <div className="flex gap-2 pt-4">

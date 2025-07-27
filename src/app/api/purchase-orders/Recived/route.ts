@@ -96,8 +96,8 @@ async function createPurchaseOrderItems(
     const query = `
       INSERT INTO purchase_order_items (
         id, purchase_order_id, product_id, quantity_ordered, quantity_received,
-        cost_price, wholesale_price, retail_price, line_total, batch_number, expiry_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        cost_price, wholesale_price, retail_price, line_total, expiry_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id, product_id
     `
 
@@ -111,7 +111,6 @@ async function createPurchaseOrderItems(
       item.wholesale_price || null,
       item.retail_price,
       lineTotal,
-      item.batch_number || null,
       item.expiry_date || null
     ]
 
@@ -142,20 +141,18 @@ async function createPurchaseBatches(
     const batchId = generateCuid()
 
     // Generate batch number if not provided
-    const batchNumber = itemData.batch_number || `BATCH_${Date.now()}_${i + 1}`
 
     const batchInsertQuery = `
       INSERT INTO purchase_batches (
-        id, batch_number, purchase_order_item_id, quantity_ordered,
+        id, purchase_order_item_id, quantity_ordered,
         quantity_received, cost_price, wholesale_price, retail_price,
         expiry_date, received_date, received_by, is_active, fifo_sequence
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING id
     `
 
     const batchInsertValues = [
       batchId,
-      batchNumber,
       orderItem.id,
       itemData.quantity,
       itemData.quantity, // Mark as fully received
@@ -204,25 +201,19 @@ async function createItemBarcodes(
   for (let j = 0; j < itemData.quantity; j++) {
     const itemBarcodeId = generateCuid()
 
-    // Get next barcode sequence number
-    const { rows } = await client.query(`SELECT nextval('barcode_sequence')`)
-    const seq = rows[0].nextval
-    const paddedSeq = String(seq).padStart(8, '0')
-    const barcodeCode = `ITEM${paddedSeq}`
 
     const itemBarcodeQuery = `
       INSERT INTO item_barcodes (
-        id, purchase_batch_id, product_id, code, type, status,
+        id, purchase_batch_id, product_id, type, status,
         purchased_at, purchase_cost, supplier_id, warranty_expiry,
         condition, location_branch, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `
 
     const itemBarcodeValues = [
       itemBarcodeId,
       batchId,
       productId,
-      barcodeCode,
       'INTERNAL',
       'AVAILABLE',
       new Date().toISOString(),

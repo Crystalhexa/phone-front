@@ -18,7 +18,7 @@ interface QuickInfoPopoverProps {
   product: ProductResponse;
 }
 
-export const QuickInfoPopover: React.FC<QuickInfoPopoverProps> = ({ product }) => (
+export const QuickInfoPopover: React.FC<QuickInfoPopoverProps> = ({ product }:any) => (
   <Popover>
     <PopoverTrigger asChild>
       <Button variant="ghost" size="sm" className="p-1 h-auto">
@@ -61,7 +61,7 @@ export const QuickInfoPopover: React.FC<QuickInfoPopoverProps> = ({ product }) =
             <Barcode className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             <span className="font-medium min-w-0">Barcodes:</span>
             <span className="text-muted-foreground">
-              {product.barcodes?.length || 0}
+              {product?.barcodes?.length>0 ? product.barcodes[0] : 'No barcodes available'}
             </span>
           </div>
 

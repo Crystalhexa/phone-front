@@ -5,7 +5,6 @@ import cuid from 'cuid';
 
 // Zod schema for validation
 const customerSchema = z.object({
-  customer_number: z.string().min(1, 'Customer number is required'),
   name: z.string().min(1, 'Name is required'),
   phone: z.string().min(1, 'Phone number is required'),
   email: z.string().email().nullable().optional(),
@@ -94,19 +93,18 @@ export async function POST(req: NextRequest) {
 
       const insertQuery = `
         INSERT INTO customers (
-          id, customer_number, name, email, nic, phone, address,
+          id, name, email, nic, phone, address,
           date_of_birth, credit_limit, outstanding_balance,
           loyalty_points, is_active
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10, $11, $12
+          $8, $9, $10, $11
         )
         RETURNING *
       `;
 
       const params = [
         customerId,
-        data.customer_number,
         data.name,
         data.email ?? null,
         data.nic ?? null,

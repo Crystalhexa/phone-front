@@ -105,19 +105,7 @@ function generateCuid(): string {
   return createId()
 }
 
-async function generateOrderNumber(client: PoolClient): Promise<string> {
-  const year = new Date().getFullYear()
-  const month = String(new Date().getMonth() + 1).padStart(2, '0')
-  
-  const result = await client.query(`
-    SELECT COALESCE(MAX(CAST(SUBSTRING(order_number FROM 7) AS INTEGER)), 0) + 1 as next_number
-    FROM sales_orders 
-    WHERE order_number LIKE $1
-  `, [`SO${year}${month}%`])
-  
-  const nextNumber = result.rows[0].next_number
-  return `SO${year}${month}${String(nextNumber).padStart(4, '0')}`
-}
+
 
 function calculateOrderTotals(items: CartItem[], orderDiscount: number = 0): OrderSummary {
   let subtotal = 0
@@ -449,23 +437,21 @@ async function createSalesOrder(
   customerId: string | null,
   branchId: string,
   soldBy: string,
-  orderNumber: string,
   totals: OrderSummary
 ): Promise<string> {
   const salesOrderId = generateCuid()
 
   const query = `
     INSERT INTO sales_orders (
-      id, order_number, customer_id, branch_id, sold_by,
+      id, customer_id, branch_id, sold_by,
       order_date, delivery_date, status, payment_method, payment_status,
       subtotal, discount, total_amount, total_cost, profit_amount, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
     RETURNING id
   `
 
   const values = [
     salesOrderId,
-    orderNumber,
     customerId,
     branchId,
     soldBy,
@@ -922,7 +908,6 @@ export async function POST(request: NextRequest) {
         const customerResult = await validateCustomer(client, orderData.customer)
 
         // 2. Generate order number
-        const orderNumber = await generateOrderNumber(client)
 
         // 3. Create sales order
         const salesOrderId = await createSalesOrder(
@@ -931,7 +916,7 @@ export async function POST(request: NextRequest) {
           customerResult.customerId,
           userDetails.branch_id,
           userDetails.employee_id || userDetails.userId,
-          orderNumber,
+         
           totals
         )
 
@@ -952,7 +937,7 @@ export async function POST(request: NextRequest) {
           'SALES_ORDER_CREATED',
           salesOrderId,
           {
-            order_number: orderNumber,
+            order_number: 454,
             customer_id: customerResult.customerId,
             is_new_customer: customerResult.isNewCustomer,
             total_amount: totals.total_amount,

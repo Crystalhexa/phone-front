@@ -71,7 +71,6 @@ export interface Customer {
 }
 
 export interface CustomerFormData {
-   customer_number: string;
     name: string;
     email: string | null;
     nic: string | null;

@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 
 // Customer form data type
 interface CustomerFormData {
-  customer_number: string;
+  customer_number?: string;
   name: string;
   email?: string;
   nic?: string;
@@ -48,9 +48,7 @@ const DEFAULT_CUSTOMER_CONFIG: CustomerFormConfig = {
 // Validation schema
 const createCustomerSchema = (config: CustomerFormConfig) => {
   return z.object({
-    customer_number: z.string()
-      .min(1, "Customer number is required")
-      .max(20, "Customer number must be at most 20 characters"),
+    customer_number: z.string().optional(),
     name: z.string()
       .min(1, "Customer name is required")
       .max(100, "Name must be at most 100 characters"),
@@ -200,7 +198,6 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
   const form = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema) as any,
     defaultValues: {
-      customer_number: '',
       name: '',
       email: '',
       nic: '',
@@ -334,15 +331,14 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-gray-800 dark:text-white">Basic Information</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <CustomFormField
+              {isEdit&&(<CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}
                 name="customer_number"
                 label="Customer Number"
                 placeholder="Enter customer number"
                 disabled={isLoading}
-                required
-              />
+              />)}
               <CustomFormField
                 fieldType={FormFieldType.INPUT}
                 control={form.control}

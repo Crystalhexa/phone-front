@@ -17,7 +17,6 @@ export const useBrandData = () => {
     sortBy: 'name',
     sortOrder: 'asc'
   });
-  console.log('useBrandData currentPage:', error);
 
   // Handle search with debouncing
   const handleSearch = (value: string) => {

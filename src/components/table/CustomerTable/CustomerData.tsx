@@ -5,7 +5,6 @@ export const useCustomerData = () => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [searchTerm, setSearchTerm] = useState<string>("");
-  console.log('useBrandData currentPage:', currentPage);
   // Use RTK Query hook
   const { 
     data, 
