@@ -72,7 +72,7 @@ const ProductsTable: React.FC = () => {
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Main Content Area */}
-      <div className={`flex-1 transition-all duration-300 ease-in-out ${cartPanelOpen ? 'mr-[600px]' : 'mr-0'}`}>
+      <div className={`flex-1 transition-all duration-300 ease-in-out ${cartPanelOpen ? 'mr-[700px]' : 'mr-0'}`}>
         <div className="container mx-auto p-6 space-y-3 h-full overflow-y-auto">
           {/* Header */}
           <PosHeader
@@ -120,7 +120,7 @@ const ProductsTable: React.FC = () => {
         fixed top-0 right-0 h-full bg-background border-l shadow-2xl z-50 
         transition-transform duration-300 ease-in-out
         ${cartPanelOpen ? 'translate-x-0' : 'translate-x-full'}
-        w-[600px]
+        w-[700px]
       `}>
         <SalesCart
           cartPanelOpen={cartPanelOpen}

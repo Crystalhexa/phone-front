@@ -58,7 +58,7 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {/* Search Input */}
           <div className="col-span-1 sm:col-span-2 lg:col-span-2">
             <div className="relative">
@@ -115,24 +115,7 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
             searchTerm={brandSearchTerm}
           />
 
-          {/* Sort By */}
-          <Select
-            value={filters.sort}
-            onValueChange={(value) =>
-              setFilters((prev) => ({ ...prev, sort: value as Filters['sort'] }))
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="name">Name</SelectItem>
-              <SelectItem value="created_at">Created Date</SelectItem>
-              <SelectItem value="stock">Stock Level</SelectItem>
-              <SelectItem value="brand">Brand</SelectItem>
-              <SelectItem value="category">Category</SelectItem>
-            </SelectContent>
-          </Select>
+         
         </div>
 
         <Separator className="my-4" />

@@ -77,7 +77,7 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                 <TableHead>Stock Status</TableHead>
                 <TableHead>Pricing</TableHead>
                 <TableHead>Details</TableHead>
-                <TableHead>Actions</TableHead>
+                {/* <TableHead>Actions</TableHead> */}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -139,7 +139,7 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                       </Suspense>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  {/* <TableCell>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -150,7 +150,7 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                         View
                       </Button>
                     </div>
-                  </TableCell>
+                  </TableCell> */}
                 </TableRow>
               ))}
             </TableBody>

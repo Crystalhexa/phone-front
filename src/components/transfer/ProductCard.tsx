@@ -198,7 +198,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <Input
                 id="quantity"
                 type="number"
-                min="1"
+                min="0"
                 max={product.max_quantity}
                 value={quantity}
                 onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
@@ -218,7 +218,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </Label>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {allocationPreview.allocatedBatches.map((batch, index) => (
-                    <div key={batch.batch_id} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div key={batch.batch_id} className="bg-secondary border border-muted rounded-lg p-3">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
                           <div className="font-medium text-sm">
@@ -258,7 +258,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               <Label className="text-sm font-medium">Available Batches (FIFO Order)</Label>
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {product.batch_info?.map((batch: any, index: number) => (
-                  <div key={batch.batch_id} className="text-xs bg-gray-50 p-2 rounded flex items-center justify-between">
+                  <div key={batch.batch_id} className="text-xs bg-muted p-2 rounded flex items-center justify-between">
                     <div className="space-y-1">
                       <div className="font-medium">
                         #{index + 1} {batch.batch_number}

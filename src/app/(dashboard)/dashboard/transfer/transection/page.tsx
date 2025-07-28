@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -40,18 +39,48 @@ const StockTransferPage: React.FC = () => {
   const [reason, setReason] = useState('')
   const [notes, setNotes] = useState('')
   const [requestedBy, setRequestedBy] = useState('')
-  const { user } = useAuth();
-
+  
   const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null)
   const [transferItems, setTransferItems] = useState<TransferItem[]>([])
-
+  
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+
+  // Check for duplicate barcodes/products
+  const isDuplicateProduct = (product: ScannedProduct): boolean => {
+    if (product.scan_type === 'INDIVIDUAL_ITEM') {
+      // For individual items, check barcode_id
+      return transferItems.some(item => 
+        item.transfer_type === 'INDIVIDUAL' &&
+        item.individual_items?.some(individualItem => 
+          individualItem.item_barcode_id === product.barcode_id
+        )
+      )
+    } else {
+      // For product-level, check product_id
+      return transferItems.some(item => 
+        item.transfer_type === 'BATCH' &&
+        item.product_id === product.product_id
+      )
+    }
+  }
+
   const handleProductScanned = (product: ScannedProduct) => {
-    setScannedProduct(product)
     setError(null)
+
+    // Check for duplicates
+    if (isDuplicateProduct(product)) {
+      if (product.scan_type === 'INDIVIDUAL_ITEM') {
+        setError(`This individual item (${product.barcode}) has already been added to the transfer.`)
+      } else {
+        setError(`This product (${product.name}) has already been added to the transfer. You can modify the quantity instead of adding it again.`)
+      }
+      return
+    }
+
+    setScannedProduct(product)
   }
 
   const handleAddToTransfer = (item: TransferItem) => {
@@ -111,13 +140,13 @@ const StockTransferPage: React.FC = () => {
       }
 
       const result = await TransferAPI.createTransfer(transferRequest)
-
+      
       setSubmitSuccess(true)
       setTransferItems([])
       setScannedProduct(null)
       setNotes('')
       setReason('')
-
+      
       console.log('Transfer created successfully:', result)
 
     } catch (err: any) {
@@ -234,24 +263,6 @@ const StockTransferPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Reason</Label>
-                <Input
-                  placeholder="Transfer reason"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  placeholder="Additional notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
             </CardContent>
           </Card>
 

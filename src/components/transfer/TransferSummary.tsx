@@ -60,15 +60,15 @@ export const TransferSummary: React.FC<TransferSummaryProps> = ({
         {/* Statistics */}
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="space-y-1">
-            <div className="text-2xl font-bold text-blue-600">{totalProducts}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalProducts}</div>
             <div className="text-xs text-muted-foreground">Products</div>
           </div>
           <div className="space-y-1">
-            <div className="text-2xl font-bold text-green-600">{batchTransfers}</div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{batchTransfers}</div>
             <div className="text-xs text-muted-foreground">Batch Transfers</div>
           </div>
           <div className="space-y-1">
-            <div className="text-2xl font-bold text-purple-600">{individualTransfers}</div>
+            <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{individualTransfers}</div>
             <div className="text-xs text-muted-foreground">Individual Items</div>
           </div>
         </div>
@@ -78,7 +78,7 @@ export const TransferSummary: React.FC<TransferSummaryProps> = ({
         {/* Items List */}
         <div className="space-y-3">
           {items.map((item, index) => (
-            <div key={index} className="border rounded-lg p-3 space-y-2">
+            <div key={index} className="border rounded-lg p-3 space-y-2 dark:border-gray-700">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <div className="font-medium">{item.product_name}</div>
@@ -95,17 +95,20 @@ export const TransferSummary: React.FC<TransferSummaryProps> = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => onRemoveItem(index)}
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
 
               {/* Batch Details */}
-              {item.transfer_type === 'BATCH' && item.batches && (
+              {/* {item.transfer_type === 'BATCH' && item.batches && (
                 <div className="space-y-1">
                   {item.batches.map((batch, batchIndex) => (
-                    <div key={batchIndex} className="text-sm text-muted-foreground bg-gray-50 p-2 rounded">
+                    <div
+                      key={batchIndex}
+                      className="text-sm text-muted-foreground bg-gray-50 dark:bg-gray-800 p-2 rounded"
+                    >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1">
                           <Hash className="h-3 w-3" />
@@ -122,13 +125,16 @@ export const TransferSummary: React.FC<TransferSummaryProps> = ({
                     </div>
                   ))}
                 </div>
-              )}
+              )} */}
 
               {/* Individual Items */}
               {item.transfer_type === 'INDIVIDUAL' && item.individual_items && (
                 <div className="space-y-1">
                   {item.individual_items.map((individualItem, itemIndex) => (
-                    <div key={itemIndex} className="text-sm text-muted-foreground bg-blue-50 p-2 rounded">
+                    <div
+                      key={itemIndex}
+                      className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-900 p-2 rounded"
+                    >
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1">
                           <BarChart3 className="h-3 w-3" />
