@@ -482,6 +482,7 @@ async function createSalesOrderItems(
 
   for (const item of items) {
     if (item.type === 'BATCH' && item.batches) {
+      console.log(item.type)
       // Process each batch separately
       for (const batch of item.batches) {
         const result = await processBatchSaleItem(client, salesOrderId, item, batch)
@@ -489,7 +490,8 @@ async function createSalesOrderItems(
         totalProfit += result.lineProfit
       }
     } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
-      // Process each individual item separately  
+      
+      //Process each individual item separately  
       for (const itemBarcodeId of item.item_barcodes) {
         const result = await processIndividualSaleItem(client, salesOrderId, item, itemBarcodeId)
         totalCost += result.lineCost
@@ -907,8 +909,6 @@ export async function POST(request: NextRequest) {
         // 1. Validate and handle customer
         const customerResult = await validateCustomer(client, orderData.customer)
 
-        // 2. Generate order number
-
         // 3. Create sales order
         const salesOrderId = await createSalesOrder(
           client,
@@ -916,7 +916,6 @@ export async function POST(request: NextRequest) {
           customerResult.customerId,
           userDetails.branch_id,
           userDetails.employee_id || userDetails.userId,
-         
           totals
         )
 

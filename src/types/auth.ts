@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   username: string;
+  role_discount: number;
   email: string;
   is_active: boolean;
   role_id?: string;
@@ -10,14 +11,19 @@ export interface User {
   employee_number?:string;
   employee_name?:string;
   branch_name?:string;
+  branch_phone?:string;
+  branch_address?:string;
   branch_id?:string
 }
 export interface UserProfile {
   id: string;
   username: string;
+  role_discount: number;
   email: string;
   employee_name: string;
   branch_name: string;
+  branch_phone?:string;
+  branch_address?:string;
   is_active: boolean;
   role_id?: string;
   created_at: Date;
@@ -67,7 +73,7 @@ export interface AuthResponse {
   success: boolean;
   data?: {
     user: User;
-    token: string;
+    token?: string;
     permissions: string[];
   };
   message: string;

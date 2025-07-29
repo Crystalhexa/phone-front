@@ -11,7 +11,6 @@ import { PurchaseOrderFilters } from '@/components/table/PurcheseOrderTable/Purc
 const PurchaseOrdersTable: React.FC = () => {
   // Custom hooks
   const {
-    data,
     orders,
     stats,
     isLoading,

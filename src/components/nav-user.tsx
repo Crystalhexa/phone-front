@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
@@ -32,7 +32,6 @@ export function NavUser() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
   const handleLogout = async () => {
     if (isLoggingOut) return; // Prevent multiple clicks
     

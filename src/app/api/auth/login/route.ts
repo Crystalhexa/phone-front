@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/services/auth.service';
 import { initDatabase } from '@/lib/database/connection';
-import { JWTService } from '@/lib/auth/jwt';
 
 export async function POST(req: NextRequest) {
   await initDatabase();
@@ -31,7 +30,6 @@ export async function POST(req: NextRequest) {
         },
         { status: 200 }
       );
-      const refreshToken = JWTService.generateRefreshToken(result?.data?.user?.id);
 
       // Set HTTP-only cookie for additional security
 
@@ -41,20 +39,9 @@ export async function POST(req: NextRequest) {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge: 15 * 60 , // 15 minutes
+        maxAge:  60 * 60 * 1000, 
         path: '/',
       });
-
-      response.cookies.set({
-        name: 'refreshToken',
-        value: refreshToken || '',
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-        path: '/',
-      })
-
 
       // Log activity with IP and user agent
       const forwardedFor = req.headers.get('x-forwarded-for');

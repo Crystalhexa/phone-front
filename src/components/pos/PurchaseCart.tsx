@@ -274,9 +274,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
     setOrderFormData(data);
     setCreateOrderDialogOpen(false);
     orderForm.reset();
-    toast.success(`🎉 Purchase Order #${tempOrderNumber} created successfully!`, {
-      position: "top-right",
-    });
   };
 
   // Update order details

@@ -11,6 +11,7 @@ export class RoleService {
       SELECT 
         r.id,
         r.name,
+        r.discount,
         r.description,
         r.is_active,
         r.created_at,
@@ -53,6 +54,7 @@ export class RoleService {
       SELECT 
         r.id,
         r.name,
+        r.discount, 
         r.description,
         r.is_active,
         r.created_at,
@@ -143,6 +145,10 @@ export class RoleService {
       if (roleData.name !== undefined) {
         updateFields.push(`name = $${paramIndex++}`);
         updateValues.push(roleData.name);
+      }
+      if (roleData.discount !== undefined) {
+        updateFields.push(`discount = $${paramIndex++}`);
+        updateValues.push(roleData.discount);
       }
       if (roleData.description !== undefined) {
         updateFields.push(`description = $${paramIndex++}`);

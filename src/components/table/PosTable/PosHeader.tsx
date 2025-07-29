@@ -31,7 +31,7 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
       
       <div className="flex gap-2 flex-wrap">
         {/* Cart Toggle Button */}
-        <SalesPopover/>
+        <SalesPopover user={user||null}/>
       </div>
     </div>
   );

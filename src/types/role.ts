@@ -39,6 +39,7 @@ export interface CreateRoleRequest {
 
 export interface UpdateRoleRequest {
   name?: string;
+  discount?: number; // Added discount field
   description?: string;
   is_active?: boolean;
   permission_ids?: string[];

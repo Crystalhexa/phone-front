@@ -682,7 +682,6 @@ const ProductsTable: React.FC = () => {
   const handleAddToCart = (product: ProductResponse) => {
     if (!orderFormData.supplier_id) {
       toast.error("🚫 Please create a purchase order first!", {
-        position: "top-right",
         description: "You need to create a purchase order before adding products to cart."
       });
       return;
@@ -690,7 +689,6 @@ const ProductsTable: React.FC = () => {
 
     if (product.overall_stock_status === 'OUT_OF_STOCK') {
       toast.warning("⚠️ This product is out of stock!", {
-        position: "top-right",
         description: "Consider checking stock levels before ordering."
       });
     }

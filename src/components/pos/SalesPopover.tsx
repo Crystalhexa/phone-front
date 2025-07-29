@@ -10,15 +10,18 @@ import {
   Maximize2,
 } from 'lucide-react';
 import SalesOrderPage from '../sales/SalesOrderPage';
+import { User } from '@/types/auth';
 
 
-export const SalesPopover: React.FC = ({}) => {
+interface SalesPopoverProps {
+  user: User | null;
+}
+
+export const SalesPopover: React.FC<SalesPopoverProps> = ({ user }) => {
   
 
   const [cartPanelOpen, setCartPanelOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
- 
 
   // Cart Panel Component
   const CartPanel = () => (
@@ -66,12 +69,8 @@ export const SalesPopover: React.FC = ({}) => {
               <X className="w-4 h-4" />
             </Button>
           </div>
-
-
         </div>
-
-                 <SalesOrderPage/>
-
+                 <SalesOrderPage user={user}/>
       </div>
     </>
   );

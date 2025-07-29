@@ -19,6 +19,12 @@ export interface AuthenticatedRequest extends NextRequest {
       // Branch details
       branch_id: string;
       branch_name?: string;
+      branch_phone?: string;
+      branch_address?: string;
+
+      // Role details
+      role_name: string;
+      role_discount: number;
 
       // User permissions
       permissions: string[];
@@ -66,6 +72,11 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
             -- Branch details
             e.branch_id,
             b.name as branch_name,
+            b.phone as branch_phone,
+            b.address as branch_address,
+            -- Role details
+            r.name as role_name,
+            r.discount as role_discount,
             -- User permissions
             COALESCE(
               json_agg(
@@ -82,7 +93,8 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
           WHERE u.id = $1 AND u.is_active = true
           GROUP BY 
             u.id, u.username, u.email, u.role_id, u.is_active,
-            e.id, e.employee_number, e.name, e.branch_id, b.name
+            e.id, e.employee_number, e.name, e.branch_id, b.name, b.phone, b.address,
+            r.name, r.discount
         `;
         
         const userResult = await query(userQuery, [decoded.userId]);
@@ -111,6 +123,10 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
             employee_name: user.employee_name,
             branch_id: user.branch_id,
             branch_name: user.branch_name,
+            branch_phone: user.branch_phone,
+            branch_address: user.branch_address,
+            role_name: user.role_name,
+            role_discount: user.role_discount,
             permissions: user.permissions,
           },
         };
@@ -143,7 +159,7 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
 export function withPermission(requiredPermission: string) {
   return (handler: (req: AuthenticatedRequest) => Promise<NextResponse>) => {
     return withAuth(async (req: AuthenticatedRequest) => {
-      // FIXED: Check if user DOES NOT have the required permission
+      // Check if user DOES NOT have the required permission
       if (!req.user.user.permissions.includes(requiredPermission)) {
         return NextResponse.json(
           {

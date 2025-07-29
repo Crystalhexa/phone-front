@@ -3,7 +3,7 @@ import { PasswordService } from '@/lib/auth/password';
 import { JWTService } from '@/lib/auth/jwt';
 import { PoolClient } from 'pg';
 import { query, transaction } from '../database/connection';
-import cuid2, { createId } from '@paralleldrive/cuid2';
+import { createId } from '@paralleldrive/cuid2';
 
 export class AuthService {
   static async login(credentials: LoginCredentials): Promise<AuthResponse> {
@@ -51,6 +51,7 @@ export class AuthService {
       const user: User = {
         id: userRow.id,
         username: userRow.username,
+        role_discount: userRow.discount,
         email: userRow.email,
         is_active: userRow.is_active,
         role_id: userRow.role_id,

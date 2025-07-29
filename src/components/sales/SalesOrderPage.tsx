@@ -1,11 +1,9 @@
-// app/sales/page.tsx - Main Sales Order Page
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -18,8 +16,6 @@ import {
   User, 
   CreditCard, 
   Package, 
-  AlertTriangle, 
-  CheckCircle, 
   Settings,
   Receipt,
   Trash2,
@@ -114,8 +110,9 @@ interface Customer {
   customer_type?: 'RETAIL' | 'WHOLESALE' | 'CORPORATE' | 'DISTRIBUTOR' | 'VIP'
 }
 
-export default function SalesOrderPage() {
+export default function SalesOrderPage({user}:any) {
   // State management
+
   const [cart, setCart] = useState<CartItem[]>([])
   const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
@@ -329,11 +326,6 @@ export default function SalesOrderPage() {
       discount: orderDiscount,
       notes: orderNotes.trim() || undefined
     }
-
-    
-
-    
-
     try {
       const order = await placeOrder(orderData)
       
@@ -358,7 +350,8 @@ export default function SalesOrderPage() {
       }
       
       // Print receipt
-      printReceipt(receiptData)
+        printReceipt(receiptData, user)
+      
       
       // Reset form
       setCart([])
