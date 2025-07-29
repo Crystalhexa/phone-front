@@ -25,8 +25,8 @@ const userSchema = z.object({
   email: z.string().email(),
   password_hash: z.string().min(6),
   is_active: z.boolean(),
-  role_id: z.string().cuid(),
-  employee: employeeSchema
+  role_id: z.string().cuid().optional(),
+  employee: employeeSchema.optional()
 })
 
 // GET all users with employees
@@ -161,24 +161,23 @@ export async function POST(req: NextRequest) {
       const emp = body.employee
       await client.query(
         `INSERT INTO employees (
-          id, employee_number, name, email, phone, nic, gender, position,
+          id, name, email, phone, nic, gender, position,
           department, date_of_birth, hire_date, is_active, user_id,branch_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,$14)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           employeeId,
-          emp.employee_number,
-          emp.name,
-          emp.email,
-          emp.phone,
-          emp.nic,
-          emp.gender,
-          emp.position,
-          emp.department,
-          emp.date_of_birth,
-          emp.hire_date,
-          emp.is_active,
+          emp?.name,
+          emp?.email,
+          emp?.phone,
+          emp?.nic,
+          emp?.gender,
+          emp?.position,
+          emp?.department,
+          emp?.date_of_birth,
+          emp?.hire_date,
+          emp?.is_active,
           userId,
-          emp.branch_id,
+          emp?.branch_id,
         ]
       )
 

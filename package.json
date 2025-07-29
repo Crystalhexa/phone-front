@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed:roles": "ts-node scripts/seed-roles-sql.ts"
+    "seed:roles": "tsx scripts/seed-permissions.ts"
   },
   "dependencies": {
     "@dnd-kit/modifiers": "^9.0.0",
@@ -75,6 +75,7 @@
     "redis": "^5.5.6",
     "sonner": "^2.0.6",
     "tailwind-merge": "^3.3.0",
+    "tsx": "^4.20.3",
     "use-debounce": "^10.0.5",
     "vaul": "^1.1.2",
     "winston": "^3.17.0",

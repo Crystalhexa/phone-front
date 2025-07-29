@@ -7,7 +7,7 @@ import { PosHeader } from '@/components/table/PosTable/PosHeader';
 import { PosFilters } from '@/components/table/PosTable/PosFilters';
 import { PosTableContent } from '@/components/table/PosTable/PosTableContent';
 import { PosPagination } from '@/components/table/PosTable/PosPagination';
-import { SalesCart } from '@/components/pos/SalesCart';
+import SalesPopover from '@/components/pos/SalesPopover';
 
 const ProductsTable: React.FC = () => {
   const {
@@ -70,10 +70,10 @@ const ProductsTable: React.FC = () => {
 
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div >
       {/* Main Content Area */}
-      <div className={`flex-1 transition-all duration-300 ease-in-out ${cartPanelOpen ? 'mr-[700px]' : 'mr-0'}`}>
         <div className="container mx-auto p-6 space-y-3 h-full overflow-y-auto">
+           
           {/* Header */}
           <PosHeader
             cartPanelOpen={cartPanelOpen}
@@ -115,19 +115,6 @@ const ProductsTable: React.FC = () => {
         </div>
       </div>
 
-      {/* Cart Panel - Fixed on the right */}
-      <div className={`
-        fixed top-0 right-0 h-full bg-background border-l shadow-2xl z-50 
-        transition-transform duration-300 ease-in-out
-        ${cartPanelOpen ? 'translate-x-0' : 'translate-x-full'}
-        w-[700px]
-      `}>
-        <SalesCart
-          cartPanelOpen={cartPanelOpen}
-          setCartPanelOpen={setCartPanelOpen}
-        />
-      </div>
-    </div>
   );
 };
 

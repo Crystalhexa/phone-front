@@ -94,14 +94,15 @@ export class RoleService {
     return await transaction(async (client: PoolClient) => {
       // Insert role
       const roleInsertSql = `
-        INSERT INTO roles (id,name, description, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3,$4, NOW(), NOW())
+        INSERT INTO roles (id,name,discount, description, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3,$4,$5, NOW(), NOW())
         RETURNING id, name, description, is_active, created_at, updated_at
       `;
       const roleId = cuid(); // Generate a new UUID for the role
       const roleResult = await client.query(roleInsertSql, [
         roleId,
         roleData.name,
+        roleData.discount,
         roleData.description || null,
         roleData.is_active ?? true
       ]);

@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ShoppingCart, Plus } from 'lucide-react';
+import SalesPopover from '@/components/pos/SalesPopover';
 
 interface PosHeaderProps {
   cartPanelOpen: boolean;
@@ -30,16 +31,7 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
       
       <div className="flex gap-2 flex-wrap">
         {/* Cart Toggle Button */}
-        <Button
-          variant={cartPanelOpen ? "default" : "outline"}
-          className="relative"
-          onClick={() => setCartPanelOpen(!cartPanelOpen)}
-        >
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          {cartPanelOpen ? 'Hide Cart' : 'Show Cart'}
-            <Badge className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0 flex items-center justify-center">
-            </Badge>
-        </Button>
+        <SalesPopover/>
       </div>
     </div>
   );

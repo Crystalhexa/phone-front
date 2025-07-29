@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   await initDatabase();
   const body = await req.json();
-  const { name, description, is_active, permission_ids }: CreateRoleRequest = body;
+  const { name,discount, description, is_active, permission_ids }: CreateRoleRequest = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json(
@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
   try {
     const newRole = await RoleService.createRole({
       name: name.trim(),
+      discount:discount,
       description: description?.trim(),
       is_active: is_active ?? true,
       permission_ids,

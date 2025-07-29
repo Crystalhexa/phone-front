@@ -15,6 +15,7 @@ export interface Permission {
 export interface Role {
   id: string;
   name: string;
+  discount?: number; // Added discount field
   description?: string;
   is_active: boolean;
   created_at: string;
@@ -30,6 +31,7 @@ export interface RolePermission {
 
 export interface CreateRoleRequest {
   name: string;
+  discount:number;
   description?: string;
   is_active?: boolean;
   permission_ids: string[];

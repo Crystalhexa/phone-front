@@ -12,6 +12,7 @@ export interface ScannedProduct {
   name: string
   model: string
   sku: string
+  wholesale_quantity?: number // For product-level items
   brand?: {
     name: string
     code: string
@@ -109,6 +110,7 @@ async function handleIndividualItemScan(
       p.model,
       p.sku,
       p.warranty_period,
+      p.wholesale_quantity,
       b.name as brand_name,
       b.code as brand_code,
       sc.name as subcategory_name,
@@ -192,7 +194,7 @@ async function handleIndividualItemScan(
   const costPrice = item.current_cost_price || item.cost_price || item.purchase_cost
   const wholesalePrice = item.current_wholesale_price || item.wholesale_price
   const retailPrice = item.current_retail_price || item.retail_price
-
+  console.log(item.wholesale_quantity)
   return {
     barcode_id: item.item_id,
     barcode: item.barcode,
@@ -201,6 +203,7 @@ async function handleIndividualItemScan(
     name: item.product_name,
     model: item.model,
     sku: item.sku,
+    wholesale_quantity: item.wholesale_quantity,
     brand: item.brand_name ? {
       name: item.brand_name,
       code: item.brand_code
@@ -256,6 +259,7 @@ async function handleProductLevelScan(
       p.model,
       p.sku,
       p.warranty_period,
+      p.wholesale_quantity,
       b.name as brand_name,
       b.code as brand_code,
       sc.name as subcategory_name,
@@ -352,6 +356,7 @@ async function handleProductLevelScan(
     name: product.product_name,
     model: product.model,
     sku: product.sku,
+    wholesale_quantity: product.wholesale_quantity,
     brand: product.brand_name ? {
       name: product.brand_name,
       code: product.brand_code

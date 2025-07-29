@@ -1,12 +1,11 @@
--- ================== SIMPLE & SUSTAINABLE CODE GENERATION ==================
 
--- 1. SINGLE SEQUENCE TABLE FOR ALL CODES
-CREATE TABLE code_sequences (
-  sequence_key TEXT PRIMARY KEY,
-  current_value INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- -- 1. SINGLE SEQUENCE TABLE FOR ALL CODES
+-- CREATE TABLE code_sequences (
+--   sequence_key TEXT PRIMARY KEY,
+--   current_value INTEGER NOT NULL DEFAULT 0,
+--   created_at TIMESTAMPTZ DEFAULT NOW(),
+--   updated_at TIMESTAMPTZ DEFAULT NOW()
+-- );
 
 -- Index for performance
 CREATE INDEX idx_code_sequences_key ON code_sequences (sequence_key);
@@ -197,6 +196,24 @@ CREATE TRIGGER set_item_barcode
   FOR EACH ROW
   WHEN (NEW.code IS NULL OR NEW.code = '')
   EXECUTE FUNCTION trg_item_barcode();
+
+-- barcode
+CREATE OR REPLACE FUNCTION trg_barcode()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.code IS NULL OR NEW.code = '' THEN
+    NEW.code := generate_order_number('PRO', true, false);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_barcode
+  BEFORE INSERT ON barcodes
+  FOR EACH ROW
+  WHEN (NEW.code IS NULL OR NEW.code = '')
+  EXECUTE FUNCTION trg_barcode(); 
+
 
 -- Warranty Claims
 CREATE OR REPLACE FUNCTION trg_warranty_claim_number()

@@ -34,6 +34,7 @@ const productSchema = z.object({
   sku: z.string().min(1, 'SKU is required').max(50, 'SKU too long'),
   warranty_period: z.number().int().min(0, 'Warranty period must be positive').optional(),
   is_active: z.boolean().default(true),
+  wholesale_quantity: z.number().int().min(1, 'wholwholesale quantity must be positive').optional(),
   specifications: z.array(specificationSchema).optional(),
   barcodes: z.array(barcodeSchema).optional(),
 })
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
       }, { status: 400, headers: corsHeaders })
     }
 
-    const { name, model, description, subcategory_id, brand_id, sku, warranty_period, is_active, specifications, barcodes } = parsed.data
+    const { name, model, description, subcategory_id, brand_id, sku, warranty_period, is_active, specifications, wholesale_quantity } = parsed.data
 
     await initDatabase()
 
@@ -69,8 +70,8 @@ export async function POST(req: NextRequest) {
       const productInsertQuery = `
         INSERT INTO products (
           id, name, model, description, subcategory_id, brand_id, sku, 
-          warranty_period, is_active, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW()) 
+          warranty_period, is_active,wholesale_quantity, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,NOW(), NOW()) 
         RETURNING id, name, model, sku, description, subcategory_id, brand_id, warranty_period, is_active, created_at
       `
       const productResult = await client.query(productInsertQuery, [
@@ -81,8 +82,9 @@ export async function POST(req: NextRequest) {
         subcategory_id || null,
         brand_id || null,
         sku,
-        warranty_period || null,
-        is_active
+       warranty_period || null,
+        is_active,
+        wholesale_quantity
       ])
 
       const product = productResult.rows[0]
@@ -112,26 +114,23 @@ export async function POST(req: NextRequest) {
 
       // 3. Create barcodes
       const createdBarcodes: any[] = []
-      if (barcodes && barcodes.length > 0) {
         const barcodeInsertQuery = `
           INSERT INTO barcodes (
-            id, product_id, code, type, is_active, created_at
-          ) VALUES ($1, $2, $3, $4, $5, NOW()) 
+            id, product_id, type, is_active, created_at
+          ) VALUES ($1, $2, $3, $4, NOW()) 
           RETURNING id, code, type, is_active
         `
 
-        for (const barcode of barcodes) {
           const barcodeId = cuid()
           const barcodeResult = await client.query(barcodeInsertQuery, [
             barcodeId,
             productId,
-            barcode.code,
-            barcode.type,
-            barcode.is_active
+            "INTERNAL",
+            true
           ])
           createdBarcodes.push(barcodeResult.rows[0])
-        }
-      }
+        
+      
 
       // 4. Get all active branches
       const { rows: branchRows } = await client.query(`

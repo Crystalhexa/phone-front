@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -15,6 +14,7 @@ import { CategoriesListResponse, Subcategory } from '@/types/category';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { ApiResponse } from '@/types/customer';
 import { toast } from "sonner";
+import { SearchableDropdown } from '../SearchableDropdown';
 
 // Zod schemas
 const ProductSpecificationSchema = z.object({
@@ -22,13 +22,6 @@ const ProductSpecificationSchema = z.object({
   spec_name: z.string().min(1, 'Specification name is required').max(100, 'Specification name too long'),
   spec_value: z.string().min(1, 'Specification value is required').max(200, 'Specification value too long'),
   spec_unit: z.string().max(20, 'Unit too long').optional(),
-});
-
-const ProductBarcodeSchema = z.object({
-  id: z.string(),
-  code: z.string().min(1, 'Barcode is required').max(50, 'Barcode too long'),
-  type: z.enum(['INTERNAL', 'EXTERNAL']),
-  is_active: z.boolean(),
 });
 
 const ProductFormSchema = z.object({
@@ -40,8 +33,8 @@ const ProductFormSchema = z.object({
   sku: z.string().min(1, 'SKU is required').max(500, 'SKU too long'),
   warranty_period: z.number().min(0, 'Warranty period must be positive').max(120, 'Warranty period too long'),
   is_active: z.boolean(),
+  wholesale_quantity: z.number().min(1, 'Wholesale quantity must be at least 1').max(10000, 'Wholesale quantity too high').optional(),
   specifications: z.array(ProductSpecificationSchema).default([]),
-  barcodes: z.array(ProductBarcodeSchema).min(1, 'At least one barcode is required'),
 });
 
 // New spec schema for adding specifications
@@ -51,14 +44,9 @@ const NewSpecSchema = z.object({
   spec_unit: z.string().max(20, 'Unit too long').optional(),
 });
 
-// Barcode input validation
-const BarcodeInputSchema = z.string().min(1, 'Barcode cannot be empty').max(50, 'Barcode too long');
 
 type ProductSpecification = z.infer<typeof ProductSpecificationSchema>;
-type ProductBarcode = z.infer<typeof ProductBarcodeSchema>;
 type ProductFormData = z.infer<typeof ProductFormSchema>;
-type NewSpec = z.infer<typeof NewSpecSchema>;
-
 
 const ProductCreationForm: React.FC = () => {
   // Updated categories with nested subcategories
@@ -74,12 +62,12 @@ const ProductCreationForm: React.FC = () => {
     handleSearch: handleBrandSearch,
     searchTerm: brandSearchTerm,
   } = useBrandData();
+
   useEffect(() => {
     if (category) {
       setCategories(category);
     }
   }, [category]);
-
 
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [availableSubcategories, setAvailableSubcategories] = useState<Subcategory[]>([]);
@@ -93,8 +81,8 @@ const ProductCreationForm: React.FC = () => {
     sku: '',
     warranty_period: 12,
     is_active: true,
+    wholesale_quantity: 0,
     specifications: [],
-    barcodes: [],
   });
 
   const [newSpec, setNewSpec] = useState({
@@ -103,16 +91,33 @@ const ProductCreationForm: React.FC = () => {
     spec_unit: '',
   });
 
-  const [barcodeInput, setBarcodeInput] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
-  const [labelQuantity, setLabelQuantity] = useState(1);
-  const [showBarcodePreview, setShowBarcodePreview] = useState(false);
 
   // Validation states
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [specErrors, setSpecErrors] = useState<Record<string, string>>({});
   const [barcodeError, setBarcodeError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Transform data for SearchableDropdown
+  const categoryOptions = categories?.data.categories?.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    code: cat.name, // Using name as code since category code isn't available
+    description: `${cat.subcategories.length} subcategories`
+  })) || [];
+
+  const subcategoryOptions = availableSubcategories.map(sub => ({
+    id: sub.subcategory_id,
+    name: sub.name,
+    description: `ID: ${sub.subcategory_id}`
+  }));
+
+  const brandOptions = brands?.data.brands?.map(brand => ({
+    id: brand.id,
+    name: brand.name,
+    code: brand.code,
+    description: brand.description
+  })) || [];
 
   // Filter subcategories based on selected category
   useEffect(() => {
@@ -163,49 +168,42 @@ const ProductCreationForm: React.FC = () => {
     availableSubcategories
   ]);
 
-
   // Generate SKU automatically
-  // Generate SKU automatically
-useEffect(() => {
-  const generateSKU = () => {
-    const subcategory = getCurrentSubcategory();
-    const brand = brands?.data.brands.find(b => b.id === formData.brand_id);
+  useEffect(() => {
+    const generateSKU = () => {
+      const subcategory = getCurrentSubcategory();
+      const brand = brands?.data.brands.find(b => b.id === formData.brand_id);
 
-    if (subcategory && brand) {
-      let sku = `${subcategory.name}-${brand.code}`;
-      
-      // Add model if it exists
-      if (formData.model) {
-        sku += `-${formData.model.toUpperCase().replace(/\s+/g, '')}`;
-      }
-
-      // Add specification codes to SKU (only short values <= 5 characters)
-      formData.specifications.forEach(spec => {
-        const specValue = spec.spec_value.replace(/\s+/g, '').toUpperCase();
-        if (specValue.length <= 10) {
-          sku += `-${specValue}`;
+      if (subcategory && brand) {
+        let sku = `${subcategory.name}-${brand.code}`;
+        
+        // Add model if it exists
+        if (formData.model) {
+          sku += `-${formData.model.toUpperCase().replace(/\s+/g, '')}`;
         }
-      });
 
-      setFormData(prev => ({ ...prev, sku }));
-      // Clear SKU error when auto-generated
-      setErrors(prev => ({ ...prev, sku: '' }));
-    }
-  };
+        // Add specification codes to SKU (only short values <= 5 characters)
+        formData.specifications.forEach(spec => {
+          const specValue = spec.spec_value.replace(/\s+/g, '').toUpperCase();
+          if (specValue.length <= 10) {
+            sku += `-${specValue}`;
+          }
+        });
 
-  generateSKU();
-}, [formData.subcategory_id, formData.brand_id, formData.model, formData.specifications, brands, availableSubcategories]);
+        setFormData(prev => ({ ...prev, sku }));
+        // Clear SKU error when auto-generated
+        setErrors(prev => ({ ...prev, sku: '' }));
+      }
+    };
+
+    generateSKU();
+  }, [formData.subcategory_id, formData.brand_id, formData.model, formData.specifications, brands, availableSubcategories]);
+
   // Generate CUID-like ID
   const generateCUID = () => {
     const timestamp = Date.now().toString(36);
     const randomPart = Math.random().toString(36).substring(2, 8);
     return `${timestamp}${randomPart}`;
-  };
-
-  // Generate internal barcode
-  const generateInternalBarcode = () => {
-    const cuid = generateCUID();
-    return `KRS${cuid}`;
   };
 
   // Validate individual field
@@ -222,20 +220,22 @@ useEffect(() => {
       return false;
     }
   };
-// Clear specification errors when clicking outside
-useEffect(() => {
-  const handleClickOutside = (event:any) => {
-    const specSection = document.querySelector('[data-spec-section]');
-    if (specSection && !specSection.contains(event.target)) {
-      setSpecErrors({});
-    }
-  };
 
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => {
-    document.removeEventListener('mousedown', handleClickOutside);
-  };
-}, []);
+  // Clear specification errors when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event:any) => {
+      const specSection = document.querySelector('[data-spec-section]');
+      if (specSection && !specSection.contains(event.target)) {
+        setSpecErrors({});
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // Handle input changes with validation
   const handleInputChange = (field: keyof ProductFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -299,167 +299,6 @@ useEffect(() => {
     }));
   };
 
-  // Validate barcode input
-  const validateBarcodeInput = () => {
-    try {
-      BarcodeInputSchema.parse(barcodeInput.trim());
-      setBarcodeError('');
-      return true;
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        setBarcodeError(error.errors[0].message);
-      }
-      return false;
-    }
-  };
-
-  // Add barcode (scanned or generated)
-  const addBarcode = (code: string, type: 'INTERNAL' | 'EXTERNAL') => {
-    // Check for duplicate barcodes
-    const isDuplicate = formData.barcodes.some(barcode => barcode.code === code);
-    if (isDuplicate) {
-      setBarcodeError('This barcode already exists');
-      return;
-    }
-
-    const newBarcode: ProductBarcode = {
-      id: generateCUID(),
-      code,
-      type,
-      is_active: true,
-    };
-
-    setFormData(prev => ({
-      ...prev,
-      barcodes: [...prev.barcodes, newBarcode],
-    }));
-
-    setBarcodeError('');
-    // Clear barcode validation error
-    setErrors(prev => ({ ...prev, barcodes: '' }));
-  };
-
-  // Handle barcode input
-  const handleBarcodeInput = () => {
-    if (validateBarcodeInput()) {
-      addBarcode(barcodeInput.trim(), 'INTERNAL');
-      setBarcodeInput('');
-    }
-  };
-
-  // Generate internal barcode
-  const handleGenerateBarcode = () => {
-    const generatedCode = generateInternalBarcode();
-    addBarcode(generatedCode, 'INTERNAL');
-  };
-
-  // Remove barcode
-  const removeBarcode = (id: string) => {
-    setFormData(prev => ({
-      ...prev,
-      barcodes: prev.barcodes.filter(barcode => barcode.id !== id),
-    }));
-  };
-
-  // Simulate barcode scanning
-  const handleScanBarcode = () => {
-    setIsScanning(true);
-    setBarcodeError('');
-
-    // Simulate scanning delay
-    setTimeout(() => {
-      const mockScannedCode = Math.random().toString().substring(2, 15);
-      addBarcode(mockScannedCode, 'EXTERNAL');
-      setIsScanning(false);
-    }, 2000);
-  };
-
-  // Generate barcode SVG
-  const generateBarcodeLines = (code: string) => {
-    const lines = [];
-    const codeArray = code.split('');
-
-    for (let i = 0; i < codeArray.length; i++) {
-      const width = (parseInt(codeArray[i]) % 3) + 1;
-      const x = i * 8;
-      lines.push(
-        <rect
-          key={i}
-          x={x}
-          y="0"
-          width={width}
-          height="40"
-          fill="#000000"
-        />
-      );
-    }
-
-    return lines;
-  };
-
-  // Print barcode labels
-  const printBarcodeLabels = () => {
-    const printWindow = window.open('', '_blank');
-    const barcode = formData.barcodes[0]; // Use first barcode
-
-    if (!printWindow || !barcode) return;
-
-    let labelsHtml = '';
-    for (let i = 0; i < labelQuantity; i++) {
-      labelsHtml += `
-        <div style="
-          width: 2.5in;
-          height: 1in;
-          border: 1px solid #ccc;
-          margin: 0.1in;
-          padding: 0.1in;
-          display: inline-block;
-          page-break-inside: avoid;
-          font-family: Arial, sans-serif;
-        ">
-          <div style="font-size: 10px; font-weight: bold; margin-bottom: 2px;">
-            ${formData.name}
-          </div>
-          <div style="text-align: center; margin: 4px 0;">
-            <svg width="120" height="40" viewBox="0 0 120 40">
-              ${generateBarcodeLines(barcode.code).map(line => line.props ?
-        `<rect x="${line.props.x}" y="${line.props.y}" width="${line.props.width}" height="${line.props.height}" fill="${line.props.fill}"/>` : ''
-      ).join('')}
-            </svg>
-          </div>
-          <div style="font-size: 8px; text-align: center;">
-            ${barcode.code}
-          </div>
-          <div style="font-size: 8px; text-align: center; margin-top: 2px;">
-            SKU: ${formData.sku}
-          </div>
-        </div>
-      `;
-    }
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Barcode Labels</title>
-          <style>
-            @page { margin: 0.5in; }
-            body { margin: 0; }
-          </style>
-        </head>
-        <body>
-          ${labelsHtml}
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
-
   // Validate entire form
   const validateForm = () => {
     try {
@@ -485,8 +324,6 @@ useEffect(() => {
       return false;
     }
   };
-
-
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -527,7 +364,7 @@ useEffect(() => {
           toast.success("✅ Product Created Successfully", {
             description: `The product "${finalFormData.name}" was added.`,
           });
-           resetForm();
+          resetForm();
         }
       } catch (error: any) {
         console.error("Error creating product:", error);
@@ -543,38 +380,36 @@ useEffect(() => {
 
     setIsSubmitting(false);
   };
+
   // Reset form to initial state
-const resetForm = () => {
-  setFormData({
-    name: '',
-    model: '',
-    description: '',
-    subcategory_id: '',
-    brand_id: '',
-    sku: '',
-    warranty_period: 12,
-    is_active: true,
-    specifications: [],
-    barcodes: [],
-  });
-  
-  setSelectedCategory('');
-  setAvailableSubcategories([]);
-  setNewSpec({
-    spec_name: '',
-    spec_value: '',
-    spec_unit: '',
-  });
-  setBarcodeInput('');
-  setLabelQuantity(1);
-  setShowBarcodePreview(false);
-  setIsScanning(false);
-  
-  // Clear all errors
-  setErrors({});
-  setSpecErrors({});
-  setBarcodeError('');
-};
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      model: '',
+      description: '',
+      subcategory_id: '',
+      brand_id: '',
+      sku: '',
+      warranty_period: 12,
+      is_active: true,
+      wholesale_quantity: 0,
+      specifications: [],
+    });
+    
+    setSelectedCategory('');
+    setAvailableSubcategories([]);
+    setNewSpec({
+      spec_name: '',
+      spec_value: '',
+      spec_unit: '',
+    });
+    
+    // Clear all errors
+    setErrors({});
+    setSpecErrors({});
+    setBarcodeError('');
+  };
+
   // Error display component
   const ErrorMessage = ({ message }: { message: string }) => (
     message ? (
@@ -615,75 +450,75 @@ const resetForm = () => {
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">Basic Information</h2>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Category */}
+            {/* Category - Using SearchableDropdown */}
             <div className="space-y-2 w-full max-w-xs">
               <Label htmlFor="category" className="text-sm font-medium text-gray-700 dark:text-gray-300">Category *</Label>
-              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
-                <SelectTrigger className={`${errors.category ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-                  {categories?.data.categories.map(category => (
-                    <SelectItem key={category.id} value={category.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      {category.name} ({category.name})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableDropdown
+                value={selectedCategory}
+                onValueChange={handleCategoryChange}
+                placeholder="Select a category"
+                searchPlaceholder="Search categories..."
+                options={categoryOptions}
+                emptyMessage="No categories found"
+                onSearch={handleCategorySearch}
+                searchTerm={categorySearchTerm}
+                size="md"
+              />
               <ErrorMessage message={errors.category} />
             </div>
 
-            {/* Subcategory */}
+            {/* Subcategory - Using SearchableDropdown */}
             <div className="space-y-2 w-full max-w-xs">
               <Label htmlFor="subcategory" className="text-sm font-medium text-gray-700 dark:text-gray-300">Subcategory *</Label>
-              <Select
+              <SearchableDropdown
                 value={formData.subcategory_id}
                 onValueChange={(value) => handleInputChange('subcategory_id', value)}
+                placeholder="Select a subcategory"
+                searchPlaceholder="Search subcategories..."
+                options={subcategoryOptions}
                 disabled={!selectedCategory}
-              >
-                <SelectTrigger className={`${errors.subcategory_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
-                  <SelectValue placeholder="Select a subcategory" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-                  {availableSubcategories.map(subcategory => (
-                    <SelectItem key={subcategory.subcategory_id} value={subcategory.subcategory_id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      {subcategory.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                emptyMessage={!selectedCategory ? "Please select a category first" : "No subcategories found"}
+                size="md"
+              />
               <ErrorMessage message={errors.subcategory_id} />
             </div>
 
-            {/* Brand */}
+            {/* Brand - Using SearchableDropdown */}
             <div className="space-y-2 w-full max-w-xs">
               <Label htmlFor="brand" className="text-sm font-medium text-gray-700 dark:text-gray-300">Brand *</Label>
-              <Select
+              <SearchableDropdown
                 value={formData.brand_id}
                 onValueChange={(value) => handleInputChange('brand_id', value)}
-              >
-                <SelectTrigger className={`${errors.brand_id ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}>
-                  <SelectValue placeholder="Select a brand" />
-                </SelectTrigger>
-                <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-                  {brands?.data.brands.map(brand => (
-                    <SelectItem key={brand.id} value={brand.id} className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      {brand.name} ({brand.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select a brand"
+                searchPlaceholder="Search brands..."
+                options={brandOptions}
+                emptyMessage="No brands found"
+                onSearch={handleBrandSearch}
+                searchTerm={brandSearchTerm}
+                size="md"
+              />
               <ErrorMessage message={errors.brand_id} />
             </div>
           </div>
         </div>
-
 
         {/* Product Details Section */}
         <div className="space-y-4">
           <h2 className="text-xl font-bold text-gray-800 dark:text-white">Product Details</h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-2">
+              <Label htmlFor="model" className="text-sm font-medium text-gray-700 dark:text-gray-300">Wholesale quantity</Label>
+              <Input
+                id="wholesale_quantity"
+                type="number"
+                value={formData.wholesale_quantity}
+                onChange={(e) => handleInputChange('wholesale_quantity', parseInt(e.target.value) || 0)}
+                placeholder="Enter wholesale quantity"
+                className={`${errors.wholesale_quantity ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
+              />
+              <ErrorMessage message={errors.wholesale_quantity} />
+
+
               <Label htmlFor="model" className="text-sm font-medium text-gray-700 dark:text-gray-300">Model *</Label>
               <Input
                 id="model"
@@ -730,7 +565,7 @@ const resetForm = () => {
           </h2>
 
           {/* Add New Specification */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4"  data-spec-section>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4" data-spec-section>
             <div className="space-y-1">
               <Input
                 placeholder="Specification name *"
@@ -787,173 +622,6 @@ const resetForm = () => {
           )}
         </div>
 
-        {/* Barcode Management Section */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <Barcode className="h-4 w-4" />
-            Barcode Management *
-          </h2>
-
-          {/* Barcode Input/Scanning */}
-          <div className="space-y-4">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder="Enter or scan barcode"
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleBarcodeInput()}
-                  className={`${barcodeError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'} bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100`}
-                />
-                <ErrorMessage message={barcodeError} />
-              </div>
-              <Button
-                type="button"
-                onClick={handleBarcodeInput}
-                disabled={!barcodeInput.trim()}
-                variant="outline"
-                className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Add
-              </Button>
-              <Button
-                type="button"
-                onClick={handleScanBarcode}
-                disabled={isScanning}
-                variant="outline"
-                className="flex items-center gap-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                {isScanning ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    <Scan className="h-4 w-4" />
-                    Scan
-                  </>
-                )}
-              </Button>
-            </div>
-
-            <div className="flex justify-center">
-              <Button
-                type="button"
-                onClick={handleGenerateBarcode}
-                variant="outline"
-                className="flex items-center gap-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <QrCode className="h-4 w-4" />
-                Generate Custom Barcode (KRS + CUID)
-              </Button>
-            </div>
-          </div>
-
-          {/* Display Barcodes */}
-          {formData.barcodes.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Added Barcodes:</Label>
-              <div className="space-y-2">
-                {formData.barcodes.map(barcode => (
-                  <div key={barcode.id} className="flex items-center justify-between p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
-                    <div className="flex items-center gap-3">
-                      <Badge variant={barcode.type === 'INTERNAL' ? 'default' : 'secondary'} className={barcode.type === 'INTERNAL' ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}>
-                        {barcode.type}
-                      </Badge>
-                      <span className="font-mono text-sm text-gray-900 dark:text-gray-100">{barcode.code}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeBarcode(barcode.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <ErrorMessage message={errors.barcodes} />
-
-          {/* Barcode Printing Section */}
-          {formData.barcodes.length > 0 && (
-            <div className="space-y-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Printer className="h-4 w-4 text-gray-700 dark:text-gray-300" />
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Print Barcode Labels</Label>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="labelQuantity" className="text-sm font-medium text-gray-700 dark:text-gray-300">Quantity:</Label>
-                  <Input
-                    id="labelQuantity"
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={labelQuantity}
-                    onChange={(e) => setLabelQuantity(parseInt(e.target.value) || 1)}
-                    className="w-20 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <Dialog open={showBarcodePreview} onOpenChange={setShowBarcodePreview}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="flex items-center gap-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <Eye className="h-4 w-4" />
-                      Preview
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
-                    <DialogHeader>
-                      <DialogTitle className="text-gray-900 dark:text-gray-100">Barcode Label Preview</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-3 gap-4">
-                        {Array.from({ length: Math.min(labelQuantity, 6) }, (_, i) => (
-                          <div key={i} className="border border-gray-300 dark:border-gray-600 p-2 bg-white dark:bg-gray-700" style={{ width: '180px', height: '72px' }}>
-                            <div className="text-xs font-bold mb-1 truncate text-gray-900 dark:text-gray-100">
-                              {formData.name}
-                            </div>
-                            <div className="text-center mb-1">
-                              <svg width="100" height="20" viewBox="0 0 100 20">
-                                {generateBarcodeLines(formData.barcodes[0]?.code || '')}
-                              </svg>
-                            </div>
-                            <div className="text-xs text-center text-gray-900 dark:text-gray-100">
-                              {formData.barcodes[0]?.code}
-                            </div>
-                            <div className="text-xs text-center mt-1 text-gray-900 dark:text-gray-100">
-                              SKU: {formData.sku}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {labelQuantity > 6 && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                          ... and {labelQuantity - 6} more labels
-                        </p>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                <Button
-                  type="button"
-                  onClick={printBarcodeLabels}
-                  disabled={!formData.name || !formData.sku}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Printer className="h-4 w-4" />
-                  Print Labels
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* SKU and Warranty Section */}
         <div className="space-y-4">

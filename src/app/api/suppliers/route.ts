@@ -6,7 +6,6 @@ import cuid from 'cuid';
 
 const supplierSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  code: z.string().min(1, 'Code is required'),
   contact_name: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   email: z.string().email().nullable().optional(),
@@ -88,11 +87,11 @@ export async function POST(req: NextRequest) {
 
       const insertQuery = `
         INSERT INTO suppliers (
-          id, name, code, contact_name, phone, email, address,
+          id, name, contact_name, phone, email, address,
           sales_rep_name, sales_rep_phone, is_active
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7,
-          $8, $9, $10
+          $8, $9
         )
         RETURNING *
       `;
@@ -100,7 +99,6 @@ export async function POST(req: NextRequest) {
       const params = [
         supplierId,
         data.name,
-        data.code,
         data.contact_name ?? null,
         data.phone ?? null,
         data.email ?? null,

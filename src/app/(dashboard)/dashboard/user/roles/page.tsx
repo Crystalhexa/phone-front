@@ -43,11 +43,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Plus, Edit, Trash2, Shield, Loader2, AlertCircle } from 'lucide-react';
-import {RoleWithPermissions, Permission } from '@/types/role';
+import { RoleWithPermissions, Permission } from '@/types/role';
 import { useCreateRoleMutation, useDeleteRoleMutation, useGetAllPermissionsQuery, useGetAllRolesQuery, useUpdateRoleMutation } from '@/state/role';
 
 interface RoleFormData {
   name: string;
+  discount: number;
   description: string;
   is_active: boolean;
   permission_ids: string[];
@@ -72,6 +73,7 @@ const RoleDialog: React.FC<RoleDialogProps> = ({
 }) => {
   const [formData, setFormData] = useState<RoleFormData>({
     name: role?.name || '',
+    discount: role?.discount || 0,
     description: role?.description || '',
     is_active: role?.is_active ?? true,
     permission_ids: role?.permissions?.map(p => p.id) || []
@@ -83,6 +85,7 @@ const RoleDialog: React.FC<RoleDialogProps> = ({
     if (role) {
       setFormData({
         name: role.name || '',
+        discount: role.discount || 0,
         description: role.description || '',
         is_active: role.is_active ?? true,
         permission_ids: role.permissions?.map(p => p.id) || []
@@ -90,6 +93,7 @@ const RoleDialog: React.FC<RoleDialogProps> = ({
     } else {
       setFormData({
         name: '',
+        discount: 0,
         description: '',
         is_active: true,
         permission_ids: []
@@ -167,7 +171,18 @@ const RoleDialog: React.FC<RoleDialogProps> = ({
             </div>
 
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="discount">Role discount</Label>
+              <Input
+                id="discount"
+                type='number'
+                value={formData.discount }
+                onChange={(e) => setFormData(prev => ({ ...prev, discount: Number(e.target.value) }))}
+                placeholder="Enter role discount"
+                className={errors.name ? 'border-red-500' : ''}
+                disabled={loading}
+              />
+              {errors.name && <p className="text-sm text-red-500 mt-1">{errors.name}</p>}
+              {/* <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 value={formData.description}
@@ -175,7 +190,7 @@ const RoleDialog: React.FC<RoleDialogProps> = ({
                 placeholder="Enter role description"
                 rows={3}
                 disabled={loading}
-              />
+              /> */}
             </div>
 
             <div className="flex items-center space-x-2">
