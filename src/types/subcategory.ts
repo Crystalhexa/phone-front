@@ -1,5 +1,5 @@
 export interface Subcategory {
-  subcategory_id: string;
+  id: string;
   name: string;
 }
 
@@ -17,6 +17,9 @@ export interface SubcategoryListResponse {
 export interface SubcategoryFormData {
   name: string;
   categoryId: string;
+}
+export interface EditSubcategoryFormData {
+  name: string;
 }
 
 export interface SubcategoryResponse {

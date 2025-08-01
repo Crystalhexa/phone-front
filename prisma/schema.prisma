@@ -216,7 +216,6 @@ model product_specifications {
 model brands {
   id          String   @id @default(cuid())
   name        String   @unique @db.VarChar(100)
-  code        String   @unique @db.VarChar(100)
   description String?  @db.Text
   logo_url    String?  @db.VarChar(500)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
@@ -225,7 +224,6 @@ model brands {
   // Relations
   products products[]
 
-  @@index([code])
   @@map("brands")
 }
 
@@ -237,7 +235,7 @@ model products {
   description     String?  @db.Text
   subcategory_id  String?
   brand_id        String?
-  sku             String   @unique @db.VarChar(50)
+  sku             String   @unique @db.VarChar(1000)
   warranty_period Int? // in months
   wholesale_quantity  Int?
   is_active       Boolean  @default(true)

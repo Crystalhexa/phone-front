@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import cuid from 'cuid'
 import { initDatabase, query } from '@/lib/database/connection'
+import { console } from 'inspector';
 
 export async function POST(
   request: NextRequest,
@@ -175,5 +176,167 @@ export async function GET(
       errors: [error.message || error],
       timestamp: new Date().toISOString(),
     }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  await initDatabase()
+  
+  const { id: subcategoryId } = await params;
+  
+  if (!subcategoryId) {
+    return NextResponse.json({
+      success: false,
+      message: 'Invalid or missing subcategory ID',
+      data: null,
+      timestamp: new Date().toISOString(),
+    }, { status: 400 })
+  }
+
+  let body;
+  try {
+    body = await request.json()
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      message: 'Invalid JSON in request body',
+      data: null,
+      timestamp: new Date().toISOString(),
+    }, { status: 400 })
+  }
+
+  const name = body?.name;
+  console.log(name)
+
+  if (!name || typeof name !== 'string') {
+    return NextResponse.json({
+      success: false,
+      message: 'Subcategory name is required',
+      data: null,
+      timestamp: new Date().toISOString(),
+    }, { status: 400 })
+  }
+
+  try {
+    // Step 1: Check if subcategory exists
+    const subcategoryCheck = await query(
+      `SELECT id, name, category_id FROM subcategories WHERE id = $1`, 
+      [subcategoryId]
+    )
+    
+    if (subcategoryCheck.rowCount === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Subcategory not found',
+        data: null,
+        timestamp: new Date().toISOString(),
+      }, { status: 404 })
+    }
+
+    // Step 2: Execute update query
+    const updateResult = await query(
+      `UPDATE subcategories 
+       SET name = $1, updated_at = $2
+       WHERE id = $3
+       RETURNING id, name, category_id, created_at, updated_at`,
+      [name, new Date(), subcategoryId]
+    )
+
+    return NextResponse.json({
+      success: true,
+      message: 'Subcategory updated successfully',
+      data: updateResult.rows[0],
+      timestamp: new Date().toISOString(),
+    }, { status: 200 })
+
+  } catch (error: any) {
+    console.error('Error updating subcategory:', error)
+    
+    const isUniqueViolation = error.code === '23505' // Unique constraint
+    
+    return NextResponse.json({
+      success: false,
+      message: isUniqueViolation
+        ? 'Subcategory with this name already exists'
+        : 'Internal server error',
+      data: null,
+      errors: isUniqueViolation
+        ? [{ field: 'name', message: 'Already exists' }]
+        : undefined,
+      timestamp: new Date().toISOString(),
+    }, { status: 500 })
+  }
+}
+
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  await initDatabase();
+
+  const { id: subcategoryId } = await params;
+
+  if (!subcategoryId) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Invalid or missing subcategory ID',
+        data: null,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    // Step 1: Check if subcategory exists
+    const subcategoryCheck = await query(
+      `SELECT id FROM subcategories WHERE id = $1`,
+      [subcategoryId]
+    );
+
+    if (subcategoryCheck.rowCount === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Subcategory not found',
+          data: null,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
+    }
+
+    // Step 2: Delete the subcategory
+    await query(
+      `DELETE FROM subcategories WHERE id = $1`,
+      [subcategoryId]
+    );
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Subcategory deleted successfully',
+        data: { id: subcategoryId },
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('Error deleting subcategory:', error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Internal server error',
+        data: null,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }

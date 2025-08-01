@@ -224,7 +224,6 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
       jsonb_build_object(
         'id', b.id,
         'name', b.name,
-        'code', b.code,
         'logo_url', b.logo_url
       ) as brand,
       

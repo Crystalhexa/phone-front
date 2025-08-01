@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   ShoppingCart,
-  Plus,
   Settings,
   X,
   ChevronRight,

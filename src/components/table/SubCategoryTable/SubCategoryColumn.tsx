@@ -11,16 +11,6 @@ export interface TableAction {
 
 export const createSubCategoryColumns = (actions: TableAction[]): ColumnDef<Subcategory>[] => [
   {
-    accessorKey: "subcategory_id",
-    header: "ID",
-    size: 80,
-    cell: ({ row }) => (
-      <div className="font-medium text-gray-300 w-[80px] truncate">
-        #{row.getValue("subcategory_id")}
-      </div>
-    ),
-  },
-  {
     accessorKey: "name",
     header: "Subcategory Name",
     size: 200,

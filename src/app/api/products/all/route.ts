@@ -31,7 +31,7 @@ const productSchema = z.object({
   description: z.string().max(1000, 'Description too long').optional(),
   subcategory_id: z.string().optional(),
   brand_id: z.string().optional(),
-  sku: z.string().min(1, 'SKU is required').max(50, 'SKU too long'),
+  sku: z.string().min(1, 'SKU is required').max(1000, 'SKU too long'),
   warranty_period: z.number().int().min(0, 'Warranty period must be positive').optional(),
   is_active: z.boolean().default(true),
   wholesale_quantity: z.number().int().min(1, 'wholwholesale quantity must be positive').optional(),

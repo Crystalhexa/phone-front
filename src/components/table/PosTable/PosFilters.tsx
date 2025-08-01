@@ -3,13 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Filter, Search, RefreshCw } from 'lucide-react';
 import { SearchableDropdown } from '@/components/form/SearchableDropdown';
 import { Filters } from '@/types/pos';
@@ -25,7 +18,7 @@ interface PosFiltersProps {
   onResetFilters: () => void;
   categoryOptions: Array<{ id: string; name: string; description?: string }>;
   subcategoryOptions: Array<{ id: string; name: string }>;
-  brandOptions: Array<{ id: string; name: string; code: string }>;
+  brandOptions: Array<{ id: string; name: string }>;
   onCategorySearch: (value: string) => void;
   onBrandSearch: (value: string) => void;
   categorySearchTerm: string;
@@ -35,8 +28,6 @@ interface PosFiltersProps {
 export const PosFilters: React.FC<PosFiltersProps> = ({
   filters,
   setFilters,
-  filtersExpanded,
-  setFiltersExpanded,
   pagination,
   onRefresh,
   onResetFilters,
@@ -71,6 +62,7 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
                   setFilters((prev) => ({ ...prev, search: e.target.value }))
                 }
               />
+
             </div>
           </div>
 
@@ -115,7 +107,7 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
             searchTerm={brandSearchTerm}
           />
 
-         
+
         </div>
 
         <Separator className="my-4" />

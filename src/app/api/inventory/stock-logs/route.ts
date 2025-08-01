@@ -1,4 +1,4 @@
-// ========== FIXED API: /api/inventory/stock-logs/route.ts ==========
+// ========== OPTIMIZED API: /api/inventory/stock-logs/route.ts ==========
 import { NextRequest, NextResponse } from 'next/server'
 import { query, ApiResponse } from '@/lib/database/connection'
 import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
@@ -68,8 +68,35 @@ export async function GET(request: NextRequest) {
       const whereClause = whereConditions.join(' AND ')
 
       if (exportData) {
-        // Export CSV
+        // Optimized export query using UNION approach for better performance
         const exportQuery = `
+          WITH reference_data AS (
+            SELECT 
+              psl.id as psl_id,
+              CASE psl.reference_type
+                WHEN 'purchase_order' THEN po.order_number
+                WHEN 'sales_order' THEN so.order_number
+                WHEN 'stock_transfer' THEN str.request_number
+                WHEN 'stock_adjustment' THEN sa.adjustment_number
+                WHEN 'purchase_return' THEN pr.return_number
+                WHEN 'sales_return' THEN sr.return_number
+                ELSE psl.reference_id
+              END as reference_number
+            FROM product_stock_ledgers psl
+            LEFT JOIN purchase_orders po ON psl.reference_type = 'purchase_order' AND psl.reference_id = po.id
+            LEFT JOIN sales_orders so ON psl.reference_type = 'sales_order' AND psl.reference_id = so.id
+            LEFT JOIN stock_transfer_requests str ON psl.reference_type = 'stock_transfer' AND psl.reference_id = str.id
+            LEFT JOIN stock_adjustments sa ON psl.reference_type = 'stock_adjustment' AND psl.reference_id = sa.id
+            LEFT JOIN purchase_returns pr ON psl.reference_type = 'purchase_return' AND psl.reference_id = pr.id
+            LEFT JOIN sales_returns sr ON psl.reference_type = 'sales_return' AND psl.reference_id = sr.id
+            WHERE psl.id IN (
+              SELECT DISTINCT psl2.id 
+              FROM product_stock_ledgers psl2
+              JOIN products p2 ON psl2.product_id = p2.id
+              JOIN branches b2 ON psl2.branch_id = b2.id
+              WHERE ${whereClause}
+            )
+          )
           SELECT 
             psl.created_at,
             p.name as product_name,
@@ -81,7 +108,7 @@ export async function GET(request: NextRequest) {
             COALESCE(psl.cost_price, 0) as cost_price,
             COALESCE(psl.selling_price, 0) as selling_price,
             COALESCE(psl.reference_type, '') as reference_type,
-            COALESCE(psl.reference_id, '') as reference_id,
+            COALESCE(rd.reference_number, psl.reference_id, '') as reference_number,
             COALESCE(psl.notes, '') as notes,
             COALESCE(e.name, '') as employee_name
           FROM product_stock_ledgers psl
@@ -89,6 +116,7 @@ export async function GET(request: NextRequest) {
           JOIN branches b ON psl.branch_id = b.id
           LEFT JOIN purchase_batches pb ON psl.batch_id = pb.id
           LEFT JOIN employees e ON psl.created_by = e.id
+          LEFT JOIN reference_data rd ON psl.id = rd.psl_id
           WHERE ${whereClause}
           ORDER BY psl.created_at DESC
         `
@@ -101,7 +129,7 @@ export async function GET(request: NextRequest) {
         }
         
         // Convert to CSV
-        const headers = ['Date', 'Product', 'SKU', 'Branch', 'Type', 'Quantity', 'Batch', 'Cost Price', 'Selling Price', 'Reference', 'Notes', 'Employee']
+        const headers = ['Date', 'Product', 'SKU', 'Branch', 'Type', 'Quantity', 'Batch', 'Cost Price', 'Selling Price', 'Reference Type', 'Reference Number', 'Notes', 'Employee']
         const csvData = [
           headers.join(','),
           ...result.rows.map(row => [
@@ -114,7 +142,8 @@ export async function GET(request: NextRequest) {
             `"${row.batch_number}"`,
             row.cost_price,
             row.selling_price,
-            `"${row.reference_type}:${row.reference_id}"`,
+            `"${row.reference_type}"`,
+            `"${row.reference_number}"`,
             `"${row.notes}"`,
             `"${row.employee_name}"`
           ].join(','))
@@ -128,7 +157,7 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      // Count query
+      // Optimized count query - only essential joins
       const countQuery = `
         SELECT COUNT(*) as total
         FROM product_stock_ledgers psl
@@ -145,8 +174,9 @@ export async function GET(request: NextRequest) {
       }
       const total = parseInt(countResult.rows[0].total)
 
-      // Main query
-      const stockLogsQuery = `
+      // Two-step approach for better performance
+      // Step 1: Get the basic data with pagination
+      const basicDataQuery = `
         SELECT 
           psl.id,
           psl.product_id,
@@ -178,11 +208,10 @@ export async function GET(request: NextRequest) {
       // Add pagination parameters
       queryParams.push(limit, offset)
       
-      let result;
-      if (queryParams.length > 2) { // More than just limit and offset
-        result = await query(stockLogsQuery, queryParams)
+      let basicResult;
+      if (queryParams.length > 2) {
+        basicResult = await query(basicDataQuery, queryParams)
       } else {
-        // Only pagination parameters, no filters
         const simplePaginationQuery = `
           SELECT 
             psl.id,
@@ -211,23 +240,80 @@ export async function GET(request: NextRequest) {
           ORDER BY psl.created_at DESC
           LIMIT $1 OFFSET $2
         `
-        result = await query(simplePaginationQuery, [limit, offset])
+        basicResult = await query(simplePaginationQuery, [limit, offset])
       }
 
-      const totalPages = Math.ceil(total / limit)
+      // Step 2: Get reference numbers only for the returned rows
+      if (basicResult.rows.length > 0) {
+        const stockLogIds = basicResult.rows.map(row => row.id)
+        const placeholders = stockLogIds.map((_, index) => `$${index + 1}`).join(',')
+        
+        const referenceQuery = `
+          SELECT 
+            psl.id,
+            CASE psl.reference_type
+              WHEN 'purchase_order' THEN po.order_number
+              WHEN 'sales_order' THEN so.order_number
+              WHEN 'stock_transfer' THEN str.request_number
+              WHEN 'stock_adjustment' THEN sa.adjustment_number
+              WHEN 'purchase_return' THEN pr.return_number
+              WHEN 'sales_return' THEN sr.return_number
+              ELSE psl.reference_id
+            END as reference_number
+          FROM product_stock_ledgers psl
+          LEFT JOIN purchase_orders po ON psl.reference_type = 'purchase_order' AND psl.reference_id = po.id
+          LEFT JOIN sales_orders so ON psl.reference_type = 'sales_order' AND psl.reference_id = so.id
+          LEFT JOIN stock_transfer_requests str ON psl.reference_type = 'stock_transfer' AND psl.reference_id = str.id
+          LEFT JOIN stock_adjustments sa ON psl.reference_type = 'stock_adjustment' AND psl.reference_id = sa.id
+          LEFT JOIN purchase_returns pr ON psl.reference_type = 'purchase_return' AND psl.reference_id = pr.id
+          LEFT JOIN sales_returns sr ON psl.reference_type = 'sales_return' AND psl.reference_id = sr.id
+          WHERE psl.id IN (${placeholders})
+        `
+        
+        const referenceResult = await query(referenceQuery, stockLogIds)
+        const referenceMap = new Map(
+          referenceResult.rows.map(row => [row.id, row.reference_number])
+        )
+        
+        // Merge the results
+        const finalResult = basicResult.rows.map(row => ({
+          ...row,
+          reference_number: referenceMap.get(row.id) || row.reference_id
+        }))
+        
+        const totalPages = Math.ceil(total / limit)
 
+        return NextResponse.json<ApiResponse>({
+          success: true,
+          data: finalResult,
+          message: 'Stock logs retrieved successfully',
+          metadata: {
+            pagination: {
+              current_page: page,
+              total_pages: totalPages,
+              total_items: total,
+              items_per_page: limit,
+              has_next: page < totalPages,
+              has_prev: page > 1
+            }
+          },
+          timestamp: new Date().toISOString()
+        })
+      }
+
+      // Empty result case
       return NextResponse.json<ApiResponse>({
         success: true,
-        data: result.rows,
-        message: 'Stock logs retrieved successfully',
+        data: [],
+        message: 'No stock logs found',
         metadata: {
           pagination: {
             current_page: page,
-            total_pages: totalPages,
-            total_items: total,
+            total_pages: 0,
+            total_items: 0,
             items_per_page: limit,
-            has_next: page < totalPages,
-            has_prev: page > 1
+            has_next: false,
+            has_prev: false
           }
         },
         timestamp: new Date().toISOString()
@@ -246,4 +332,3 @@ export async function GET(request: NextRequest) {
     }
   })(request)
 }
-

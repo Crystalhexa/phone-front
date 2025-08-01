@@ -1,6 +1,6 @@
-import { CategoriesListResponse, CategoryApiRequest, CategoryApiResponse,DeleteCategoryResponse, GetCategoriesParams, GetSubCategoriesParams } from "@/types/category";
+import { CategoriesListResponse, CategoryApiRequest, CategoryApiResponse, DeleteCategoryResponse, EditSubcategory, GetCategoriesParams, GetSubCategoriesParams } from "@/types/category";
 import { Role } from "@/types/role";
-import { SubcategoryFormData, SubcategoryListResponse,SubcategoryResponse } from "@/types/subcategory";
+import { EditSubcategoryFormData, SubcategoryFormData, SubcategoryListResponse, SubcategoryResponse } from "@/types/subcategory";
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 export const api = createApi({
@@ -153,7 +153,7 @@ export const api = createApi({
       providesTags: (result) =>
         result?.data?.subcategories
           ? [
-            ...result.data.subcategories.map(({ subcategory_id }) => ({ type: 'Category' as const, subcategory_id })),
+            ...result.data.subcategories.map(({ id }) => ({ type: 'Category' as const, id })),
             { type: 'Category', id: 'SUBCATEGORY_LIST' },
           ]
           : [{ type: 'Category', id: 'SUBCATEGORY_LIST' }],
@@ -210,6 +210,42 @@ export const api = createApi({
             : 'An error occurred while adding subcategory',
       }),
     }),
+    updateSubCategory: builder.mutation<SubcategoryResponse, { id: string | number; body: EditSubcategoryFormData }>({
+      query: ({ id, body }) => ({
+        url: `products/categories/subcategory/${id}`,
+        method: 'PUT',
+        body: body,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: 'Category', id },
+        { type: 'Category', id: 'SUBCATEGORY_LIST' }
+      ],
+      transformResponse: (response: SubcategoryResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to update sub category');
+      },
+    }),
+
+     // Mutation for deleting a category
+    deleteSubCategory: builder.mutation<DeleteCategoryResponse, string | number>({
+      query: (id) => ({
+        url: `products/categories/subcategory/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, id) => [
+        { type: 'Category', id },
+        { type: 'Category', id: 'LIST' }
+      ],
+      transformResponse: (response: DeleteCategoryResponse) => {
+        if (response.success) {
+          return response;
+        }
+        throw new Error(response.message || 'Failed to delete category');
+      },
+    }),
+
 
     getRoles: builder.query<Role[], void>({
       query: () => 'auth/roles',
@@ -224,8 +260,10 @@ export const {
   useGetCategoryByIdQuery,
   useAddCategoryMutation,
   useUpdateCategoryMutation,
-  useDeleteCategoryMutation,
+    useDeleteCategoryMutation,
+  useUpdateSubCategoryMutation,
   useAddSubcategoryMutation,
+  useDeleteSubCategoryMutation,
   useGetSubcategoriesByCategoryIdQuery,
   useGetRolesQuery,
 

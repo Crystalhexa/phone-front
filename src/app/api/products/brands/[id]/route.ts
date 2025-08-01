@@ -4,7 +4,6 @@ import { z } from 'zod';
 
 const brandUpdateSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  code: z.string().min(1, 'Code is required'),
   description: z.string().optional(),
 });
 
@@ -19,7 +18,7 @@ export async function GET(
 
   try {
     const result = await query(
-      `SELECT id, name, code, description FROM "brands" WHERE id = $1`,
+      `SELECT id, name, description FROM "brands" WHERE id = $1`,
       [id]
     );
 
@@ -82,15 +81,15 @@ export async function PUT(
     );
   }
 
-  const { name, code, description } = parsed.data;
+  const { name, description } = parsed.data;
 
   try {
     const result = await query(
       `UPDATE "brands"
-       SET name = $1, code = $2, description = $3
-       WHERE id = $4
-       RETURNING id, name, code, description`,
-      [name, code, description ?? null, id]
+       SET name = $1, description = $2
+       WHERE id = $3code
+       RETURNING id, name, description`,
+      [name, description ?? null, id]
     );
 
     if (result.rowCount === 0) {

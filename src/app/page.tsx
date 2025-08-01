@@ -6,7 +6,7 @@ export default function Page() {
     shopName: 'KRE',
     productName: 'Apple i phone',
     price: '15000.00',
-    barcodeValue: 'KRE123456789012',
+    barcodeValue: 'ITEM-20250730-7',
   };
 
   const quantityAdded = 5;

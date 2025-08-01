@@ -827,7 +827,6 @@ const ProductsTable: React.FC = () => {
   const brandOptions = brands.map(brand => ({
     id: brand.id,
     name: brand.name,
-    code: brand.code,
   }));
 
   const router = useRouter();

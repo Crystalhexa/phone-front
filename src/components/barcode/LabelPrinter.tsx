@@ -19,9 +19,7 @@ const PrintLabels = ({ labelData, quantity }: Props) => {
       </button>
 
       <div className="flex flex-col gap-2">
-        {labels.map((_, i) => (
-          <BarcodeLabel key={i} {...labelData} />
-        ))}
+       
       </div>
     </div>
   );

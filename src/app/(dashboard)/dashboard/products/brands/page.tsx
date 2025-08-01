@@ -34,19 +34,19 @@ const BrandTable: React.FC = () => {
   // Header actions component
   const headerActions = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-         <ReusableDialogForm
-                triggerLabel={
-                  <>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Brand
-                  </>
-                }
-                formType="brand"
-                formProps={{
-                  showExport: true,
-                  isEdit: false,
-                }}
-              />
+      <ReusableDialogForm
+        triggerLabel={
+          <>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Brand
+          </>
+        }
+        formType="brand"
+        formProps={{
+          showExport: true,
+          isEdit: false,
+        }}
+      />
       {/* 🔍 Search input */}
       <Input
         type="text"

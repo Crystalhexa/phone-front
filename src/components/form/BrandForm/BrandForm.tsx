@@ -63,8 +63,7 @@ const BrandFormComponent: React.FC<BrandFormProps> = ({
     resolver: zodResolver(schema),
     defaultValues: {
       name: "",
-      description: "",
-      code: "", // ← added
+      description: ""
     },
   });
 console.log(isEdit, brandId);
@@ -73,7 +72,6 @@ console.log(isEdit, brandId);
       form.reset({
         name: brandData.data.name,
         description: brandData.data.description || "",
-        code: brandData.data.code || "", // ← added
       });
     }
   }, [isEdit, brandData, form]);
@@ -85,12 +83,11 @@ console.log(isEdit, brandId);
     });
   }, [isEdit, brandId]);
 
-  const onSubmit = async (values: { name: string; description?: string ; code?: string }) => {
+  const onSubmit = async (values: { name: string; description?: string }) => {
     try {
       const payload = {
         name: values.name,
         description: values.description ?? "",
-        code: values.code ?? "", // Ensure code is always a string
       };
 
       if (isEdit && brandId) {
@@ -140,16 +137,6 @@ console.log(isEdit, brandId);
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <BrandFormHeader isEdit={isEdit} title={title} />
-          <CustomFormField
-            fieldType={FormFieldType.INPUT}
-            control={form.control}
-            name="code"
-            label="Brand Code"
-            placeholder="Enter brand code"
-            disabled={isLoading}
-            
-          />
-
           <CustomFormField
             fieldType={FormFieldType.INPUT}
             control={form.control}

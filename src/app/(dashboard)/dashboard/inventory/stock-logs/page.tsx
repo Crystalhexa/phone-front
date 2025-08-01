@@ -74,6 +74,7 @@ interface StockLogEntry {
   reference_type?: string;
   reference_id?: string;
   cost_price?: number;
+  reference_number	:string;
   selling_price?: number;
   notes?: string;
   created_at: string;
@@ -385,7 +386,7 @@ const StockLogsComponent: React.FC = () => {
                       <TableCell>
                         <div className="text-sm text-muted-foreground">
                           {log.reference_type && log.reference_id && (
-                            <span>{log.reference_type}: {log.reference_id}</span>
+                            <span>{log.reference_type}: {log.reference_number	}</span>
                           )}
                         </div>
                       </TableCell>

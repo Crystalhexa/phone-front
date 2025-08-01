@@ -112,7 +112,6 @@ async function handleIndividualItemScan(
       p.warranty_period,
       p.wholesale_quantity,
       b.name as brand_name,
-      b.code as brand_code,
       sc.name as subcategory_name,
       c.name as category_name,
       s.name as supplier_name,
@@ -261,7 +260,6 @@ async function handleProductLevelScan(
       p.warranty_period,
       p.wholesale_quantity,
       b.name as brand_name,
-      b.code as brand_code,
       sc.name as subcategory_name,
       c.name as category_name,
       -- Branch-specific inventory
@@ -307,7 +305,7 @@ async function handleProductLevelScan(
                                    AND pb.is_active = true
     WHERE bc.code = $1 AND bc.is_active = true AND p.is_active = true
     GROUP BY bc.id, bc.code, bc.type, p.id, p.name, p.model, p.sku, p.warranty_period,
-             b.name, b.code, sc.name, c.name, bi.total_quantity, bi.reserved_quantity, 
+             b.name, sc.name, c.name, bi.total_quantity, bi.reserved_quantity, 
              bi.low_stock_threshold, bi.average_cost_price
   `
 

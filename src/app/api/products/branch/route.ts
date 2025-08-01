@@ -173,7 +173,6 @@ async function getProductsWithFIFOPricing(
       p.wholesale_quantity,
       p.description,
       b.name as brand_name,
-      b.code as brand_code,
       c.name as category_name,
       sc.name as subcategory_name,
       bi.total_quantity,

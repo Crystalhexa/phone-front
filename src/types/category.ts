@@ -10,7 +10,12 @@ export interface Category {
 }
 
 export interface Subcategory {
-  subcategory_id: string;
+  id: string;
+  name: string;
+}
+
+export interface EditSubcategory {
+  id: string;
   name: string;
 }
 export interface CategoryFormData {

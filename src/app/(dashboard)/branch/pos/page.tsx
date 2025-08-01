@@ -711,8 +711,8 @@ const POSSystem: React.FC = () => {
                 <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600">
                   {availableSubcategories.map((subcategory) => (
                     <SelectItem
-                      key={subcategory.subcategory_id}
-                      value={subcategory.subcategory_id}
+                      key={subcategory.id}
+                      value={subcategory.id}
                       className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       {subcategory.name}
@@ -733,7 +733,7 @@ const POSSystem: React.FC = () => {
                       value={brand.id}
                       className="text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
-                      {brand.name} ({brand.code})
+                      {brand.name} 
                     </SelectItem>
                   ))}
                 </SelectContent>

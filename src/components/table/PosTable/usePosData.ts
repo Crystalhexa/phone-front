@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { ProductResponse, Filters } from '@/types/pos';
@@ -51,7 +51,10 @@ export const useProductsData = () => {
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchProducts = async () => {
+  // Memoize fetchProducts to prevent unnecessary re-renders
+  const fetchProducts = useCallback(async () => {
+    if (!user?.branch_id) return;
+    
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -91,36 +94,53 @@ export const useProductsData = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    user?.branch_id,
+    pagination.page,
+    pagination.limit,
+    filters.sort,
+    filters.order,
+    filters.search,
+    filters.category_id,
+    filters.subcategory_id,
+    filters.brand_id,
+    filters.stock_status,
+    filters.include_inactive,
+    filters.low_stock_only,
+    filters.has_stock,
+    filters.min_stock,
+    filters.max_stock,
+    filters.branch_id
+  ]);
 
-  // Debounced search effect
+  // Single effect to handle all data fetching with debouncing for search
   useEffect(() => {
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
     }
 
-    debounceTimeout.current = setTimeout(() => {
-      if (filters.search) {
+    // If it's a search change, debounce it and reset to page 1
+    if (filters.search) {
+      debounceTimeout.current = setTimeout(() => {
         setPagination(prev => ({ ...prev, page: 1 }));
-      }
+        fetchProducts();
+      }, 500);
+    } else {
+      // For non-search filters, fetch immediately
       fetchProducts();
-    }, 500);
+    }
 
     return () => {
       if (debounceTimeout.current) {
         clearTimeout(debounceTimeout.current);
       }
     };
-  }, [filters.search]);
-
-  // Fetch products when pagination or non-search filters change
-  useEffect(() => {
-    fetchProducts();
   }, [
     pagination.page,
     pagination.limit,
     filters.sort,
     filters.order,
+    filters.search,
     filters.category_id,
     filters.subcategory_id,
     filters.brand_id,
@@ -128,10 +148,16 @@ export const useProductsData = () => {
     filters.low_stock_only,
     filters.has_stock,
     filters.min_stock,
-    filters.max_stock
+    filters.max_stock,
+    fetchProducts
   ]);
 
-  const resetFilters = () => {
+  // Memoize setFilters to prevent unnecessary re-renders
+  const memoizedSetFilters = useCallback((updater: React.SetStateAction<Filters>) => {
+    setFilters(updater);
+  }, []);
+
+  const resetFilters = useCallback(() => {
     setFilters({
       search: '',
       sort: 'name',
@@ -149,12 +175,12 @@ export const useProductsData = () => {
     });
     setPagination(prev => ({ ...prev, page: 1 }));
     toast.success('Filters reset');
-  };
+  }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     fetchProducts();
     toast.success('Products refreshed');
-  };
+  }, [fetchProducts]);
 
   return {
     products,
@@ -162,7 +188,7 @@ export const useProductsData = () => {
     pagination,
     setPagination,
     filters,
-    setFilters,
+    setFilters: memoizedSetFilters,
     resetFilters,
     handleRefresh,
     fetchProducts

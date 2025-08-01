@@ -11,16 +11,6 @@ export interface TableAction {
 
 export const createBrandColumns = (actions: TableAction[]): ColumnDef<Brand>[] => [
   {
-    accessorKey: "code",
-    header: "Code",
-    size: 100,
-    cell: ({ row }) => (
-      <div className="font-medium text-gray-300 w-[100px] truncate">
-        #{row.getValue("code")}
-      </div>
-    ),
-  },
-  {
     accessorKey: "name",
     header: "Brand Name",
     size: 200,

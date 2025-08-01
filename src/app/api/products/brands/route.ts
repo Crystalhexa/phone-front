@@ -5,7 +5,6 @@ import cuid from 'cuid';
 
 const brandSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  code: z.string().min(1, 'Code is required'),
   description: z.string().optional(),
 });
 
@@ -33,19 +32,20 @@ export async function GET(request: NextRequest) {
   try {
     await initDatabase();
 
-    const queryText = `
-      WITH filtered_brands AS (
-        SELECT 
-          id, name, code, description,
-          COUNT(*) OVER() AS total_count
-        FROM "brands"
-        WHERE name ILIKE $1 OR code ILIKE $1
-        ORDER BY ${safeSortBy} ${safeSortOrder}
-        LIMIT $2 OFFSET $3
-      )
-      SELECT id, name, code, description, total_count
-      FROM filtered_brands
-    `;
+const queryText = `
+  WITH filtered_brands AS (
+    SELECT 
+      id, name, description,
+      COUNT(*) OVER() AS total_count
+    FROM "brands"
+    WHERE name ILIKE $1 
+    ORDER BY created_at DESC
+    LIMIT $2 OFFSET $3
+  )
+  SELECT id, name, description, total_count
+  FROM filtered_brands
+`;
+
 
     const params = [`%${search}%`, limit, offset];
     const result = await query(queryText, params);
@@ -91,18 +91,18 @@ export async function POST(req: NextRequest) {
       }, { status: 400, headers: corsHeaders });
     }
 
-    const { name, code, description } = parsed.data;
+    const { name, description } = parsed.data;
 
     await initDatabase();
     const brandId = cuid(); // generate id manually
 
     const insertQuery = `
-      INSERT INTO "brands" (id, name, code, description)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, name, code, description
+      INSERT INTO "brands" (id, name, description)
+      VALUES ($1, $2, $3)
+      RETURNING id, name, description
     `;
 
-    const result = await query(insertQuery, [brandId, name, code, description ?? null]);
+    const result = await query(insertQuery, [brandId, name, description ?? null]);
 
     return NextResponse.json({
       success: true,

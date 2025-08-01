@@ -9,7 +9,7 @@ export const CategoryFormHeader: React.FC<CategoryFormHeaderProps> = ({
   isEdit, 
   title 
 }) => {
-  const defaultTitle = isEdit ? 'Edit Category' : 'Create New Category';
+  const defaultTitle = isEdit ? 'Edit Sub Category' : 'Create New Sub Category';
   
   return (
     <div className="mb-6">

@@ -3,8 +3,9 @@ import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ShoppingCart, Plus } from 'lucide-react';
+import { ShoppingCart, Plus, ChevronRight } from 'lucide-react';
 import SalesPopover from '@/components/pos/SalesPopover';
+import { useRouter } from 'next/navigation';
 
 interface PosHeaderProps {
   cartPanelOpen: boolean;
@@ -16,6 +17,7 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
   setCartPanelOpen
 }) => {
   const { user } = useAuth();
+  const router = useRouter();
 
 
   return (
@@ -28,10 +30,21 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
           Branch: <span className="font-medium">{user?.branch_name ?? "—"}</span>
         </p>
       </div>
-      
+
       <div className="flex gap-2 flex-wrap">
         {/* Cart Toggle Button */}
-        <SalesPopover user={user||null}/>
+
+        <Button
+          variant="outline"
+          className="relative"
+          onClick={() => router.push('/dashboard/pos/sales')}
+        >
+          <ShoppingCart className="w-4 h-4 mr-2" />
+          View Cart
+
+          <ChevronRight className="w-4 h-4 ml-2" />
+        </Button>
+
       </div>
     </div>
   );

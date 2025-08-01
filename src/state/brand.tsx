@@ -4,7 +4,6 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 // Brand interfaces
 export interface Brand {
   id: string;
-  code: string; // Added code field
   name: string;
   description: string;
   logo_url?: string;
@@ -33,7 +32,6 @@ export interface BrandsListResponse {
 
 export interface BrandFormData {
   name: string;
-  code: string; // Added code field
   description?: string;
   logo_url?: string;
   website_url?: string;

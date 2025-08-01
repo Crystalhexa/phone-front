@@ -16,7 +16,7 @@ import { CategoryFormSkeleton } from "./SubCategoryFormSkeleton";
 import {
   useGetCategoryByIdQuery,
   useAddSubcategoryMutation,
-  useUpdateCategoryMutation,
+  useUpdateSubCategoryMutation,
 } from "@/state/api";
 
 // ✅ Zod Schema and Type (included inside component)
@@ -28,6 +28,7 @@ const createSubCategorySchema = z.object({
 type SubcategoryFormData = z.infer<typeof createSubCategorySchema>;
 
 interface SubCategoryFormProps {
+  subcategoryId?: string; // Optional for creating new subcategories
   categoryId?: string;
   isEdit: boolean;
   onSuccess?: () => void;
@@ -52,6 +53,7 @@ const CategoryFormErrorFallback: React.FC<{
 );
 
 const SubCategoryFormComponent: React.FC<SubCategoryFormProps> = ({
+  subcategoryId,
   categoryId,
   isEdit = false,
   onSuccess,
@@ -68,11 +70,11 @@ const SubCategoryFormComponent: React.FC<SubCategoryFormProps> = ({
     isError: isCategoryError,
     error: categoryError,
   } = useGetCategoryByIdQuery(categoryId, {
-    skip: !isEdit,
+    skip: isEdit,
   });
 
   const [addSubcategory, { isLoading: isAdding }] = useAddSubcategoryMutation();
-  const [updateCategory, { isLoading: isUpdating }] = useUpdateCategoryMutation();
+  const [updateSubCategory, { isLoading: isUpdating }] = useUpdateSubCategoryMutation();
 
   const form = useForm<SubcategoryFormData>({
     resolver: zodResolver(createSubCategorySchema),
@@ -94,8 +96,10 @@ const SubCategoryFormComponent: React.FC<SubCategoryFormProps> = ({
   const onSubmit = async (values: SubcategoryFormData) => {
     try {
       if (isEdit && categoryId) {
-        await updateCategory({ id: categoryId, body: values }).unwrap();
-        toast.success("Category updated successfully!");
+        if (!subcategoryId) {
+          throw new Error("Subcategory ID is required for updating a subcategory.");
+        }
+        await updateSubCategory({ id: subcategoryId, body: { name: values.name } }).unwrap(); toast.success("Category updated successfully!");
       } else {
         await addSubcategory(values).unwrap();
         toast.success("Subcategory created successfully!");
@@ -145,7 +149,7 @@ const SubCategoryFormComponent: React.FC<SubCategoryFormProps> = ({
           />
 
           <SubCategoryFormActions
-           onCancel={onCancel}
+            onCancel={onCancel}
             onSubmit={form.handleSubmit(onSubmit)}
             isLoading={isLoading}
             isEdit={isEdit}

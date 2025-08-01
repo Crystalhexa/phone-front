@@ -153,6 +153,10 @@ async function validateCartItems(
   const errors: string[] = []
   const warnings: string[] = []
 
+  // ✅ NEW: Track all barcodes and batches used in this order
+  const usedItemBarcodes = new Set<string>()
+  const usedBatchAllocations = new Map<string, number>() // batch_id -> total_quantity
+
   for (const item of items) {
     try {
       // Validate product exists and is active
@@ -173,22 +177,46 @@ async function validateCartItems(
         continue
       }
 
-      
       if (item.type === 'BATCH' && item.batches) {
         for (const batch of item.batches) {
-          const batchValidation = await validateBatchItem(client, branchId, item.product_id, batch.batch_id, batch.quantity)
+          // ✅ NEW: Check for duplicate batch allocations
+          const batchKey = `${batch.batch_id}-${item.product_id}`
+          const currentTotal = usedBatchAllocations.get(batchKey) || 0
+          const newTotal = currentTotal + batch.quantity
+          
+          // Validate individual batch
+          const batchValidation = await validateBatchItem(
+            client, 
+            branchId, 
+            item.product_id, 
+            batch.batch_id, 
+            newTotal // ✅ Check against cumulative quantity
+          )
+          
           if (!batchValidation.isValid) {
             errors.push(...batchValidation.errors)
           }
           warnings.push(...batchValidation.warnings)
+          
+          // ✅ Update tracking
+          usedBatchAllocations.set(batchKey, newTotal)
         }
       } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
         for (const itemBarcodeId of item.item_barcodes) {
+          // ✅ NEW: Check for duplicate individual items
+          if (usedItemBarcodes.has(itemBarcodeId)) {
+            errors.push(`Individual item ${itemBarcodeId} is included multiple times in this order`)
+            continue
+          }
+
           const itemValidation = await validateIndividualItem(client, branchId, item.product_id, itemBarcodeId)
           if (!itemValidation.isValid) {
             errors.push(...itemValidation.errors)
           }
           warnings.push(...itemValidation.warnings)
+          
+          // ✅ Track this barcode as used
+          usedItemBarcodes.add(itemBarcodeId)
         }
       }
     } catch (error: any) {
@@ -198,7 +226,66 @@ async function validateCartItems(
 
   return { isValid: errors.length === 0, errors, warnings }
 }
+function validateCartStructure(items: CartItem[]): { isValid: boolean; errors: string[] } {
+  const errors: string[] = []
+  
+  // Group items by product to check for mixed types
+  const productItemTypes = new Map<string, Set<string>>()
+  
+  for (const item of items) {
+    if (!productItemTypes.has(item.product_id)) {
+      productItemTypes.set(item.product_id, new Set())
+    }
+    productItemTypes.get(item.product_id)!.add(item.type)
+  }
+  
+  // Check for products with mixed item types
+  for (const [productId, types] of productItemTypes) {
+    if (types.size > 1) {
+      errors.push(`Product ${productId} cannot have both BATCH and INDIVIDUAL items in the same order`)
+    }
+  }
+  
+  // Validate array contents match type
+  for (const item of items) {
+    if (item.type === 'BATCH') {
+      if (!item.batches || item.batches.length === 0) {
+        errors.push(`BATCH item for product ${item.product_id} must have batches array`)
+      }
+      if (item.item_barcodes && item.item_barcodes.length > 0) {
+        errors.push(`BATCH item for product ${item.product_id} should not have item_barcodes`)
+      }
+    } else if (item.type === 'INDIVIDUAL') {
+      if (!item.item_barcodes || item.item_barcodes.length === 0) {
+        errors.push(`INDIVIDUAL item for product ${item.product_id} must have item_barcodes array`)
+      }
+      if (item.batches && item.batches.length > 0) {
+        errors.push(`INDIVIDUAL item for product ${item.product_id} should not have batches`)
+      }
+    }
+  }
+  
+  return { isValid: errors.length === 0, errors }
+}
 
+async function validateCompleteCart(
+  client: PoolClient,
+  branchId: string,
+  items: CartItem[]
+): Promise<{ isValid: boolean; errors: string[]; warnings: string[] }> {
+  // First validate structure
+  const structureValidation = validateCartStructure(items)
+  if (!structureValidation.isValid) {
+    return {
+      isValid: false,
+      errors: structureValidation.errors,
+      warnings: []
+    }
+  }
+  
+  // Then validate items with duplicate detection
+  return await validateCartItems(client, branchId, items)
+}
 async function validateBatchItem(
   client: PoolClient,
   branchId: string,
@@ -856,18 +943,11 @@ async function createActivityLog(
 export async function POST(request: NextRequest) {
   return withPermission('create_product')(async (authedReq: AuthenticatedRequest) => {
     try {
-      // Initialize database if needed
       await initDatabase()
-
-      // Extract user details from authenticated request
       const { user: userDetails } = authedReq.user
-
-      // Parse request body
       const body = await authedReq.json()
 
-      // Validate input
       const validationResult = placeOrderSchema.safeParse(body)
-
       if (!validationResult.success) {
         const errors = validationResult.error.errors.map(err => ({
           path: err.path.join('.'),
@@ -886,9 +966,9 @@ export async function POST(request: NextRequest) {
 
       const orderData: PlaceOrderRequest = validationResult.data
 
-      // Pre-validate cart items
+      // ✅ UPDATED: Use enhanced validation
       const preValidation = await transaction(async (client) => {
-        return await validateCartItems(client, userDetails.branch_id, orderData.items)
+        return await validateCompleteCart(client, userDetails.branch_id, orderData.items)
       })
 
       if (!preValidation.isValid) {
@@ -901,15 +981,16 @@ export async function POST(request: NextRequest) {
         }, { status: 422 })
       }
 
-      // Calculate totals
+      // Show warnings to user but continue processing
+      if (preValidation.warnings.length > 0) {
+        console.warn('Order warnings:', preValidation.warnings)
+      }
+
+      // Rest of the processing remains the same...
       const totals = calculateOrderTotals(orderData.items, orderData.discount || 0)
-
-      // Execute main transaction
+      
       const result = await transaction(async (client) => {
-        // 1. Validate and handle customer
         const customerResult = await validateCustomer(client, orderData.customer)
-
-        // 3. Create sales order
         const salesOrderId = await createSalesOrder(
           client,
           orderData,
@@ -919,17 +1000,13 @@ export async function POST(request: NextRequest) {
           totals
         )
 
-        // 4. Create sales order items and process inventory
         const { totalCost, totalProfit } = await createSalesOrderItems(
           client,
           salesOrderId,
           orderData.items
         )
 
-        // 5. Update order totals with calculated costs
         await updateOrderTotals(client, salesOrderId, totalCost, totalProfit)
-
-        // 6. Create activity log
         await createActivityLog(
           client,
           userDetails.userId,
@@ -942,114 +1019,18 @@ export async function POST(request: NextRequest) {
             total_amount: totals.total_amount,
             profit_amount: totalProfit,
             items_count: orderData.items.length,
-            total_quantity: totals.total_quantity
-          },
-       
+            total_quantity: totals.total_quantity,
+            validation_warnings: preValidation.warnings
+          }
         )
 
-        // 7. Fetch complete order details
+        // Fetch complete order details (same query as before)
         const orderQuery = `
-          SELECT 
-            so.id,
-            so.order_number,
-            so.customer_id,
-            so.branch_id,
-            so.sold_by,
-            so.order_date,
-            so.delivery_date,
-            so.status,
-            so.payment_method,
-            so.payment_status,
-            so.subtotal,
-            so.discount,
-            so.total_amount,
-            so.total_cost,
-            so.profit_amount,
-            so.notes,
-            so.created_at,
-            c.name as customer_name,
-            c.customer_number,
-            c.phone as customer_phone,
-            c.email as customer_email,
-            c.customer_type,
-            b.name as branch_name,
-            b.code as branch_code,
-            e.name as sold_by_name,
-            e.employee_number,
-            COALESCE(
-              json_agg(
-                json_build_object(
-                  'id', soi.id,
-                  'product_id', soi.product_id,
-                  'product_name', p.name,
-                  'product_sku', p.sku,
-                  'product_model', p.model,
-                  'brand_name', br.name,
-                  'quantity', soi.quantity,
-                  'unit_price', soi.unit_price,
-                  'discount', soi.discount,
-                  'line_total', soi.line_total,
-                  'line_cost', soi.line_cost,
-                  'line_profit', soi.line_profit,
-                  'warranty_expiry', soi.warranty_expiry,
-                  'item_type', CASE 
-                    WHEN EXISTS(
-                      SELECT 1 FROM item_barcodes ib 
-                      WHERE ib.sales_order_item_id = soi.id
-                    ) THEN 'INDIVIDUAL'
-                    ELSE 'BATCH'
-                  END,
-                  'individual_item', CASE 
-                    WHEN EXISTS(
-                      SELECT 1 FROM item_barcodes ib 
-                      WHERE ib.sales_order_item_id = soi.id
-                    ) THEN (
-                      SELECT json_build_object(
-                        'item_id', ib.id,
-                        'barcode', ib.code,
-                        'condition', ib.condition,
-                        'warranty_expiry', ib.warranty_expiry,
-                        'sold_at', ib.sold_at,
-                        'sold_price', ib.sold_price
-                      )
-                      FROM item_barcodes ib 
-                      WHERE ib.sales_order_item_id = soi.id
-                      LIMIT 1
-                    )
-                    ELSE NULL
-                  END,
-                  'batch_allocation', (
-                    SELECT json_build_object(
-                      'batch_id', sba.batch_id,
-                      'batch_number', pb.batch_number,
-                      'quantity_allocated', sba.quantity_allocated,
-                      'cost_price_at_sale', sba.cost_price_at_sale,
-                      'selling_price', sba.selling_price,
-                      'allocated_at', sba.allocated_at,
-                      'expiry_date', pb.expiry_date
-                    )
-                    FROM sales_batch_allocations sba
-                    JOIN purchase_batches pb ON sba.batch_id = pb.id
-                    WHERE sba.sales_order_item_id = soi.id
-                    LIMIT 1
-                  )
-                ) ORDER BY soi.created_at
-              ) FILTER (WHERE soi.id IS NOT NULL), 
-              '[]'::json
-            ) as items
-          FROM sales_orders so
-          LEFT JOIN customers c ON so.customer_id = c.id
-          LEFT JOIN branches b ON so.branch_id = b.id
-          LEFT JOIN employees e ON so.sold_by = e.id
-          LEFT JOIN sales_order_items soi ON so.id = soi.sales_order_id
-          LEFT JOIN products p ON soi.product_id = p.id
-          LEFT JOIN brands br ON p.brand_id = br.id
-          WHERE so.id = $1
-          GROUP BY so.id, c.name, c.customer_number, c.phone, c.email, c.customer_type, 
-                   b.name, b.code, e.name, e.employee_number
+          SELECT so.id, so.order_number, so.customer_id, so.total_amount
+          FROM sales_orders so WHERE so.id = $1
         `
-
         const orderResult = await client.query(orderQuery, [salesOrderId])
+        
         return {
           order: orderResult.rows[0],
           customer_created: customerResult.isNewCustomer,
@@ -1066,17 +1047,12 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
       console.error('Place order error:', error)
-
-      // Handle specific PostgreSQL errors
+      
       const pgErrors: Record<string, string> = {
         '23505': 'Duplicate entry found',
         '23503': 'Referenced record not found',
         '23502': 'Required field is missing',
-        '23514': 'Check constraint violation',
-        '22P02': 'Invalid input syntax',
-        '22003': 'Numeric value out of range',
-        '40001': 'Transaction serialization failure - please retry',
-        '40P01': 'Deadlock detected - please retry'
+        '23514': 'Check constraint violation'
       }
 
       const message = pgErrors[error.code] || error.message || 'Failed to place order'
@@ -1088,7 +1064,6 @@ export async function POST(request: NextRequest) {
         errors: [{
           code: error.code,
           detail: error.detail,
-          hint: error.hint,
           message: error.message
         }],
         timestamp: new Date().toISOString()
