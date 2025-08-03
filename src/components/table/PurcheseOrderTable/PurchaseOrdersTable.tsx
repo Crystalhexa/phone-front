@@ -36,7 +36,6 @@ const PurchaseOrdersTable: React.FC = () => {
     GRNDialog,
     showGRN,
     selectedOrderForGRN,
-    handleBackFromGRN,
   } = usePurchaseOrderActions()
 
   // Create columns with actions

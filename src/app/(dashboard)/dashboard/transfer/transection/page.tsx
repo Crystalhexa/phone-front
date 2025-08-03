@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,7 +20,6 @@ import {
   CheckCircle,
   AlertTriangle
 } from 'lucide-react'
-
 import { TransferAPI } from '@/lib/api'
 import {  ScannedProduct, TransferItem, TransferRequest } from '@/types/transfer'
 import { BarcodeScanner } from '@/components/barcode/BarcodeScanner'
@@ -29,7 +28,6 @@ import { TransferSummary } from '@/components/transfer/TransferSummary'
 import { SearchableDropdown } from '@/components/form/SearchableDropdown'
 import { useBranchData } from '@/components/table/BranchTable/useBranchData'
 import { Branch } from '@/types/branch'
-import { useAuth } from '@/hooks/useAuth'
 
 const StockTransferPage: React.FC = () => {
   const [branches, setBranches] = useState<Branch[]>([])

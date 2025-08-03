@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { toast } from 'sonner'
 
 interface SalesOrderHook {
   scanProduct: (barcode: string) => Promise<any>

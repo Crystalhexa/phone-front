@@ -123,7 +123,7 @@ function calculateOrderTotals(items: CartItem[], orderDiscount: number = 0): Ord
       const itemDiscount = item.discount || 0
       subtotal += (batchTotal - itemDiscount)
     } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
-      individualProducts++
+      individualProducts++;
       totalQuantity += item.item_barcodes.length
       const individualTotal = item.unit_price * item.item_barcodes.length
       const itemDiscount = item.discount || 0
@@ -964,7 +964,7 @@ export async function POST(request: NextRequest) {
         }, { status: 400 })
       }
 
-      const orderData: PlaceOrderRequest = validationResult.data
+      const orderData: PlaceOrderRequest = validationResult.data;
 
       // ✅ UPDATED: Use enhanced validation
       const preValidation = await transaction(async (client) => {

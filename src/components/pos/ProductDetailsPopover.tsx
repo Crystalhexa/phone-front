@@ -208,31 +208,6 @@ const BatchDetailsViewer = ({ product }:any) => {
                           </span>
                           <span className="font-medium">{formatDate(batch.receivedDate)}</span>
                         </div>
-{/*                         
-                        {batch.expiryDate && (
-                          <div className="flex flex-col space-y-1">
-                            <span className={`text-sm flex items-center gap-1 ${
-                              isExpired(batch.expiryDate) ? 'text-red-600' : 
-                              isExpiringSoon(batch.expiryDate) ? 'text-orange-600' : 
-                              'text-muted-foreground'
-                            }`}>
-                              <Calendar className="w-3 h-3" />
-                              Expiry Date
-                            </span>
-                            <span className={`font-medium ${
-                              isExpired(batch.expiryDate) ? 'text-red-600' : 
-                              isExpiringSoon(batch.expiryDate) ? 'text-orange-600' : 
-                              ''
-                            }`}>
-                              {formatDate(batch.expiryDate)}
-                            </span>
-                            {isExpiringSoon(batch.expiryDate) && !isExpired(batch.expiryDate) && (
-                              <span className="text-xs text-orange-600 font-medium">
-                                Expires in {Math.ceil((new Date(batch.expiryDate) - new Date()) / (1000 * 60 * 60 * 24))} days
-                              </span>
-                            )}
-                          </div>
-                        )} */}
                       </div>
                     </div>
                   </div>

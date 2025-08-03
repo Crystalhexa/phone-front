@@ -8,13 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Eye, Package } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { ProductResponse } from '@/types/pos';
 import { QuickInfoPopover } from './QuickInfoPopover';
-import { OrderFormData } from '@/components/pos/PurchaseCart';
 
 // Lazy load ProductBatchDetailsPopover
 const ProductBatchDetailsPopover = React.lazy(() =>
