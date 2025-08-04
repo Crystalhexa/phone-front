@@ -115,7 +115,6 @@ const ProductCreationForm: React.FC = () => {
   const brandOptions = brands?.data.brands?.map(brand => ({
     id: brand.id,
     name: brand.name,
-    code: brand.code,
     description: brand.description
   })) || [];
 
@@ -175,7 +174,7 @@ const ProductCreationForm: React.FC = () => {
       const brand = brands?.data.brands.find(b => b.id === formData.brand_id);
 
       if (subcategory && brand) {
-        let sku = `${subcategory.name}-${brand.code}`;
+        let sku = `${subcategory.name}`;
         
         // Add model if it exists
         if (formData.model) {

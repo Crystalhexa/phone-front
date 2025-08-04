@@ -27,7 +27,7 @@ export const useSubCategoryActions = () => {
     }
     try {
       console.log(subcategory)
-      await deleteSubCategory(subcategory.id).unwrap();
+      await deleteSubCategory(subcategory.subcategory_id).unwrap();
       toast.success('Category deleted successfully');
     } catch (error: any) {
       console.error('Delete error:', error);

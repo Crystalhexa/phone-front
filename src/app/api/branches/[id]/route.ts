@@ -27,7 +27,7 @@ export async function PUT(
 ) {
     await initDatabase();
 
-      const { id: idParam } = await params;
+  const { id: idParam } = await params;
   const id = idParam;
   const json = await req.json()
   const timestamp = new Date().toISOString()

@@ -109,13 +109,16 @@ model user_activity_logs {
   ip_address String?  @db.VarChar(45)
   user_agent String?  @db.Text
   metadata   Json?    @default("{}")
+  branch_id  String?  // <- Add this line
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
   user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  branch branches? @relation(fields: [branch_id], references: [id], onDelete: SetNull) // <- Add this line
 
   @@index([user_id, created_at])
   @@index([entity, entity_id])
+  @@index([branch_id])
   @@map("user_activity_logs")
 }
 
@@ -489,7 +492,8 @@ model branches {
   updated_at     DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
-    price_overrides        price_overrides[]
+  user_activity_logs     user_activity_logs[]      // <- Optional back-reference
+  price_overrides        price_overrides[]
   employees              employees[]
   sales_orders           sales_orders[]
   purchase_orders        purchase_orders[]

@@ -10,7 +10,7 @@ export interface Category {
 }
 
 export interface Subcategory {
-  id: string;
+  subcategory_id: string;
   name: string;
 }
 
@@ -26,13 +26,10 @@ export interface CategoryApiRequest {
   name: string;
   description?: string;
 }
-
-
 export interface AttributeValue {
   id: string;
   value: string;
 }
-
 export interface CategoriesListResponse {
   success: boolean;
   data: {
@@ -43,7 +40,6 @@ export interface CategoriesListResponse {
   };
   message?: string;
 }
-
 export interface CategoryApiResponse {
   description: string;
   name: string | undefined;
@@ -51,8 +47,6 @@ export interface CategoryApiResponse {
   data: Category;
   message?: string;
 }
-
-
 export interface GetCategoriesParams {
   limit?: number;
   offset?: number;

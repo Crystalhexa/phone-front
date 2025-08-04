@@ -17,10 +17,14 @@ interface CartItem {
   product_id: string
   unit_price: number
   discount?: number
+  discount_amount_per_item?: number // For individual items - discount per item
   batches?: BatchInfo[]       // For batch items - array of batches
-  item_barcodes?: string[]    // For individual items - array of barcode IDs
+  item_barcodes?: Barcode[]    // For individual items - array of barcode IDs
 }
-
+interface Barcode {
+  barcode_id: string
+  barcode: string
+}
 interface Customer {
   customer_id?: string
   name?: string
@@ -56,6 +60,10 @@ const batchInfoSchema = z.object({
   batch_id: z.string().min(1, 'Batch ID is required'),
   quantity: z.number().int().positive('Quantity must be positive')
 })
+const barcodeInfoSchema = z.object({  
+  barcode_id: z.string().min(1, 'Barcode ID is required'),
+  barcode: z.string().min(1, 'Barcode is required')
+})
 
 const cartItemSchema = z.object({
   type: z.enum(['BATCH', 'INDIVIDUAL'], {
@@ -65,8 +73,9 @@ const cartItemSchema = z.object({
   product_id: z.string().min(1, 'Product ID is required'),
   unit_price: z.number().positive('Unit price must be positive'),
   discount: z.number().min(0).optional().default(0),
+  discount_amount_per_item: z.number().min(0).optional().default(0), // For individual items  
   batches: z.array(batchInfoSchema).optional(),
-  item_barcodes: z.array(z.string().min(1, 'Item barcode ID is required')).optional()
+  item_barcodes: z.array(barcodeInfoSchema).optional()
 }).refine(
   (data) => {
     if (data.type === 'BATCH') {
@@ -120,13 +129,13 @@ function calculateOrderTotals(items: CartItem[], orderDiscount: number = 0): Ord
         totalQuantity += batch.quantity
         return batchSum + (item.unit_price * batch.quantity)
       }, 0)
-      const itemDiscount = item.discount || 0
+      const itemDiscount = item.discount_amount_per_item||0 * totalQuantity;
       subtotal += (batchTotal - itemDiscount)
     } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
       individualProducts++;
       totalQuantity += item.item_barcodes.length
       const individualTotal = item.unit_price * item.item_barcodes.length
-      const itemDiscount = item.discount || 0
+      const itemDiscount = item.discount_amount_per_item ||0*totalQuantity;
       subtotal += (individualTotal - itemDiscount)
     }
   })
@@ -202,21 +211,21 @@ async function validateCartItems(
           usedBatchAllocations.set(batchKey, newTotal)
         }
       } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
-        for (const itemBarcodeId of item.item_barcodes) {
+        for (const barcode of item.item_barcodes) {
           // ✅ NEW: Check for duplicate individual items
-          if (usedItemBarcodes.has(itemBarcodeId)) {
-            errors.push(`Individual item ${itemBarcodeId} is included multiple times in this order`)
+          if (usedItemBarcodes.has(barcode.barcode_id)) {
+            errors.push(`Individual item ${barcode.barcode_id} is included multiple times in this order`)
             continue
           }
 
-          const itemValidation = await validateIndividualItem(client, branchId, item.product_id, itemBarcodeId)
+          const itemValidation = await validateIndividualItem(client, branchId, item.product_id, barcode.barcode_id)
           if (!itemValidation.isValid) {
             errors.push(...itemValidation.errors)
           }
           warnings.push(...itemValidation.warnings)
           
           // ✅ Track this barcode as used
-          usedItemBarcodes.add(itemBarcodeId)
+          usedItemBarcodes.add(barcode.barcode_id)
         }
       }
     } catch (error: any) {
@@ -579,8 +588,8 @@ async function createSalesOrderItems(
     } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
       
       //Process each individual item separately  
-      for (const itemBarcodeId of item.item_barcodes) {
-        const result = await processIndividualSaleItem(client, salesOrderId, item, itemBarcodeId)
+      for (const barcode of item.item_barcodes) {
+        const result = await processIndividualSaleItem(client, salesOrderId, item, barcode.barcode_id)
         totalCost += result.lineCost
         totalProfit += result.lineProfit
       }
@@ -597,7 +606,7 @@ async function processBatchSaleItem(
   batch: BatchInfo
 ): Promise<{ lineCost: number; lineProfit: number }> {
   const salesOrderItemId = generateCuid()
-  const lineTotal = (item.unit_price * batch.quantity) - (item.discount || 0)
+  const lineTotal = (item.unit_price * batch.quantity) - (item.discount_amount_per_item || 0*batch.quantity)
 
   // Get batch cost and details
   const batchResult = await client.query(`
@@ -687,7 +696,7 @@ async function processIndividualSaleItem(
   itemBarcodeId: string
 ): Promise<{ lineCost: number; lineProfit: number }> {
   const salesOrderItemId = generateCuid()
-  const lineTotal = item.unit_price - (item.discount || 0)
+  const lineTotal = item.unit_price - (item.discount_amount_per_item || 0)
 
   // Get item details
   const itemResult = await client.query(`
@@ -726,7 +735,7 @@ async function processIndividualSaleItem(
     item.product_id,
     1, // Individual items are always quantity 1
     item.unit_price,
-    item.discount || 0,
+    item.discount_amount_per_item || 0,
     lineTotal,
     lineCost,
     lineProfit,

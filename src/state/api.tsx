@@ -153,7 +153,7 @@ export const api = createApi({
       providesTags: (result) =>
         result?.data?.subcategories
           ? [
-            ...result.data.subcategories.map(({ id }) => ({ type: 'Category' as const, id })),
+            ...result.data.subcategories.map(({ subcategory_id }) => ({ type: 'Category' as const, subcategory_id })),
             { type: 'Category', id: 'SUBCATEGORY_LIST' },
           ]
           : [{ type: 'Category', id: 'SUBCATEGORY_LIST' }],

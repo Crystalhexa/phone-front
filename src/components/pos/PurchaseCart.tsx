@@ -45,16 +45,15 @@ export const orderFormSchema = z.object({
   order_date: z.coerce.date().optional(),
   expected_date: z.coerce.date().optional(),
   status: z.enum(['PENDING', 'RECEIVED']),
+  invoive_number: z.string().optional(),
   notes: z.string().optional(),
 });
 
 const itemFormSchema = z.object({
-  quantity: z.number().min(1, 'Quantity must be at least 1'),
-  cost_price: z.number().min(0, 'Cost price must be positive'),
-  wholesale_price: z.number().min(0, 'Wholesale price must be positive').optional(),
-  retail_price: z.number().min(0, 'Retail price must be positive'),
-  batch_number: z.string().optional(),
-  expiry_date: z.string().optional(),
+  quantity: z.coerce.number().min(1, 'Quantity must be at least 1'),
+  cost_price: z.coerce.number().min(0, 'Cost price must be positive'),
+  wholesale_price: z.coerce.number().min(0, 'Wholesale price must be positive').optional(),
+  retail_price: z.coerce.number().min(0, 'Retail price must be positive'),
   is_unique: z.boolean().optional(),
 });
 
@@ -103,10 +102,10 @@ interface PurchaseOrder {
   supplier_name: string;
   order_date?: Date;
   expected_date?: Date;
+  invoive_number?: string;
   status: 'PENDING' | 'RECEIVED';
   notes?: string;
   subtotal: number;
-  tax_amount: number;
   total_amount: number;
   items?: CartItem[];
   is_saved: boolean;
@@ -157,6 +156,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
       order_date: new Date(),
       expected_date: new Date(),
       status: 'PENDING',
+      invoive_number: '',
       notes: '',
     },
   });
@@ -168,8 +168,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
       cost_price: 0,
       wholesale_price: 0,
       retail_price: 0,
-      batch_number: '',
-      expiry_date: '',
       is_unique: false
     },
   });
@@ -219,13 +217,11 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
   useEffect(() => {
     if (currentOrder) {
       const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
-      const taxAmount = subtotal * 0.1;
-      const totalAmount = subtotal + taxAmount;
+      const totalAmount = subtotal;
 
       setCurrentOrder(prev => prev ? {
         ...prev,
         subtotal,
-        tax_amount: taxAmount,
         total_amount: totalAmount,
         items: cartItems
       } : null);
@@ -234,8 +230,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
 
   // Calculate totals for display
   const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
-  const taxAmount = subtotal * 0.1;
-  const totalAmount = subtotal + taxAmount;
+  const totalAmount = subtotal;
 
   // Prepare supplier options for select
   const supplierOptions = suppliers.map(supplier => ({
@@ -261,10 +256,10 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
       supplier_name: supplier?.name || '',
       order_date: data.order_date,
       expected_date: data.expected_date,
+      invoive_number: data.invoive_number || '',
       status: data.status,
       notes: data.notes || '',
       subtotal: 0,
-      tax_amount: 0,
       total_amount: 0,
       items: [],
       is_saved: false
@@ -287,6 +282,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
       supplier_name: supplier?.name || '',
       order_date: data.order_date,
       expected_date: data.expected_date,
+      invoive_number: data.invoive_number || '',
       status: data.status,
       notes: data.notes || '',
     } : null);
@@ -316,6 +312,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
         expected_date: currentOrder.expected_date,
         status: currentOrder.status,
         notes: currentOrder.notes,
+        invoive_number: currentOrder.invoive_number,
         items: cartItems.map(item => ({
           product_id: item.product.id,
           quantity: item.quantity,
@@ -388,8 +385,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
             cost_price: formData.cost_price,
             wholesale_price: formData.wholesale_price,
             retail_price: formData.retail_price,
-            batch_number: formData.batch_number,
-            expiry_date: formData.expiry_date,
             is_unique: formData.is_unique,
             line_total: lineTotal,
           };
@@ -463,12 +458,18 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
     setCreateOrderDialogOpen(true);
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+const formatCurrency = (amount: unknown) => {
+  const num = typeof amount === 'number'
+    ? amount
+    : typeof amount === 'string'
+    ? Number(amount)
+    : NaN;
+
+  if (isNaN(num)) return 'Rs. 0.00';
+
+  return `Rs. ${num.toFixed(2)}`;
+};
+
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return '-';
@@ -506,11 +507,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
             <ShoppingCart className="w-5 h-5" />
             <div>
               <h2 className="text-lg font-semibold">Purchase Order Cart</h2>
-              {currentOrder && (
-                <p className="text-sm text-muted-foreground">
-                  Order #{currentOrder.order_number} - {currentOrder.supplier_name}
-                </p>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -850,10 +846,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Tax (10%):</span>
-                  <span className="font-medium">{formatCurrency(taxAmount)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold border-t pt-2">
                   <span>Total:</span>
