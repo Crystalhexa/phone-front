@@ -10,7 +10,6 @@ import { ProductResponse } from '@/app/(dashboard)/dashboard/products/all/page';
 import CustomFormField, { FormFieldType } from '@/components/form/CustomFormField';
 import {  ShoppingCart, TrendingUp } from 'lucide-react';
 
-// Purchasing schema - focused on buying context with proper number coercion
 const purchaseItemSchema = z.object({
   quantity: z.coerce.number().min(1, 'Quantity must be at least 1'),
   cost_price: z.coerce.number().min(0, 'Purchase cost must be positive'),
@@ -49,8 +48,6 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
     },
   });
 
-  // Reset form when product changes
- 
   const handleSubmit = async (data: PurchaseItemFormData) => {
     setLoading(true);
     try {
@@ -69,14 +66,17 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+const formatCurrency = (amount: unknown) => {
+  const num = typeof amount === 'number'
+    ? amount
+    : typeof amount === 'string'
+    ? Number(amount)
+    : NaN;
 
+  if (isNaN(num)) return 'Rs. 0.00';
 
+  return `Rs. ${num.toFixed(2)}`;
+};
 
   // Calculate purchase total
   const watchQuantity = form.watch('quantity');

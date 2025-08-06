@@ -39,26 +39,18 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
-  TrendingDown,
-  AlertTriangle,
   Plus,
   Filter,
   RefreshCw,
   Eye,
-  ShoppingCart,
   Info,
-  Warehouse,
-  Building2,
-  Calendar,
   Barcode,
   FileText,
-  DollarSign
 } from 'lucide-react';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 import { SearchableDropdown } from '@/components/form/SearchableDropdown';
 import { OrderFormData, PurchaseCart } from '@/components/pos/PurchaseCart';
-import { AddToCartModal } from '@/components/pos/AddToCartModal';
 import { toast } from 'sonner';
 
 // Updated types to match API response structure
@@ -78,27 +70,6 @@ interface Subcategory {
   id: string;
   name: string;
   category: Category;
-}
-
-interface CurrentPrices {
-  cost_price: number;
-  wholesale_price: number | null;
-  retail_price: number;
-  last_updated: string;
-}
-
-interface BranchStock {
-  branch_id: string;
-  branch_name: string;
-  branch_code: string;
-  total_quantity: number;
-  available_quantity: number;
-  reserved_quantity: number;
-  low_stock_threshold: number;
-  stock_status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'NOT_STOCKED';
-  average_cost_price: number | null;
-  last_restock_date: string | null;
-  last_sale_date: string | null;
 }
 
 interface Barcode {
@@ -125,11 +96,6 @@ export interface ProductResponse {
   updated_at: string;
   brand: Brand | null;
   subcategory: Subcategory | null;
-  current_prices: CurrentPrices | null;
-  branch_stock: BranchStock[];
-  total_system_stock: number;
-  total_available_stock: number;
-  overall_stock_status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'NOT_STOCKED';
   barcodes: Barcode[];
   specifications: Specification[];
 }
@@ -165,172 +131,8 @@ interface Filters {
   brand_id: string;
   stock_status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'NOT_STOCKED' | 'ALL';
   include_inactive: boolean;
-  low_stock_only: boolean;
-  has_stock: boolean;
-  min_stock: string;
-  max_stock: string;
-  branch_id: string;
 }
 
-interface CartItem {
-  id: string;
-  product: {
-    id: string;
-    name: string;
-    model?: string;
-    sku?: string;
-    brand?: {
-      name: string;
-      code: string;
-    };
-  };
-  quantity: number;
-  cost_price: number;
-  wholesale_price?: number;
-  retail_price: number;
-  line_total: number;
-  batch_number?: string;
-  expiry_date?: string;
-}
-
-
-// Stock Details Popup Component
-const StockDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }) => {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="p-1 h-auto">
-          <Info className="w-4 h-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="w-full max-w-2xl sm:max-w-3xl rounded-2xl p-0">
-        <div className="max-h-[85vh] overflow-y-auto px-6 py-8">
-          <DialogHeader className="mb-6">
-            <DialogTitle className="text-xl flex items-center gap-2">
-              <Warehouse className="w-5 h-5" />
-              Stock Details - {product.name}
-            </DialogTitle>
-            <DialogDescription>
-              View detailed stock information across all branches
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            {/* Overall Stock Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-blue-500" />
-                    <span className="text-sm font-medium">Total Stock</span>
-                  </div>
-                  <p className="text-2xl font-bold">{product.total_system_stock}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-green-500" />
-                    <span className="text-sm font-medium">Available</span>
-                  </div>
-                  <p className="text-2xl font-bold">{product.total_available_stock}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-orange-500" />
-                    <span className="text-sm font-medium">Reserved</span>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {product.total_system_stock - product.total_available_stock}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500" />
-                    <span className="text-sm font-medium">Status</span>
-                  </div>
-                  <Badge variant={
-                    product.overall_stock_status === 'IN_STOCK' ? 'default' :
-                    product.overall_stock_status === 'LOW_STOCK' ? 'destructive' : 'secondary'
-                  }>
-                    {product.overall_stock_status.replace('_', ' ')}
-                  </Badge>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Branch Stock Details */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Building2 className="w-5 h-5" />
-                Branch Stock Details
-              </h3>
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Branch</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Available</TableHead>
-                      <TableHead>Reserved</TableHead>
-                      <TableHead>Threshold</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Avg Cost</TableHead>
-                      <TableHead>Last Restock</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {product.branch_stock.map((stock) => (
-                      <TableRow key={stock.branch_id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{stock.branch_name}</div>
-                            <div className="text-sm text-muted-foreground">{stock.branch_code}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono">{stock.total_quantity}</TableCell>
-                        <TableCell className="font-mono">{stock.available_quantity}</TableCell>
-                        <TableCell className="font-mono">{stock.reserved_quantity}</TableCell>
-                        <TableCell className="font-mono">{stock.low_stock_threshold}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            stock.stock_status === 'IN_STOCK' ? 'default' :
-                            stock.stock_status === 'LOW_STOCK' ? 'destructive' : 'secondary'
-                          }>
-                            {stock.stock_status.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {stock.average_cost_price ? `$${stock.average_cost_price.toFixed(2)}` : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {stock.last_restock_date ? (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              <span className="text-sm">
-                                {new Date(stock.last_restock_date).toLocaleDateString()}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">Never</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-};
 // Product Details Popup Component
 const ProductDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }) => {
   return (
@@ -351,7 +153,7 @@ const ProductDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }
               View complete product information and specifications
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-6">
             {/* Basic Information */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -392,10 +194,10 @@ const ProductDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }
                     <label className="text-sm font-medium text-muted-foreground">Brand</label>
                     <div className="flex items-center gap-2">
                       {product.brand?.logo_url && (
-                        <img 
-                          src={product.brand.logo_url} 
-                          alt={product.brand.name} 
-                          className="w-6 h-6 rounded object-cover" 
+                        <img
+                          src={product.brand.logo_url}
+                          alt={product.brand.name}
+                          className="w-6 h-6 rounded object-cover"
                         />
                       )}
                       <div>
@@ -421,48 +223,6 @@ const ProductDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }
                 </CardContent>
               </Card>
             </div>
-
-            {/* Pricing Information */}
-            {product.current_prices && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <DollarSign className="w-5 h-5" />
-                    Pricing Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Cost Price</label>
-                      <p className="text-lg font-bold text-green-600">
-                        ${product.current_prices.cost_price.toFixed(2)}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Wholesale Price</label>
-                      <p className="text-lg font-bold text-blue-600">
-                        {product.current_prices.wholesale_price ? 
-                          `$${product.current_prices.wholesale_price.toFixed(2)}` : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Retail Price</label>
-                      <p className="text-lg font-bold text-purple-600">
-                        ${product.current_prices.retail_price.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
-                    <p className="text-sm flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(product.current_prices.last_updated).toLocaleString()}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
 
             {/* Barcodes */}
             {product.barcodes.length > 0 && (
@@ -522,7 +282,6 @@ const ProductDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }
 const ProductsTable: React.FC = () => {
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(false);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -540,23 +299,7 @@ const ProductsTable: React.FC = () => {
     subcategory_id: '',
     brand_id: '',
     stock_status: 'ALL',
-    include_inactive: false,
-    low_stock_only: false,
-    has_stock: false,
-    min_stock: '',
-    max_stock: '',
-    branch_id: '' // Default branch
-  });
-
-  const [selectedProduct, setSelectedProduct] = useState<ProductResponse | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  
-  const [orderFormData, setOrderFormData] = useState<OrderFormData>({
-    supplier_id: '',
-    order_date: new Date(),
-    expected_date: undefined,
-    status: 'PENDING',
-    notes: ''
+    include_inactive: false
   });
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -590,19 +333,14 @@ const ProductsTable: React.FC = () => {
         sort: filters.sort,
         order: filters.order,
         include_inactive: filters.include_inactive.toString(),
-        low_stock_only: filters.low_stock_only.toString(),
-        branch_id: filters.branch_id,
         ...(filters.search && { search: filters.search }),
         ...(filters.category_id && { category_id: filters.category_id }),
         ...(filters.subcategory_id && { subcategory_id: filters.subcategory_id }),
         ...(filters.brand_id && { brand_id: filters.brand_id }),
-        ...(filters.stock_status !== 'ALL' && { stock_status: filters.stock_status }),
-        ...(filters.has_stock && { has_stock: 'true' }),
-        ...(filters.min_stock && { min_stock: filters.min_stock }),
-        ...(filters.max_stock && { max_stock: filters.max_stock }),
+        ...(filters.stock_status !== 'ALL' && { stock_status: filters.stock_status })
       });
 
-      const response = await fetch(`/api/products?${params}`);
+      const response = await fetch(`/api/products/all/?${params}`);
       const data: ApiResponse = await response.json();
 
       if (data.success) {
@@ -629,140 +367,14 @@ const ProductsTable: React.FC = () => {
   useEffect(() => {
     fetchProducts();
   }, [
-    pagination.page, 
-    pagination.limit, 
-    filters.sort, 
+    pagination.page,
+    pagination.limit,
+    filters.sort,
     filters.order,
     filters.category_id,
     filters.subcategory_id,
-    filters.brand_id,
-    filters.stock_status,
-    filters.low_stock_only,
-    filters.has_stock,
-    filters.min_stock,
-    filters.max_stock
+    filters.brand_id
   ]);
-
-  const getStockBadge = (product: ProductResponse) => {
-    switch (product.overall_stock_status) {
-      case 'IN_STOCK':
-        return (
-          <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-            <Package className="w-3 h-3 mr-1" />
-            In Stock
-          </Badge>
-        );
-      case 'LOW_STOCK':
-        return (
-          <Badge variant="destructive" className="bg-yellow-500 hover:bg-yellow-600">
-            <AlertTriangle className="w-3 h-3 mr-1" />
-            Low Stock
-          </Badge>
-        );
-      case 'OUT_OF_STOCK':
-        return (
-          <Badge variant="secondary" className="bg-red-500 hover:bg-red-600 text-white">
-            <TrendingDown className="w-3 h-3 mr-1" />
-            Out of Stock
-          </Badge>
-        );
-      case 'NOT_STOCKED':
-        return (
-          <Badge variant="outline">
-            Not Stocked
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
-
-  const handleAddToCart = (product: ProductResponse) => {
-    if (!orderFormData.supplier_id) {
-      toast.error("🚫 Please create a purchase order first!", {
-        position: "top-right",
-        description: "You need to create a purchase order before adding products to cart."
-      });
-      return;
-    }
-
-    if (product.overall_stock_status === 'OUT_OF_STOCK') {
-      toast.warning("⚠️ This product is out of stock!", {
-        position: "top-right",
-        description: "Consider checking stock levels before ordering."
-      });
-    }
-
-    setSelectedProduct(product);
-    setModalOpen(true);
-  };
-
-  const handleConfirmAddToCart = (formData: { 
-    quantity: number; 
-    cost_price?: number; 
-    wholesale_price?: number;
-    retail_price?: number;
-    batch_number?: string;
-    expiry_date?: string;
-  }) => {
-    const product = selectedProduct;
-    if (!product) return;
-
-    const existingItem = cartItems.find(item => item.product.id === product.id);
-
-    if (existingItem) {
-      setCartItems(prev => prev.map(item =>
-        item.product.id === product.id
-          ? {
-            ...item,
-            quantity: item.quantity + formData.quantity,
-            cost_price: formData.cost_price ?? item.cost_price,
-            wholesale_price: formData.wholesale_price ?? item.wholesale_price,
-            retail_price: formData.retail_price ?? item.retail_price,
-            batch_number: formData.batch_number ?? item.batch_number,
-            expiry_date: formData.expiry_date ?? item.expiry_date,
-            line_total: (item.quantity + formData.quantity) * (formData.cost_price ?? item.cost_price),
-          }
-          : item
-      ));
-      
-      toast.success(`Updated ${product.name} quantity in cart`);
-    } else {
-      const newItem: CartItem = {
-        id: `${product.id}-${Date.now()}`,
-        product: {
-          id: product.id,
-          name: product.name,
-          model: product.model,
-          sku: product.sku,
-          brand: product.brand ? {
-            name: product.brand.name,
-            code: product.brand.code
-          } : undefined
-        },
-        quantity: formData.quantity,
-        cost_price: formData.cost_price ?? product.current_prices?.cost_price ?? 0,
-        wholesale_price: formData.wholesale_price ?? product.current_prices?.wholesale_price ?? undefined,
-        retail_price: formData.retail_price ?? product.current_prices?.retail_price ?? 0,
-        batch_number: formData.batch_number,
-        expiry_date: formData.expiry_date,
-        line_total: formData.quantity * (formData.cost_price ?? product.current_prices?.cost_price ?? 0),
-      };
-
-      setCartItems(prev => [...prev, newItem]);
-      toast.success(`Added ${product.name} to cart`);
-    }
-
-    setModalOpen(false);
-    setSelectedProduct(null);
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price);
-  };
 
   const resetFilters = () => {
     setFilters({
@@ -773,12 +385,7 @@ const ProductsTable: React.FC = () => {
       subcategory_id: '',
       brand_id: '',
       stock_status: 'ALL',
-      include_inactive: false,
-      low_stock_only: false,
-      has_stock: false,
-      min_stock: '',
-      max_stock: '',
-      branch_id: 'cmd7qdjga000fhjeu18ubhpnf'
+      include_inactive: false
     });
     setPagination(prev => ({ ...prev, page: 1 }));
     toast.success('Filters reset');
@@ -830,32 +437,14 @@ const ProductsTable: React.FC = () => {
   }));
 
   const router = useRouter();
-
-  // Calculate cart summary
-  const cartSummary = {
-    itemCount: cartItems.length,
-    totalQuantity: cartItems.reduce((sum, item) => sum + item.quantity, 0),
-    totalValue: cartItems.reduce((sum, item) => sum + item.line_total, 0)
-  };
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Products Management</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your product inventory and create purchase orders
-          </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <PurchaseCart
-            onAddToCart={handleConfirmAddToCart}
-            cartItems={cartItems}
-            setCartItems={setCartItems}
-            orderFormData={orderFormData}
-            setOrderFormData={setOrderFormData}
-          />
           <Button onClick={() => router.push('/dashboard/products/all/register')} className="bg-primary">
             <Plus className="w-4 h-4 mr-2" />
             Add Product
@@ -863,187 +452,103 @@ const ProductsTable: React.FC = () => {
         </div>
       </div>
 
-      {/* Cart Summary Bar */}
-      {cartItems.length > 0 && (
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <ShoppingCart className="w-5 h-5 text-blue-500" />
-                <div className="flex gap-6 text-sm">
-                  <span className="font-medium">
-                    {cartSummary.itemCount} item{cartSummary.itemCount !== 1 ? 's' : ''} in cart
-                  </span>
-                  <span className="text-muted-foreground">
-                    Total Qty: {cartSummary.totalQuantity}
-                  </span>
-                  <span className="text-muted-foreground">
-                    Total Value: {formatPrice(cartSummary.totalValue)}
-                  </span>
-                </div>
-              </div>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                Order Status: {orderFormData.status}
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Filters Section */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Filter Products
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Filter className="w-4 h-4" />
+              Filters
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFiltersExpanded(!filtersExpanded)}
-            >
-              {filtersExpanded ? 'Collapse' : 'Expand'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {pagination.total} items
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFiltersExpanded(!filtersExpanded)}
+                className="h-7 px-2"
+              >
+                {filtersExpanded ? 'Hide' : 'Show'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
+
         {filtersExpanded && (
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Search Input */}
-              <div className="col-span-1 md:col-span-2">
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* Compact Search */}
+              <div className="col-span-2 md:col-span-3 lg:col-span-2">
                 <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Search className="absolute left-2 top-2.5 h-3 w-3 text-gray-400" />
                   <Input
-                    placeholder="Search by name, model, or SKU..."
-                    className="pl-10"
+                    placeholder="Search products..."
+                    className="pl-7 h-8 text-sm"
                     value={filters.search}
                     onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
                   />
                 </div>
               </div>
 
-              {/* Category Filter */}
+              {/* Compact Dropdowns */}
               <SearchableDropdown
                 value={filters.category_id}
                 onValueChange={(value) => {
                   setFilters((prev) => ({ ...prev, category_id: value, subcategory_id: '' }));
                 }}
-                placeholder="Select Category"
-                searchPlaceholder="Search categories..."
+                placeholder="Category"
+                searchPlaceholder="Search..."
                 options={categoryOptions}
-                emptyMessage="No categories found"
+                emptyMessage="No categories"
                 onSearch={handleCategorySearch}
                 searchTerm={categorySearchTerm}
               />
 
-              {/* Subcategory Filter */}
               <SearchableDropdown
                 value={filters.subcategory_id}
                 onValueChange={(value) => setFilters((prev) => ({ ...prev, subcategory_id: value }))}
-                placeholder="Select Subcategory"
-                searchPlaceholder="Search subcategories..."
+                placeholder="Subcategory"
+                searchPlaceholder="Search..."
                 options={subcategoryOptions}
                 disabled={!filters.category_id}
-                emptyMessage="No subcategories found"
+                emptyMessage="No subcategories"
               />
 
-              {/* Brand Filter */}
               <SearchableDropdown
                 value={filters.brand_id}
                 onValueChange={(value) => setFilters((prev) => ({ ...prev, brand_id: value }))}
-                placeholder="Select Brand"
-                searchPlaceholder="Search brands..."
+                placeholder="Brand"
+                searchPlaceholder="Search..."
                 options={brandOptions}
-                emptyMessage="No brands found"
+                emptyMessage="No brands"
                 onSearch={handleBrandSearch}
                 searchTerm={brandSearchTerm}
               />
+            </div>
 
-              {/* Sort By */}
-              <Select
-                value={filters.sort}
-                onValueChange={(value) => setFilters((prev) => ({ ...prev, sort: value as Filters['sort'] }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sort By" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="created_at">Created Date</SelectItem>
-                  <SelectItem value="stock">Stock Level</SelectItem>
-                  <SelectItem value="brand">Brand</SelectItem>
-                  <SelectItem value="category">Category</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Sort Order */}
+            {/* Compact Actions Row */}
+            <div className="flex justify-between items-center mt-3 pt-3 border-t">
               <Select
                 value={filters.order}
                 onValueChange={(value) => setFilters((prev) => ({ ...prev, order: value as Filters['order'] }))}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sort Order" />
+                <SelectTrigger className="w-24 h-7 text-xs">
+                  <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="asc">Ascending</SelectItem>
-                  <SelectItem value="desc">Descending</SelectItem>
+                  <SelectItem value="asc">A-Z</SelectItem>
+                  <SelectItem value="desc">Z-A</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Stock Status Filter */}
-              <Select
-                value={filters.stock_status}
-                onValueChange={(value) => setFilters((prev) => ({ ...prev, stock_status: value as Filters['stock_status'] }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Stock Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Stock</SelectItem>
-                  <SelectItem value="IN_STOCK">In Stock</SelectItem>
-                  <SelectItem value="LOW_STOCK">Low Stock</SelectItem>
-                  <SelectItem value="OUT_OF_STOCK">Out of Stock</SelectItem>
-                  <SelectItem value="NOT_STOCKED">Not Stocked</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Stock Range Filters */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Min Stock"
-                  value={filters.min_stock}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, min_stock: e.target.value }))}
-                  type="number"
-                  min="0"
-                />
-                <Input
-                  placeholder="Max Stock"
-                  value={filters.max_stock}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, max_stock: e.target.value }))}
-                  type="number"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            {/* Filter Checkboxes */}
-          
-
-            <Separator className="my-4" />
-
-            {/* Filter Actions */}
-            <div className="flex justify-between items-center">
-              <div className="text-sm text-muted-foreground">
-                {pagination.total} product{pagination.total !== 1 ? 's' : ''} found
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={resetFilters} size="sm">
-                  Reset Filters
+              <div className="flex gap-1">
+                <Button variant="outline" onClick={resetFilters} size="sm" className="h-7 px-2 text-xs">
+                  Reset
                 </Button>
-                <Button onClick={handleRefresh} variant="outline" size="sm">
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Refresh
+                <Button onClick={handleRefresh} variant="outline" size="sm" className="h-7 px-2 text-xs">
+                  <RefreshCw className="w-3 h-3" />
                 </Button>
               </div>
             </div>
@@ -1072,8 +577,6 @@ const ProductsTable: React.FC = () => {
                   <TableHead>Product</TableHead>
                   <TableHead>Brand</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Stock Status</TableHead>
-                  <TableHead>Pricing</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead>Actions</TableHead>
@@ -1088,15 +591,18 @@ const ProductsTable: React.FC = () => {
                         {product.model && (
                           <div className="text-sm text-muted-foreground">Model: {product.model}</div>
                         )}
+                         {product.sku && (
+                          <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {product.brand?.logo_url && (
-                          <img 
-                            src={product.brand.logo_url} 
-                            alt={product.brand.name} 
-                            className="w-6 h-6 rounded object-cover" 
+                          <img
+                            src={product.brand.logo_url}
+                            alt={product.brand.name}
+                            className="w-6 h-6 rounded object-cover"
                           />
                         )}
                         <div className="min-w-0">
@@ -1110,34 +616,6 @@ const ProductsTable: React.FC = () => {
                         <div className="font-medium">{product.subcategory?.category?.name || 'No Category'}</div>
                         <div className="text-sm text-muted-foreground">{product.subcategory?.name || 'No Subcategory'}</div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-2">
-                        {getStockBadge(product)}
-                        <div className="text-xs text-muted-foreground">
-                          <div>Available: {product.total_available_stock}</div>
-                          <div>Total: {product.total_system_stock}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {product.current_prices ? (
-                        <div className="space-y-1">
-                          <div className="text-sm">
-                            <span className="text-green-600 font-medium">Cost: {formatPrice(product.current_prices.cost_price)}</span>
-                          </div>
-                          <div className="text-sm">
-                            <span className="text-purple-600">Retail: {formatPrice(product.current_prices.retail_price)}</span>
-                          </div>
-                          {product.current_prices.wholesale_price && (
-                            <div className="text-xs text-blue-600">
-                              Wholesale: {formatPrice(product.current_prices.wholesale_price)}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">No pricing</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={product.is_active ? "default" : "secondary"}>
@@ -1165,36 +643,14 @@ const ProductsTable: React.FC = () => {
                             </div>
                           </PopoverContent>
                         </Popover>
-                        <StockDetailsPopup product={product} />
                         <ProductDetailsPopup product={product} />
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        {orderFormData.supplier_id ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAddToCart(product)}
-                            disabled={!product.is_active}
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Add
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled
-                            title="Create a purchase order first"
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Add
-                          </Button>
-                        )}
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => router.push('/dashboard/products/all/view/' + product.id)}
                         >
                           <Eye className="w-3 h-3 mr-1" />
@@ -1252,20 +708,6 @@ const ProductsTable: React.FC = () => {
             </Button>
           </div>
         </div>
-      )}
-
-      {/* Add to Cart Modal */}
-      {selectedProduct && (
-        <AddToCartModal
-          open={modalOpen}
-          onClose={() => {
-            setModalOpen(false);
-            setSelectedProduct(null);
-          }}
-          product={selectedProduct}
-          orderStatus={orderFormData.status}
-          onConfirm={handleConfirmAddToCart}
-        />
       )}
     </div>
   );

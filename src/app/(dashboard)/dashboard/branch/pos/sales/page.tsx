@@ -31,6 +31,7 @@ import { BarcodeInput } from '@/components/sales/BarcodeInput'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { ProductPrice } from '@/components/pos/ProductPrice'
+import { useAuth } from '@/hooks/useAuth'
 
 // Enhanced FIFO Allocation utility
 interface BatchInfo {
@@ -73,23 +74,22 @@ const allocateBatchesFIFO = (batchesInfo: BatchInfo[], requestedQuantity: number
     if (a.fifo_sequence !== undefined && b.fifo_sequence !== undefined) {
       return a.fifo_sequence - b.fifo_sequence
     }
-    
+
     // Secondary sort: is_next_to_sell flag
     if (a.is_next_to_sell && !b.is_next_to_sell) return -1
     if (!a.is_next_to_sell && b.is_next_to_sell) return 1
-    
+
     // Tertiary sort: expiry date (earliest first)
     if (a.expiry_date && b.expiry_date) {
       return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime()
     }
     if (a.expiry_date && !b.expiry_date) return -1
     if (!a.expiry_date && b.expiry_date) return 1
-    
+
     // Quaternary sort: received date (earliest first)
     if (a.received_date && b.received_date) {
       return new Date(a.received_date).getTime() - new Date(b.received_date).getTime()
     }
-    
     return 0
   })
 
@@ -98,7 +98,7 @@ const allocateBatchesFIFO = (batchesInfo: BatchInfo[], requestedQuantity: number
     if (batch.quantity <= 0) continue
 
     const quantityFromThisBatch = Math.min(remainingQuantity, batch.quantity)
-    
+
     allocatedBatches.push({
       batch_id: batch.batch_id,
       batch_number: batch.batch_number,
@@ -135,14 +135,14 @@ const QuantitySelector = ({ value, onChange, max, label }: any) => (
 )
 
 // Enhanced FIFO Allocation Preview Component
-const FIFOAllocationPreview = ({ 
-  product, 
-  quantity, 
-  onAllocationChange 
-}: { 
-  product: ScannedProduct, 
+const FIFOAllocationPreview = ({
+  product,
+  quantity,
+  onAllocationChange
+}: {
+  product: ScannedProduct,
   quantity: number,
-  onAllocationChange: (allocation: FIFOAllocationResult) => void 
+  onAllocationChange: (allocation: FIFOAllocationResult) => void
 }) => {
   const [allocation, setAllocation] = useState<FIFOAllocationResult | null>(null)
 
@@ -211,12 +211,11 @@ const FIFOAllocationPreview = ({
             </div>
           ))}
         </div>
-        
-        <div className={`text-sm font-medium p-2 rounded ${
-          allocation.isFullyAllocated 
-            ? 'text-green-700 bg-green-50' 
+
+        <div className={`text-sm font-medium p-2 rounded ${allocation.isFullyAllocated
+            ? 'text-green-700 bg-green-50'
             : 'text-red-700 bg-red-50'
-        }`}>
+          }`}>
           Total allocated: {allocation.totalAllocated} / {quantity} requested
           {allocation.isFullyAllocated ? (
             <span className="text-green-600 ml-2">✓ Fully allocated</span>
@@ -288,7 +287,8 @@ interface ScannedProduct {
   warranty_period?: number
 }
 
-interface Barcode {
+interface Barcodes {
+  batch_number?: string
   barcode_id: string
   barcode: string
   cost_price: number
@@ -317,7 +317,7 @@ interface CartItem {
   discount_percentage: number
   discount_amount?: number
   discount_amount_per_item?: number
-  item_barcodes?: Barcode[]
+  item_barcodes?: Barcodes[]
   batches?: Batches[]
   total_quantity: number
   line_total: number
@@ -353,7 +353,11 @@ const calculateOrderTotals = (cart: CartItem[], orderDiscount: number = 0) => {
   }
 }
 
-export default function EnhancedSalesOrderPage({ user }: any) {
+export default function EnhancedSalesOrderPage() {
+
+  const { user } = useAuth();
+  console.log(user);
+
   const route = useRouter()
   const [cart, setCart] = useState<CartItem[]>([])
   const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null)
@@ -365,14 +369,10 @@ export default function EnhancedSalesOrderPage({ user }: any) {
   const [scannedBarcodes, setScannedBarcodes] = useState<Set<string>>(new Set())
   const [currentAllocation, setCurrentAllocation] = useState<FIFOAllocationResult | null>(null)
   const [allocationError, setAllocationError] = useState<string | null>(null)
-const [isExpanded, setIsExpanded] = useState(false);
-  // Dialog states
-  const [showCustomerDialog, setShowCustomerDialog] = useState(false)
-
+  const [isExpanded, setIsExpanded] = useState(false);
   // Hooks
   const { scanProduct, placeOrder, isLoading } = useSalesOrder()
 
-  // Handle barcode scanning with duplicate check
   const handleScanProduct = useCallback(async () => {
     if (!barcodeInput.trim()) {
       toast.error('Please enter a barcode')
@@ -417,7 +417,7 @@ const [isExpanded, setIsExpanded] = useState(false);
   // Handle FIFO allocation change
   const handleAllocationChange = useCallback((allocation: FIFOAllocationResult) => {
     setCurrentAllocation(allocation)
-    
+
     if (!allocation.isFullyAllocated && allocation.shortfall > 0) {
       setAllocationError(`Cannot allocate ${quantityInput} items. Only ${allocation.totalAllocated} available across all batches.`)
     } else {
@@ -447,8 +447,10 @@ const [isExpanded, setIsExpanded] = useState(false);
         unit_price: product.pricing.retail_price,
         discount_percentage: 0,
         discount_amount: 0,
-        discount_amount_per_item:0,
+        discount_amount_per_item: 0,
+        wholesale_quantity:product.wholesale_quantity,
         item_barcodes: [{
+          batch_number: product.batch_info.batch_number,
           barcode_id: product.barcode_id!,
           barcode: product.barcode,
           cost_price: product.pricing.cost_price,
@@ -505,6 +507,7 @@ const [isExpanded, setIsExpanded] = useState(false);
         discount_percentage: 0,
         discount_amount: 0,
         discount_amount_per_item: 0,
+        wholesale_quantity:product.wholesale_quantity,
         batches: currentAllocation.allocatedBatches.map(batch => ({
           batch_id: batch.batch_id,
           batch_number: batch.batch_number,
@@ -567,7 +570,7 @@ const [isExpanded, setIsExpanded] = useState(false);
   // Remove item from cart and remove its barcodes from scanned set
   const handleRemoveFromCart = useCallback((index: number) => {
     const item = cart[index]
-    
+
     // Remove barcodes from scanned set
     if (item.item_barcodes) {
       const newScannedBarcodes = new Set(scannedBarcodes)
@@ -576,7 +579,7 @@ const [isExpanded, setIsExpanded] = useState(false);
       })
       setScannedBarcodes(newScannedBarcodes)
     }
-    
+
     const updatedCart = cart.filter((_, i) => i !== index)
     setCart(updatedCart)
     toast.success('Item removed from cart')
@@ -587,7 +590,7 @@ const [isExpanded, setIsExpanded] = useState(false);
     const updatedCart = [...cart]
     const item = updatedCart[itemIndex]
 
-    const validDiscountPercentage = Math.min(Math.max(0, discountPercentage), 100)
+    const validDiscountPercentage = Math.min(Math.max(0, discountPercentage), user?.role_discount || 0)
     const discountAmount = calculateDiscountAmount(item.unit_price, item.total_quantity, validDiscountPercentage)
 
     updatedCart[itemIndex].discount_percentage = validDiscountPercentage
@@ -668,7 +671,7 @@ const [isExpanded, setIsExpanded] = useState(false);
           {/* Left Column - Scanner & Cart */}
           <div className="lg:col-span-2 space-y-6">
             {/* Product Scanner */}
-            <Card>  
+            <Card>
               <CardContent className="space-y-4">
                 <BarcodeInput
                   value={barcodeInput}
@@ -772,9 +775,9 @@ const [isExpanded, setIsExpanded] = useState(false);
                           </Alert>
                         )}
 
-                        <Button 
-                          onClick={() => handleAddToCart()} 
-                          className="w-full" 
+                        <Button
+                          onClick={() => handleAddToCart()}
+                          className="w-full"
                           size="lg"
                           disabled={scannedProduct.requires_quantity_input && (!currentAllocation || !currentAllocation.isFullyAllocated)}
                         >
@@ -823,159 +826,160 @@ const [isExpanded, setIsExpanded] = useState(false);
                   <ScrollArea className="h-[600px]">
                     <div className="space-y-4">
                       {cart.map((item, index) => (
-        <Card key={`${item.product_id}_${index}`} className="border-l-4">
-      <CardContent className="pt-4">
-        <div className="space-y-3">
-          {/* Header - Always Visible */}
-          <div className="flex items-start justify-between">
-            <div className="space-y-1 flex-1">
-              <div className="flex items-center gap-2">
-                <h4 className="font-medium">{item.product_name}</h4>
-                {item.has_custom_pricing && (
-                  <Badge variant="outline" className="text-xs">
-                    <DollarSign className="w-3 h-3 mr-1" />
-                    Custom Price
-                  </Badge>
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {item.sku}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={item.type === 'INDIVIDUAL' ? 'default' : 'secondary'}>
-                {item.type === 'INDIVIDUAL' ? 'Individual' : 'Batch'}
-              </Badge>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleRemoveFromCart(index)}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-              <ProductPrice 
-                product={item} 
-                index={index}
-                onUpdateDiscount={handleUpdateItemDiscountPercentage}
-                onUpdatePricing={handleUpdateItemPricing}
-              />
-            </div>
-          </div>
+                        <Card key={`${item.product_id}_${index}`} className="border-l-4">
+                          <CardContent className="pt-4">
+                            <div className="space-y-3">
+                              {/* Header - Always Visible */}
+                              <div className="flex items-start justify-between">
+                                <div className="space-y-1 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{item.product_name}</h4>
+                                    {item.has_custom_pricing && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <DollarSign className="w-3 h-3 mr-1" />
+                                        Custom Price
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    {item.sku}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={item.type === 'INDIVIDUAL' ? 'default' : 'secondary'}>
+                                    {item.type === 'INDIVIDUAL' ? 'Individual' : 'Batch'}
+                                  </Badge>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRemoveFromCart(index)}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                  <ProductPrice
+                                    product={item}
+                                    index={index}
+                                    onUpdateDiscount={handleUpdateItemDiscountPercentage}
+                                    onUpdatePricing={handleUpdateItemPricing}
+                                  />
+                                </div>
+                              </div>
 
-          {/* Compact Summary - Always Visible */}
-          <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
-            <div className="flex items-center gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Qty:</span>
-                <span className="font-bold ml-1">{item.total_quantity}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">@</span>
-                <span className="font-bold ml-1">{formatCurrency(item.unit_price)}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Total:</span>
-                <span className="font-bold text-lg ml-1">{formatCurrency(item.line_total)}</span>
-              </div>
-              {item.discount_percentage > 0 && (
-                <div>
-                  <span className="text-orange-600 font-bold">-{item.discount_percentage.toFixed(1)}%</span>
-                </div>
-              )}
-            </div>
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="p-1 h-8 w-8"
-            >
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </Button>
-          </div>
+                              {/* Compact Summary - Always Visible */}
+                              <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                                <div className="flex items-center gap-4 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Qty:</span>
+                                    <span className="font-bold ml-1">{item.total_quantity}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">@</span>
+                                    <span className="font-bold ml-1">{formatCurrency(item.unit_price)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Total:</span>
+                                    <span className="font-bold text-lg ml-1">{formatCurrency(item.line_total)}</span>
+                                  </div>
+                                  {item.discount_percentage > 0 && (
+                                    <div>
+                                      <span className="text-orange-600 font-bold">-{item.discount_percentage.toFixed(1)}%</span>
+                                    </div>
+                                  )}
+                                </div>
 
-          {/* Expandable Details */}
-          {isExpanded && (
-            <div className="space-y-3 border-t pt-3">
-              {/* Detailed Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <div className="space-y-1">
-                  <span className="text-muted-foreground">Unit Price</span>
-                  <div className="font-bold">{formatCurrency(item.unit_price)}</div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground">Discount %</span>
-                  <div className="font-bold text-orange-600">{item.discount_percentage.toFixed(1)}%</div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground">Discount Amount</span>
-                  <div className="font-bold text-orange-600">{formatCurrency(item.discount_amount || 0)}</div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground">Line Total</span>
-                  <div className="font-bold text-lg">{formatCurrency(item.line_total)}</div>
-                </div>
-              </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setIsExpanded(!isExpanded)}
+                                  className="p-1 h-8 w-8"
+                                >
+                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </Button>
+                              </div>
 
-              {/* FIFO Batch Allocation Display */}
-              {item.type === 'BATCH' && item.batches && item.batches.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Clock className="h-4 w-4" />
-                    FIFO Batch Allocation
-                  </Label>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {item.batches.map((batch, batchIndex) => (
-                      <div key={batch.batch_id} className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded flex items-center justify-between">
-                        <div className="space-y-1">
-                          <div className="font-medium">
-                            #{batchIndex + 1} - {batch.batch_number}
-                          </div>
-                          <div className="text-muted-foreground">
-                            Allocated: {batch.quantity} units
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-medium">{formatCurrency(batch.retail_price || 0)}</div>
-                          <div className="text-muted-foreground text-xs">per unit</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {item.batches.length > 1 && (
-                    <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                      Multi-batch FIFO allocation: {item.batches.length} batches used
-                    </div>
-                  )}
-                </div>
-              )}
+                              {/* Expandable Details */}
+                              {isExpanded && (
+                                <div className="space-y-3 border-t pt-3">
+                                  {/* Detailed Grid */}
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                    <div className="space-y-1">
+                                      <span className="text-muted-foreground">Unit Price</span>
+                                      <div className="font-bold">{formatCurrency(item.unit_price)}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <span className="text-muted-foreground">Discount %</span>
+                                      <div className="font-bold text-orange-600">{item.discount_percentage.toFixed(1)}%</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <span className="text-muted-foreground">Discount Amount</span>
+                                      <div className="font-bold text-orange-600">{formatCurrency(item.discount_amount || 0)}</div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <span className="text-muted-foreground">Line Total</span>
+                                      <div className="font-bold text-lg">{formatCurrency(item.line_total)}</div>
+                                    </div>
+                                  </div>
 
-              {/* Discount Percentage Input */}
-              <div className="flex items-center gap-2 pt-2 border-t">
-                <Label className="text-sm">Discount %:</Label>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={item.discount_percentage}
-                    onChange={(e) => handleUpdateItemDiscountPercentage(index, parseFloat(e.target.value) || 0)}
-                    className="w-20 h-8 text-sm"
-                    placeholder="0"
-                  />
-                  <Percent className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  Per item: {formatCurrency(((item.discount_amount || 0) / item.total_quantity) || 0)}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+                                  {/* FIFO Batch Allocation Display */}
+                                  {item.type === 'BATCH' && item.batches && item.batches.length > 0 && (
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium flex items-center gap-2">
+                                        <Clock className="h-4 w-4" />
+                                        FIFO Batch Allocation
+                                      </Label>
+                                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                                        {item.batches.map((batch, batchIndex) => (
+                                          <div key={batch.batch_id} className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded flex items-center justify-between">
+                                            <div className="space-y-1">
+                                              <div className="font-medium">
+                                                #{batchIndex + 1} - {batch.batch_number}
+                                              </div>
+                                              <div className="text-muted-foreground">
+                                                Allocated: {batch.quantity} units
+                                              </div>
+                                            </div>
+                                            <div className="text-right">
+                                              <div className="font-medium">{formatCurrency(batch.retail_price || 0)}</div>
+                                              <div className="text-muted-foreground text-xs">per unit</div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      {item.batches.length > 1 && (
+                                        <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+                                          Multi-batch FIFO allocation: {item.batches.length} batches used
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Discount Percentage Input */}
+                                  <div className="flex items-center gap-2 pt-2 border-t">
+                                    <Label className="text-sm">Discount %:</Label>
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max={user?.role_discount}
+                                        step="0.1"
+                                        value={item.discount_percentage}
+                                        onChange={(e) => handleUpdateItemDiscountPercentage(index, parseFloat(e.target.value) || 0)}
+                                        className="w-20 h-8 text-sm"
+                                        placeholder="0"
+                                      />
+
+                                      <Percent className="w-4 h-4 text-muted-foreground" />
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                      Per item: {formatCurrency(((item.discount_amount || 0) / item.total_quantity) || 0)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
                       ))}
                     </div>
                   </ScrollArea>

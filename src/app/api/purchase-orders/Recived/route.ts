@@ -9,13 +9,11 @@ import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
 // ========== Zod Validation Schemas ==========
 const purchaseOrderItemSchema = z.object({
   product_id: z.string().min(1, 'Product ID is required'),
-  quantity: z.number().int().positive('Quantity must be positive'),
-  cost_price: z.number().positive('Cost price must be positive'),
-  wholesale_price: z.number().positive('Wholesale price must be positive').optional(),
-  retail_price: z.number().positive('Retail price must be positive'),
-  batch_number: z.string().min(1, 'Batch number is required').max(50).optional(),
+  quantity: z.coerce.number().int().positive('Quantity must be positive'),
+  cost_price: z.coerce.number().positive('Cost price must be positive'),
+  wholesale_price: z.coerce.number().positive('Wholesale price must be positive').optional(),
+  retail_price: z.coerce.number().positive('Retail price must be positive'),
   is_unique: z.boolean().optional(),
-  expiry_date: z.string().datetime().optional().nullable(),
 })
 
 const purchaseOrderSchema = z.object({
@@ -96,8 +94,8 @@ async function createPurchaseOrderItems(
     const query = `
       INSERT INTO purchase_order_items (
         id, purchase_order_id, product_id, quantity_ordered, quantity_received,
-        cost_price, wholesale_price, retail_price, line_total, expiry_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        cost_price, wholesale_price, retail_price, line_total
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING id, product_id
     `
 
@@ -111,7 +109,6 @@ async function createPurchaseOrderItems(
       item.wholesale_price || null,
       item.retail_price,
       lineTotal,
-      item.expiry_date || null
     ]
 
     const result = await client.query(query, values)
@@ -146,8 +143,8 @@ async function createPurchaseBatches(
       INSERT INTO purchase_batches (
         id, purchase_order_item_id, quantity_ordered,
         quantity_received, cost_price, wholesale_price, retail_price,
-        expiry_date, received_date, received_by, is_active, fifo_sequence
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         received_date, received_by, is_active, fifo_sequence
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id
     `
 
@@ -159,7 +156,6 @@ async function createPurchaseBatches(
       itemData.cost_price,
       itemData.wholesale_price || null,
       itemData.retail_price,
-      itemData.expiry_date || null,
       new Date().toISOString(), // received_date
       user.user_id,
       true,
@@ -434,8 +430,8 @@ async function createBranchInventoryItems(
       INSERT INTO branch_inventory_items (
         id, branch_inventory_id, purchase_batch_id, quantity,
         reserved_quantity, cost_price, wholesale_price, retail_price,
-        received_date, expiry_date, is_active, fifo_order
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        received_date, is_active, fifo_order
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `
 
     await client.query(insertQuery, [
@@ -448,7 +444,6 @@ async function createBranchInventoryItems(
       itemData.wholesale_price || null,
       itemData.retail_price,
       new Date().toISOString(),
-      itemData.expiry_date || null,
       true,
       fifoOrder
     ])
@@ -473,11 +468,9 @@ async function createStockLedgerEntries(
       INSERT INTO product_stock_ledgers (
         id, product_id, branch_id, batch_id, quantity,
         entry_type, reference_id, reference_type,
-        cost_price, selling_price, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        cost_price, selling_price
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `
-
-    const batchNumber = itemData.batch_number || `BATCH_${Date.now()}_${i + 1}`
 
     await client.query(query, [
       id,
@@ -489,8 +482,7 @@ async function createStockLedgerEntries(
       purchaseOrderId,
       'purchase_order',
       itemData.cost_price,
-      itemData.retail_price,
-      `Purchase Order - Batch: ${batchNumber}`
+      itemData.retail_price
     ])
   }
 }

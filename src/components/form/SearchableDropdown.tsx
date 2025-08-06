@@ -36,7 +36,8 @@ export const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const selectedOption = options.find(option => option.id === value);
-  
+
+  console.log(options)
   // Use external search term if provided, otherwise use local search
   const currentSearchTerm = onSearch ? searchTerm : localSearchTerm;
   

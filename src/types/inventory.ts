@@ -1,9 +1,27 @@
-// types/product.ts
+export interface Brand {
+  id: string;
+  name: string;
+  code: string;
+  logo_url: string | null;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+}
+
+export interface Subcategory {
+  id: string;
+  name: string;
+  category: Category;
+}
+
 export interface CurrentPrices {
   cost_price: number;
   wholesale_price: number | null;
   retail_price: number;
   last_updated: string;
+  is_unique: boolean;
 }
 
 export interface BranchStock {
@@ -42,6 +60,8 @@ export interface ProductResponse {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  brand: Brand | null;
+  subcategory: Subcategory | null;
   current_prices: CurrentPrices | null;
   branch_stock: BranchStock[];
   total_system_stock: number;
@@ -49,15 +69,28 @@ export interface ProductResponse {
   overall_stock_status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'NOT_STOCKED';
   barcodes: Barcode[];
   specifications: Specification[];
-  availableQuantity: number;
-  reservedQuantity: number;
-  category: string;
-  subcategory: string;
-  brand?: string;
-  code: string;
-  costPrice: number;
-  retailPrice: number;
-  wholesalePrice: number;
+}
+
+export interface ApiResponse {
+  success: boolean;
+  data: {
+    products: ProductResponse[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      total_pages: number;
+      has_next: boolean;
+      has_prev: boolean;
+    };
+    summary: {
+      returned_count: number;
+      total_count: number;
+      filters_applied: any;
+    };
+  };
+  message?: string;
+  timestamp: string;
 }
 
 export interface Filters {
@@ -79,7 +112,6 @@ export interface Filters {
 export interface CartItem {
   id: string;
   product: {
-    barcode: string;
     id: string;
     name: string;
     model?: string;
@@ -89,6 +121,7 @@ export interface CartItem {
       code: string;
     };
   };
+  is_unique?:boolean;
   quantity: number;
   cost_price: number;
   wholesale_price?: number;

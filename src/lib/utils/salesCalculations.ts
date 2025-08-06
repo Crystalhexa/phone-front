@@ -34,6 +34,7 @@ export interface OrderTotals {
 }
 
 export function calculateOrderTotals(cart: CartItem[], orderDiscount: number = 0): OrderTotals {
+
   const subtotal = cart.reduce((sum, item) => sum + (item.unit_price * item.total_quantity), 0)
   const itemDiscounts = cart.reduce((sum, item) => sum + item.discount, 0)
   const totalAfterItemDiscounts = subtotal - itemDiscounts

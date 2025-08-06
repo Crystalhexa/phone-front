@@ -252,7 +252,6 @@ async function handleProductLevelScan(
     SELECT 
       bc.id as barcode_id,
       bc.code as barcode,
-      bc.type,
       p.id as product_id,
       p.name as product_name,
       p.model,
@@ -303,8 +302,8 @@ async function handleProductLevelScan(
                                           AND bii.is_active = true
     LEFT JOIN purchase_batches pb ON bii.purchase_batch_id = pb.id
                                    AND pb.is_active = true
-    WHERE bc.code = $1 AND bc.is_active = true AND p.is_active = true
-    GROUP BY bc.id, bc.code, bc.type, p.id, p.name, p.model, p.sku, p.warranty_period,
+    WHERE bc.code = $1
+    GROUP BY bc.id, bc.code,  p.id, p.name, p.model, p.sku, p.warranty_period,
              b.name, sc.name, c.name, bi.total_quantity, bi.reserved_quantity, 
              bi.low_stock_threshold, bi.average_cost_price
   `
@@ -416,7 +415,7 @@ async function enhancedBarcodeSearch(
     UNION ALL
     -- Search in product barcodes
     SELECT 'PRODUCT_LEVEL' as source, code, product_id FROM barcodes 
-    WHERE code = $1 AND is_active = true
+    WHERE code = $1
     LIMIT 1
   `
 
@@ -615,7 +614,7 @@ export async function GET(request: NextRequest) {
           'Multiple' as branch_name
         FROM barcodes bc
         JOIN products p ON bc.product_id = p.id
-        WHERE bc.code = $1 AND bc.is_active = true
+        WHERE bc.code = $1
       `
 
       const result = await query(infoQuery, [barcode])

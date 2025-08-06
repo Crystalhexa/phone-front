@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Switch } from "@/components/ui/switch"
 import { NavUser } from "@/components/nav-user"
-import { ShoppingCart } from "lucide-react"
+import { Building, ShoppingCart } from "lucide-react"
 
 const data = {
   user: {
@@ -84,7 +84,7 @@ const data = {
           title: "Sales Orders",
           url: "/orders/sales",
           items: [
-            { title: "All Sales", url: "/orders/sales/all" },
+            { title: "All Sales", url: "/dashboard/orders/sales" },
             { title: "Pending", url: "/orders/sales/pending" },
             { title: "Completed", url: "/orders/sales/completed" },
           ],
@@ -138,10 +138,15 @@ const data = {
         { title: "Logs", url: "/dashboard/user/logs" },
       ],
     },
-    {
-      title: "POS",
-      url: "/dashboard/pos",
-      icon: ShoppingCart
+       {
+      title: "Branch",
+      url: "/branch",
+      icon: Building,
+      items: [
+        { title: "POS", url: "/dashboard/branch/pos" },
+        { title: "Cashier", url: "/dashboard/branch/cash" },
+        { title: "Return", url: "/dashboard/branch/return" },
+      ],
     }
   ],
   navSecondary: [
@@ -152,7 +157,7 @@ const data = {
     },
   ],
   documents: [
-    { title: "Reports", url: "/reports", icon: IconReport },
+    { title: "Reports", url: "/dashboard/reports", icon: IconReport },
   ],
 }
 

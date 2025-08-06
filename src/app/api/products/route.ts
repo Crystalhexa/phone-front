@@ -1,4 +1,3 @@
-// app/api/products/route.ts
 import { initDatabase, query } from '@/lib/database/connection'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -78,14 +77,11 @@ interface ProductResponse {
   
   barcodes: Array<{
     code: string
-    type: string
-    is_active: boolean
   }>
   
   specifications: Array<{
     spec_name: string
     spec_value: string
-    spec_unit: string | null
   }>
 }
 
@@ -124,7 +120,7 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
       LEFT JOIN brands b ON p.brand_id = b.id
       LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
       LEFT JOIN categories c ON sc.category_id = c.id
-      LEFT JOIN barcodes bc ON p.id = bc.product_id AND bc.is_active = true
+      LEFT JOIN barcodes bc ON p.id = bc.product_id
       LEFT JOIN branch_inventory bi ON p.id = bi.product_id
       LEFT JOIN product_stock_summary pss ON p.id = pss.product_id
       WHERE 1=1
@@ -313,7 +309,7 @@ function buildCountQuery(params: QueryParams): { queryText: string; queryParams:
     LEFT JOIN brands b ON p.brand_id = b.id
     LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
     LEFT JOIN categories c ON sc.category_id = c.id
-    LEFT JOIN barcodes bc ON p.id = bc.product_id AND bc.is_active = true
+    LEFT JOIN barcodes bc ON p.id = bc.product_id
     LEFT JOIN branch_inventory bi ON p.id = bi.product_id
     LEFT JOIN product_stock_summary pss ON p.id = pss.product_id
     WHERE 1=1
@@ -487,12 +483,10 @@ async function getProductBarcodes(productIds: string[]): Promise<Map<string, any
     SELECT 
       product_id,
       jsonb_build_object(
-        'code', code,
-        'type', type,
-        'is_active', is_active
+        'code', code
       ) as barcode_info
     FROM barcodes
-    WHERE product_id = ANY($1) AND is_active = true
+    WHERE product_id = ANY($1)
     ORDER BY created_at DESC
   `
   
@@ -517,8 +511,7 @@ async function getProductSpecifications(productIds: string[]): Promise<Map<strin
       product_id,
       jsonb_build_object(
         'spec_name', spec_name,
-        'spec_value', spec_value,
-        'spec_unit', spec_unit
+        'spec_value', spec_value
       ) as spec_info
     FROM product_specifications
     WHERE product_id = ANY($1)

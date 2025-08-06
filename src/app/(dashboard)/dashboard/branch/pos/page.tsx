@@ -7,6 +7,8 @@ import { PosHeader } from '@/components/table/PosTable/PosHeader';
 import { PosFilters } from '@/components/table/PosTable/PosFilters';
 import { PosTableContent } from '@/components/table/PosTable/PosTableContent';
 import { PosPagination } from '@/components/table/PosTable/PosPagination';
+import { useBrandDropdown } from '@/hooks/useBrandDropdown';
+import { useCategoryDrodown } from '@/hooks/useCategoryDrodown';
 
 const ProductsTable: React.FC = () => {
   const {
@@ -31,13 +33,13 @@ const ProductsTable: React.FC = () => {
     data: brand,
     handleSearch: handleBrandSearch,
     searchTerm: brandSearchTerm,
-  } = useBrandData();
+  } = useBrandDropdown();
 
   const {
     data: category,
     handleSearch: handleCategorySearch,
     searchTerm: categorySearchTerm,
-  } = useCategoryData();
+  } = useCategoryDrodown();
 
   const categories = category?.data?.categories || [];
   const brands = brand?.data?.brands || [];

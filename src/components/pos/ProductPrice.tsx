@@ -4,13 +4,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { DialogDescription, DialogTrigger } from "@radix-ui/react-dialog";
 import { Button } from "../ui/button";
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Barcode, DollarSign, FileText, Package, Percent } from "lucide-react";
+import { AlertTriangle, Barcode, DollarSign, FileText, Package, Percent, Info } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/salesCalculations";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { Separator } from "@radix-ui/react-select";
 import { Label } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Input } from "../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { useAuth } from "@/hooks/useAuth";
+
 interface CartItem {
   type: 'INDIVIDUAL' | 'BATCH'
   product_id: string
@@ -20,21 +23,23 @@ interface CartItem {
   unit_price: number
   discount_percentage: number
   discount_amount?: number
-  item_barcodes?: Barcode[]
+  item_barcodes?: Barcodes[]
   batches?: Batches[]
   total_quantity: number
   line_total: number
   max_quantity?: number
-  has_custom_pricing?: boolean // Track if custom pricing is applied
+  has_custom_pricing?: boolean
+  wholesale_applied?: boolean // Track if wholesale pricing is applied
 }
 
-interface Barcode {
+interface Barcodes {
+  batch_number?:string
   barcode_id: string
   barcode: string
   cost_price: number
   wholesale_price?: number
   retail_price?: number
-  custom_price?: number // Add custom price support
+  custom_price?: number
 }
 
 interface Batches {
@@ -44,34 +49,113 @@ interface Batches {
   retail_price?: number
   wholesale_price?: number
   batch_number: string
-  custom_price?: number // Add custom price support
+  custom_price?: number
 }
 
-// Enhanced ProductPrice Component with Custom Pricing
+// Enhanced ProductPrice Component with Custom Pricing Logic
 export const ProductPrice: React.FC<{
   product: CartItem;
   index: number;
   onUpdateDiscount: (index: number, discountPercentage: number) => void;
-  onUpdatePricing: (index: number, newUnitPrice: number, discountPercentage: number) => void;
+  onUpdatePricing: (index: number, newUnitPrice: number, discountPercentage: number, wholesaleApplied?: boolean) => void;
 }> = ({ product, index, onUpdateDiscount, onUpdatePricing }) => {
+
+  console.log(product?.item_barcodes)
+
+  const { user } = useAuth();
+  
   const [tempDiscount, setTempDiscount] = useState(product.discount_percentage)
   const [tempUnitPrice, setTempUnitPrice] = useState(product.unit_price)
   const [showCustomPricing, setShowCustomPricing] = useState(false)
+  const [selectedCustomPrice, setSelectedCustomPrice] = useState<string>("")
+  const [isWholesaleSelected, setIsWholesaleSelected] = useState(false)
+
+  // Helper function to get available custom pricing options
+  const getCustomPricingOptions = () => {
+    const options: { value: string; label: string; price: number; isWholesale: boolean }[] = []
+
+    if (product.type === 'INDIVIDUAL' && product.item_barcodes) {
+      // For individual items, retail and wholesale prices from barcodes
+      product.item_barcodes.forEach((barcode, idx) => {
+        // Add retail price option
+        if(barcode.batch_number)
+        if (barcode.retail_price && barcode.retail_price > 0) {
+          options.push({
+            value: `retail_${idx}`,
+            label: `Barcode ${idx + 1} - Retail Price`,
+            price: barcode.retail_price,
+            isWholesale: false
+          })
+        }
+        
+        // Add wholesale price option if quantity meets requirement
+        if (barcode.wholesale_price && 
+            barcode.wholesale_price > 0 && 
+            product.wholesale_quantity && 
+            product.total_quantity >= product.wholesale_quantity) {
+          options.push({
+            value: `wholesale_${idx}`,
+            label: `Barcode ${idx + 1} - Wholesale Price`,
+            price: barcode.wholesale_price,
+            isWholesale: true
+          })
+        }
+      })
+    } else if (product.type === 'BATCH' && product.batches) {
+      // For batch items, retail prices and wholesale prices (if qty >= wholesale_qty)
+      product.batches.forEach((batch, idx) => {
+        // Add retail price option
+        if (batch.retail_price && batch.retail_price > 0) {
+          options.push({
+            value: `batch_retail_${idx}`,
+            label: `Batch ${batch.batch_number} - Retail Price`,
+            price: batch.retail_price,
+            isWholesale: false
+          })
+        }
+        
+        // Add wholesale option if quantity meets requirement
+        if (batch.wholesale_price && 
+            batch.wholesale_price > 0 && 
+            product.wholesale_quantity && 
+            product.total_quantity >= product.wholesale_quantity) {
+          options.push({
+            value: `batch_wholesale_${idx}`,
+            label: `Batch ${batch.batch_number} - Wholesale Price`,
+            price: batch.wholesale_price,
+            isWholesale: true
+          })
+        }
+      })
+    }
+
+    return options
+  }
+
+  const customPricingOptions = getCustomPricingOptions()
 
   const handleDiscountChange = (value: number) => {
-    const validDiscount = Math.min(Math.max(0, value), 100)
+    const validDiscount = Math.min(Math.max(0, value), user?.role_discount || 0)
     setTempDiscount(validDiscount)
     onUpdateDiscount(index, validDiscount)
   }
 
-  const handleUnitPriceChange = (value: number) => {
-    if (value <= 0) return
-    setTempUnitPrice(value)
+  const handleCustomPriceSelect = (value: string) => {
+    setSelectedCustomPrice(value)
+    const selectedOption = customPricingOptions.find(opt => opt.value === value)
+    if (selectedOption) {
+      setTempUnitPrice(selectedOption.price)
+      setIsWholesaleSelected(selectedOption.isWholesale)
+    }
   }
 
   const handleApplyCustomPricing = () => {
-    onUpdatePricing(index, tempUnitPrice, tempDiscount)
-    toast.success('Custom pricing applied')
+    if (!selectedCustomPrice) {
+      toast.error('Please select a custom price option')
+      return
+    }
+    onUpdatePricing(index, tempUnitPrice, tempDiscount, isWholesaleSelected)
+    toast.success(`${isWholesaleSelected ? 'Wholesale' : 'Custom'} pricing applied`)
   }
 
   const calculateDiscountAmount = (unitPrice: number, quantity: number, discountPercentage: number) => {
@@ -81,6 +165,12 @@ export const ProductPrice: React.FC<{
 
   const discountAmount = calculateDiscountAmount(tempUnitPrice, product.total_quantity, tempDiscount)
   const finalPrice = (tempUnitPrice * product.total_quantity) - discountAmount
+
+  // Check if wholesale pricing is available
+  const canUseWholesale = product.wholesale_quantity && 
+                         product.total_quantity >= product.wholesale_quantity
+  
+  const hasWholesaleOptions = customPricingOptions.some(opt => opt.isWholesale)
 
   return (
     <Dialog>
@@ -114,12 +204,32 @@ export const ProductPrice: React.FC<{
                     variant={showCustomPricing ? "default" : "outline"}
                     size="sm"
                     onClick={() => setShowCustomPricing(!showCustomPricing)}
+                    disabled={customPricingOptions.length === 0}
                   >
                     {showCustomPricing ? 'Hide' : 'Show'} Custom Pricing
                   </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Wholesale Quantity Info */}
+                {product.wholesale_quantity && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Info className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                        Wholesale Information
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-600 dark:text-blue-300 space-y-1">
+                      <p>Minimum wholesale quantity: {product.wholesale_quantity}</p>
+                      <p>Current quantity: {product.total_quantity}</p>
+                      <p className={canUseWholesale ? "text-green-600 font-medium" : "text-orange-600"}>
+                        {canUseWholesale ? "✓ Eligible for wholesale pricing" : "✗ Not eligible for wholesale pricing"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Current Pricing Display */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -128,7 +238,9 @@ export const ProductPrice: React.FC<{
                       {formatCurrency(product.unit_price)}
                     </p>
                     {product.has_custom_pricing && (
-                      <Badge variant="outline" className="text-xs mt-1">Custom Price</Badge>
+                      <Badge variant="outline" className="text-xs mt-1">
+                        {product.wholesale_applied ? 'Wholesale Price' : 'Custom Price'}
+                      </Badge>
                     )}
                   </div>
                   <div>
@@ -146,60 +258,95 @@ export const ProductPrice: React.FC<{
                 </div>
 
                 {/* Custom Pricing Section */}
-                {showCustomPricing && (
+                {showCustomPricing && customPricingOptions.length > 0 && (
                   <>
                     <Separator />
                     <div className="space-y-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                        <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">Custom Pricing</h4>
+                        <h4 className="font-semibold text-yellow-800 dark:text-yellow-200">Custom Pricing Options</h4>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Custom Unit Price</Label>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">Rs.</span>
-                            <Input
-                              type="number"
-                              min="0.01"
-                              step="0.01"
-                              value={tempUnitPrice}
-                              onChange={(e) => handleUnitPriceChange(parseFloat(e.target.value) || 0)}
-                              className="flex-1"
-                              placeholder="0.00"
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Original price: {formatCurrency(product.unit_price)}
-                          </p>
+                          <Label>Select Price Option</Label>
+                          <Select value={selectedCustomPrice} onValueChange={handleCustomPriceSelect}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose a pricing option..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {customPricingOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  <div className="flex items-center gap-2">
+                                    {option.label} - {formatCurrency(option.price)}
+                                    {option.isWholesale && (
+                                      <Badge variant="secondary" className="text-xs">Wholesale</Badge>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label>Preview Subtotal</Label>
-                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                            <p className="text-xl font-bold text-blue-600">
-                              {formatCurrency(tempUnitPrice * product.total_quantity)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {tempUnitPrice !== product.unit_price && (
-                                <span className="text-orange-600">
-                                  {tempUnitPrice > product.unit_price ? 'Increase' : 'Decrease'}: {formatCurrency(Math.abs((tempUnitPrice - product.unit_price) * product.total_quantity))}
-                                </span>
-                              )}
-                            </p>
+                        {selectedCustomPrice && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Selected Price</Label>
+                              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                <p className="text-xl font-bold text-blue-600">
+                                  {formatCurrency(tempUnitPrice)}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs text-muted-foreground">
+                                    {customPricingOptions.find(opt => opt.value === selectedCustomPrice)?.label}
+                                  </p>
+                                  {isWholesaleSelected && (
+                                    <Badge variant="secondary" className="text-xs">Wholesale</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label>Preview Subtotal</Label>
+                              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                                <p className="text-xl font-bold text-green-600">
+                                  {formatCurrency(tempUnitPrice * product.total_quantity)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {tempUnitPrice !== product.unit_price && (
+                                    <span className={tempUnitPrice > product.unit_price ? "text-red-600" : "text-green-600"}>
+                                      {tempUnitPrice > product.unit_price ? 'Increase' : 'Decrease'}: {formatCurrency(Math.abs((tempUnitPrice - product.unit_price) * product.total_quantity))}
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        )}
+
+                        {selectedCustomPrice && tempUnitPrice !== product.unit_price && (
+                          <Button onClick={handleApplyCustomPricing} className="w-full">
+                            <DollarSign className="w-4 h-4 mr-2" />
+                            Apply {isWholesaleSelected ? 'Wholesale' : 'Custom'} Pricing
+                          </Button>
+                        )}
                       </div>
-
-                      {tempUnitPrice !== product.unit_price && (
-                        <Button onClick={handleApplyCustomPricing} className="w-full">
-                          <DollarSign className="w-4 h-4 mr-2" />
-                          Apply Custom Pricing
-                        </Button>
-                      )}
                     </div>
                   </>
+                )}
+
+                {/* No Custom Pricing Available Message */}
+                {showCustomPricing && customPricingOptions.length === 0 && (
+                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Info className="w-5 h-5 text-gray-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        No custom pricing options available for this item
+                      </span>
+                    </div>
+                  </div>
                 )}
 
                 <Separator />
@@ -218,8 +365,8 @@ export const ProductPrice: React.FC<{
                         <Input
                           type="number"
                           min="0"
-                          max="100"
-                          step="0.1"
+                          max={user?.role_discount}
+                          step="1"
                           value={tempDiscount}
                           onChange={(e) => handleDiscountChange(parseFloat(e.target.value) || 0)}
                           className="flex-1"
@@ -228,7 +375,7 @@ export const ProductPrice: React.FC<{
                         <span className="text-sm text-muted-foreground">%</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Maximum discount: 100%
+                        Maximum discount: {user?.role_discount}%
                       </p>
                     </div>
 
@@ -249,7 +396,6 @@ export const ProductPrice: React.FC<{
               </CardContent>
             </Card>
 
-  
             {/* Item Details (Individual Items or Batches) */}
             {product.type === 'INDIVIDUAL' && product.item_barcodes && product.item_barcodes.length > 0 && (
               <Card>
@@ -261,13 +407,13 @@ export const ProductPrice: React.FC<{
                 </CardHeader>
                 <CardContent>
                   <ScrollArea className="h-48 w-full">
-                    <div className="space-y-2 pr-4"> {/* Added pr-4 for scrollbar spacing */}
+                    <div className="space-y-2 pr-4">
                       {product.item_barcodes.map((item, idx) => (
                         <div
                           key={item.barcode_id || idx}
                           className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
-                          <div className="flex-1 min-w-0"> {/* Added flex-1 min-w-0 for text truncation */}
+                          <div className="flex-1 min-w-0">
                             <p className="font-mono text-sm truncate">{item.barcode}</p>
                             <p className="text-xs text-muted-foreground">
                               Cost: {formatCurrency(item.cost_price)} |
@@ -276,9 +422,19 @@ export const ProductPrice: React.FC<{
                               {item.custom_price && ` | Custom: ${formatCurrency(item.custom_price)}`}
                             </p>
                           </div>
-                          <Badge variant="outline" className="ml-2 shrink-0">
-                            Item {idx + 1}
-                          </Badge>
+                          <div className="ml-2 shrink-0 space-x-1">
+                            <Badge variant="outline">Item {idx + 1}</Badge>
+                            {item.retail_price && (
+                              <Badge variant="secondary" className="text-xs">
+                                Retail Available
+                              </Badge>
+                            )}
+                            {item.wholesale_price && canUseWholesale && (
+                              <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                Wholesale Available
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -286,6 +442,7 @@ export const ProductPrice: React.FC<{
                 </CardContent>
               </Card>
             )}
+
             {product.type === 'BATCH' && product.batches && product.batches.length > 0 && (
               <Card>
                 <CardHeader>
@@ -300,7 +457,19 @@ export const ProductPrice: React.FC<{
                       <div key={batch.batch_id || idx} className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="font-semibold">Batch #{batch.batch_number}</h4>
-                          <Badge variant="secondary">Qty: {batch.quantity}</Badge>
+                          <div className="flex gap-2">
+                            <Badge variant="secondary">Qty: {batch.quantity}</Badge>
+                            {batch.retail_price && (
+                              <Badge variant="outline" className="text-xs">
+                                Retail Available
+                              </Badge>
+                            )}
+                            {batch.wholesale_price && canUseWholesale && (
+                              <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                Wholesale Available
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                           <div>
@@ -316,13 +485,15 @@ export const ProductPrice: React.FC<{
                           {batch.retail_price && (
                             <div>
                               <span className="text-muted-foreground">Retail:</span>
-                              <p>{formatCurrency(batch.retail_price)}</p>
+                              <p className="text-blue-600 font-medium">{formatCurrency(batch.retail_price)}</p>
                             </div>
                           )}
                           {batch.wholesale_price && (
                             <div>
                               <span className="text-muted-foreground">Wholesale:</span>
-                              <p>{formatCurrency(batch.wholesale_price)}</p>
+                              <p className={canUseWholesale ? "text-green-600 font-medium" : "text-gray-400"}>
+                                {formatCurrency(batch.wholesale_price)}
+                              </p>
                             </div>
                           )}
                           {batch.custom_price && (
@@ -390,10 +561,13 @@ export const ProductPrice: React.FC<{
                     <p>• {product.total_quantity} item{product.total_quantity !== 1 ? 's' : ''} at {formatCurrency(tempUnitPrice)} each</p>
                     <p>• {tempDiscount > 0 ? `${tempDiscount.toFixed(1)}% discount applied` : 'No discount applied'}</p>
                     <p>• Final price per item: {formatCurrency(finalPrice / product.total_quantity)}</p>
-                    {product.has_custom_pricing && <p>• Custom pricing enabled</p>}
+                    {product.has_custom_pricing && (
+                      <p>• {product.wholesale_applied ? 'Wholesale pricing applied' : 'Custom pricing enabled'}</p>
+                    )}
                     {product.type === 'BATCH' && product.batches && product.batches.length > 1 &&
                       <p>• Multi-batch allocation ({product.batches.length} batches)</p>
                     }
+                    {canUseWholesale && <p>• Wholesale pricing eligible</p>}
                   </div>
                 </div>
               </CardContent>

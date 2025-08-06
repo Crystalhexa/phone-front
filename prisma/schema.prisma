@@ -142,7 +142,7 @@ model employees {
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
-   price_overrides      price_overrides[]         @relation("ApprovedBy")
+  price_overrides      price_overrides[]         @relation("ApprovedBy")
   price_changes        product_price_history[]   @relation("CreatedBy")
   user                 users?                    @relation(fields: [user_id], references: [id], onDelete: SetNull)
   branch               branches?                 @relation(fields: [branch_id], references: [id], onDelete: SetNull)
@@ -150,11 +150,12 @@ model employees {
   approved_transfers   stock_transfer_requests[] @relation("ApprovedBy")
   stock_transfer_logs  stock_transfer_logs[]
   stock_adjustments    stock_adjustments[]       @relation("AdjustedBy")
-  purchase_batches     purchase_batches[]        @relation("ReceivedBy") // <-- Add this line
+  purchase_batches     purchase_batches[]        @relation("ReceivedBy")
   items_sold           item_barcodes[]           @relation("SoldBy")
   items_returned       item_barcodes[]           @relation("ReturnedBy")
   item_movements       item_movement_history[]
   stock_ledger_entries product_stock_ledgers[]
+  sales_orders         sales_orders[]            @relation("SoldBy")  // Add this line
 
   @@index([employee_number])
   @@index([email])
@@ -203,9 +204,8 @@ model product_specifications {
   product_id String
   spec_name  String   @db.VarChar(100)
   spec_value String   @db.VarChar(255)
-  spec_unit  String?  @db.VarChar(20)
   created_at DateTime @default(now()) @db.Timestamptz(6)
-  updated_at DateTime @updatedAt @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
   product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
@@ -234,10 +234,11 @@ model brands {
 model products {
   id              String   @id @default(cuid())
   name            String   @db.VarChar(255)
-  model           String   @db.VarChar(255)
+  model           String?   @db.VarChar(255)
   description     String?  @db.Text
   subcategory_id  String?
   brand_id        String?
+  low_stock_threshold     Int       @default(5)
   sku             String   @unique @db.VarChar(1000)
   warranty_period Int? // in months
   wholesale_quantity  Int?
@@ -338,8 +339,6 @@ model barcodes {
   id         String       @id @default(cuid())
   product_id String
   code       String       @unique @db.VarChar(50)
-  type       barcode_type @default(INTERNAL)
-  is_active  Boolean      @default(true)
   created_at DateTime     @default(now()) @db.Timestamptz(6)
 
   // Relations
@@ -354,7 +353,6 @@ model item_barcodes {
   purchase_batch_id String
   product_id        String // Added for easier querying
   code              String         @unique @db.VarChar(50)
-  type              barcode_type   @default(INTERNAL)
   status            barcode_status @default(AVAILABLE)
 
   purchased_at  DateTime @default(now()) @db.Timestamptz(6)
@@ -585,7 +583,7 @@ model branch_inventory {
   last_counted_at         DateTime? @db.Timestamptz(6)
   is_low_stock_alert_sent Boolean   @default(false)
   average_cost_price      Decimal?  @db.Decimal(10, 2) // NEW: Weighted average cost
-    is_active     Boolean  @default(true)
+  is_active     Boolean  @default(true)
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
   updated_at              DateTime  @default(now()) @db.Timestamptz(6)
 
@@ -884,30 +882,31 @@ model sales_orders {
   order_number   String          @unique @db.VarChar(20)
   customer_id    String?
   branch_id      String
-  sold_by        String?
+  sold_by        String?         // This should reference employees.id
   order_date     DateTime        @default(now()) @db.Date
-  delivery_date  DateTime?       @db.Date
   status         order_status    @default(PENDING)
   payment_method payment_method?
   payment_status payment_status  @default(PENDING)
   subtotal       Decimal         @default(0) @db.Decimal(12, 2)
   total_amount   Decimal         @default(0) @db.Decimal(12, 2)
   discount       Decimal         @default(0) @db.Decimal(10, 2)
-  total_cost     Decimal?        @default(0) @db.Decimal(12, 2) // NEW: Total cost for profit calculation
-  profit_amount  Decimal?        @default(0) @db.Decimal(12, 2) // NEW: Calculated profit
+  total_cost     Decimal?        @default(0) @db.Decimal(12, 2)
+  profit_amount  Decimal?        @default(0) @db.Decimal(12, 2)
   notes          String?         @db.Text
   created_at     DateTime        @default(now()) @db.Timestamptz(6)
   updated_at     DateTime        @default(now()) @db.Timestamptz(6)
 
   // Relations
-  customer customers?          @relation(fields: [customer_id], references: [id])
-  branch   branches            @relation(fields: [branch_id], references: [id])
-  items    sales_order_items[]
-  returns  sales_returns[]
+  customer    customers?          @relation(fields: [customer_id], references: [id])
+  branch      branches            @relation(fields: [branch_id], references: [id])
+  sold_by_emp employees?          @relation("SoldBy", fields: [sold_by], references: [id], onDelete: SetNull)
+  items       sales_order_items[]
+  returns     sales_returns[]
 
   @@index([order_number])
   @@index([customer_id])
   @@index([branch_id])
+  @@index([sold_by])  // Add index for sold_by field
   @@index([status])
   @@index([order_date])
   @@map("sales_orders")
@@ -977,13 +976,6 @@ model sales_return_items {
 }
 
 // ================== ENHANCED ENUMS ==================
-enum barcode_type {
-  EXTERNAL
-  INTERNAL
-  SUPPLIER
-  MANUFACTURER
-}
-
 enum barcode_status {
   AVAILABLE
   RESERVED
@@ -1051,7 +1043,6 @@ enum low_stock_alert_type {
   LOW_STOCK
   OUT_OF_STOCK
   CRITICAL_STOCK
-  EXPIRED_STOCK
 }
 
 enum alert_status {

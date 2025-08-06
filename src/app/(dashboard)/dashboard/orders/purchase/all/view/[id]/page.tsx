@@ -35,7 +35,7 @@ import {
   Settings
 } from 'lucide-react';
 import { format } from 'date-fns';
-import ZebraPrinterManager from '@/components/barcode/ZebraPrinterManager';
+import WebSocketPrinter from '@/components/barcode/WebSocketPrinter';
 
 // Types (same as before)
 interface Barcode {
@@ -141,7 +141,7 @@ const PurchaseOrderDetailsPage = () => {
   // Get all barcodes for printing
   const getAllBarcodes = () => {
     if (!orderDetails) return [];
-    
+
     const allBarcodes: any[] = [];
     orderDetails.items.forEach((item) => {
       const convertedBarcodes = convertBarcodesToPrintFormat(item.barcodes, item);
@@ -156,11 +156,16 @@ const PurchaseOrderDetailsPage = () => {
   };
 
   // Format currency
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
+  const formatCurrency = (amount: unknown) => {
+    const num = typeof amount === 'number'
+      ? amount
+      : typeof amount === 'string'
+        ? Number(amount)
+        : NaN;
+
+    if (isNaN(num)) return 'Rs. 0.00';
+
+    return `Rs. ${num.toFixed(2)}`;
   };
 
   // Format date
@@ -356,10 +361,6 @@ const PurchaseOrderDetailsPage = () => {
                   <p className="text-sm text-muted-foreground">Subtotal</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold">{formatCurrency(orderDetails.tax_amount)}</p>
-                  <p className="text-sm text-muted-foreground">Tax</p>
-                </div>
-                <div className="text-center">
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(orderDetails.total_amount)}</p>
                   <p className="text-sm text-muted-foreground">Total Amount</p>
                 </div>
@@ -477,7 +478,7 @@ const PurchaseOrderDetailsPage = () => {
                                 </Table>
                               </ScrollArea>
                               <div className="mt-4">
-                                <ZebraPrinterManager
+                                <WebSocketPrinter
                                   barcodes={getItemBarcodes(item)}
                                   onPrintSuccess={() => {
                                     console.log(`Successfully printed barcodes for ${item.product_name}`);
@@ -532,7 +533,7 @@ const PurchaseOrderDetailsPage = () => {
                   >
                     Select All Barcodes ({totalBarcodes})
                   </Button>
-                  
+
                   <Button
                     onClick={() => setSelectedBarcodes([])}
                     disabled={selectedBarcodes.length === 0}
@@ -579,7 +580,7 @@ const PurchaseOrderDetailsPage = () => {
                 )}
 
                 {/* Zebra Printer Component */}
-                <ZebraPrinterManager
+                <WebSocketPrinter
                   barcodes={selectedBarcodes}
                   onPrintSuccess={() => {
                     console.log('Batch print successful');
@@ -599,21 +600,21 @@ const PurchaseOrderDetailsPage = () => {
                       <div className="text-xs text-muted-foreground">Total Barcodes</div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-green-600">{selectedBarcodes.length}</div>
                       <div className="text-xs text-muted-foreground">Selected</div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-purple-600">{orderDetails.items.length}</div>
                       <div className="text-xs text-muted-foreground">Products</div>
                     </CardContent>
                   </Card>
-                  
+
                   <Card>
                     <CardContent className="p-4 text-center">
                       <div className="text-2xl font-bold text-yellow-600">

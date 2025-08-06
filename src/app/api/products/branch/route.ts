@@ -97,7 +97,6 @@ async function getProductsWithFIFOPricing(
         SELECT 1 FROM barcodes bc 
         WHERE bc.product_id = p.id 
         AND bc.code = $${++paramCount}
-        AND bc.is_active = true
       )
     `)
     params.push(filters.barcode)
@@ -148,7 +147,6 @@ async function getProductsWithFIFOPricing(
       WHERE bi.branch_id = $1
         AND bii.quantity > 0
         AND bii.is_active = true
-        AND pb.is_active = true
       ORDER BY bii.branch_inventory_id, bii.received_date ASC, bii.fifo_order ASC, pb.fifo_sequence ASC
     ),
     active_price_overrides AS (
@@ -223,8 +221,7 @@ async function getProductsWithFIFOPricing(
     SELECT 
       product_id,
       spec_name,
-      spec_value,
-      spec_unit
+      spec_value
     FROM product_specifications
     WHERE product_id = ANY($1)
     ORDER BY spec_name
@@ -235,8 +232,7 @@ async function getProductsWithFIFOPricing(
     if (!acc[spec.product_id]) acc[spec.product_id] = []
     acc[spec.product_id].push({
       name: spec.spec_name,
-      value: spec.spec_value,
-      unit: spec.spec_unit
+      value: spec.spec_value
     })
     return acc
   }, {} as Record<string, any[]>)
@@ -248,8 +244,7 @@ async function getProductsWithFIFOPricing(
       code
     FROM barcodes
     WHERE product_id = ANY($1)
-      AND is_active = true
-    ORDER BY type, code
+    ORDER BY code
   `
   
   const barcodesResult = await query<any>(barcodesQuery, [productIds])

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGetAllBrandsQuery } from '@/state/brand';
 
-export const useBrandData = () => {
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10); // Increased for dropdown
+export const useBrandDropdown = () => {
+  const [currentPage, setCurrentPage] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(1000); // Increased for dropdown
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState<string>("");
 

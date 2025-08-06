@@ -37,7 +37,7 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
         <Button
           variant="outline"
           className="relative"
-          onClick={() => router.push('/dashboard/pos/sales')}
+          onClick={() => router.push('/dashboard/branch/pos/sales')}
         >
           <ShoppingCart className="w-4 h-4 mr-2" />
           View Cart
