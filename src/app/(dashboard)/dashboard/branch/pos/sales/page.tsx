@@ -464,6 +464,7 @@ export default function EnhancedSalesOrderPage() {
       if (existingItemIndex >= 0) {
         const updatedCart = [...cart]
         updatedCart[existingItemIndex].item_barcodes!.push({
+          batch_number: product.batch_info.batch_number,
           barcode_id: product.barcode_id!,
           barcode: product.barcode,
           cost_price: product.pricing.cost_price,

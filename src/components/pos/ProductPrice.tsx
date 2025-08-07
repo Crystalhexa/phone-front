@@ -33,7 +33,7 @@ interface CartItem {
 }
 
 interface Barcodes {
-  batch_number?:string
+  batch_number?: string
   barcode_id: string
   barcode: string
   cost_price: number
@@ -60,8 +60,6 @@ export const ProductPrice: React.FC<{
   onUpdatePricing: (index: number, newUnitPrice: number, discountPercentage: number, wholesaleApplied?: boolean) => void;
 }> = ({ product, index, onUpdateDiscount, onUpdatePricing }) => {
 
-  console.log(product?.item_barcodes)
-
   const { user } = useAuth();
   
   const [tempDiscount, setTempDiscount] = useState(product.discount_percentage)
@@ -71,66 +69,88 @@ export const ProductPrice: React.FC<{
   const [isWholesaleSelected, setIsWholesaleSelected] = useState(false)
 
   // Helper function to get available custom pricing options
-  const getCustomPricingOptions = () => {
-    const options: { value: string; label: string; price: number; isWholesale: boolean }[] = []
+ const getCustomPricingOptions = () => {
+  const options: { value: string; label: string; price: number; isWholesale: boolean; batchNumber?: string }[] = []
+  const addedBatchNumbers = new Set<string>()
 
-    if (product.type === 'INDIVIDUAL' && product.item_barcodes) {
-      // For individual items, retail and wholesale prices from barcodes
-      product.item_barcodes.forEach((barcode, idx) => {
-        // Add retail price option
-        if(barcode.batch_number)
-        if (barcode.retail_price && barcode.retail_price > 0) {
-          options.push({
-            value: `retail_${idx}`,
-            label: `Barcode ${idx + 1} - Retail Price`,
-            price: barcode.retail_price,
-            isWholesale: false
-          })
-        }
-        
-        // Add wholesale price option if quantity meets requirement
-        if (barcode.wholesale_price && 
-            barcode.wholesale_price > 0 && 
-            product.wholesale_quantity && 
-            product.total_quantity >= product.wholesale_quantity) {
-          options.push({
-            value: `wholesale_${idx}`,
-            label: `Barcode ${idx + 1} - Wholesale Price`,
-            price: barcode.wholesale_price,
-            isWholesale: true
-          })
-        }
-      })
-    } else if (product.type === 'BATCH' && product.batches) {
-      // For batch items, retail prices and wholesale prices (if qty >= wholesale_qty)
-      product.batches.forEach((batch, idx) => {
-        // Add retail price option
-        if (batch.retail_price && batch.retail_price > 0) {
-          options.push({
-            value: `batch_retail_${idx}`,
-            label: `Batch ${batch.batch_number} - Retail Price`,
-            price: batch.retail_price,
-            isWholesale: false
-          })
-        }
-        
-        // Add wholesale option if quantity meets requirement
-        if (batch.wholesale_price && 
-            batch.wholesale_price > 0 && 
-            product.wholesale_quantity && 
-            product.total_quantity >= product.wholesale_quantity) {
-          options.push({
-            value: `batch_wholesale_${idx}`,
-            label: `Batch ${batch.batch_number} - Wholesale Price`,
-            price: batch.wholesale_price,
-            isWholesale: true
-          })
-        }
-      })
-    }
+  if (product.type === 'INDIVIDUAL' && product.item_barcodes) {
+    product.item_barcodes.forEach((barcode, idx) => {
+      const batchNumber = barcode.batch_number
 
-    return options
+      if (!batchNumber) return // Skip if batch number is missing
+
+      if (addedBatchNumbers.has(batchNumber)) {
+        // Skip if we've already added an option for this batch number
+        return
+      }
+
+      let added = false
+
+      // Add retail price option
+      if (barcode.retail_price && barcode.retail_price > 0) {
+        options.push({
+          value: `retail_${idx}`,
+          label: `Barcode ${idx + 1} - Retail Price`,
+          price: barcode.retail_price,
+          isWholesale: false,
+          batchNumber
+        })
+        added = true
+      }
+
+      // Add wholesale price option if quantity meets requirement
+      if (
+        barcode.wholesale_price &&
+        barcode.wholesale_price > 0 &&
+        product.wholesale_quantity &&
+        product.total_quantity >= product.wholesale_quantity
+      ) {
+        options.push({
+          value: `wholesale_${idx}`,
+          label: `Barcode ${idx + 1} - Wholesale Price`,
+          price: barcode.wholesale_price,
+          isWholesale: true,
+          batchNumber
+        })
+        added = true
+      }
+
+      if (added) {
+        addedBatchNumbers.add(batchNumber)
+      }
+    })
+  } else if (product.type === 'BATCH' && product.batches) {
+    product.batches.forEach((batch, idx) => {
+      // Add retail price option
+      if (batch.retail_price && batch.retail_price > 0) {
+        options.push({
+          value: `batch_retail_${idx}`,
+          label: `Batch ${batch.batch_number} - Retail Price`,
+          price: batch.retail_price,
+          isWholesale: false
+        })
+      }
+
+      // Add wholesale option if quantity meets requirement
+      if (
+        batch.wholesale_price &&
+        batch.wholesale_price > 0 &&
+        product.wholesale_quantity &&
+        product.total_quantity >= product.wholesale_quantity
+      ) {
+        options.push({
+          value: `batch_wholesale_${idx}`,
+          label: `Batch ${batch.batch_number} - Wholesale Price`,
+          price: batch.wholesale_price,
+          isWholesale: true
+        })
+      }
+    })
   }
+
+  return options
+}
+
 
   const customPricingOptions = getCustomPricingOptions()
 
@@ -170,8 +190,6 @@ export const ProductPrice: React.FC<{
   const canUseWholesale = product.wholesale_quantity && 
                          product.total_quantity >= product.wholesale_quantity
   
-  const hasWholesaleOptions = customPricingOptions.some(opt => opt.isWholesale)
-
   return (
     <Dialog>
       <DialogTrigger asChild>
