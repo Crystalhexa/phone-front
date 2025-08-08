@@ -19,7 +19,7 @@ interface CartItem {
   wholesale_applied?: boolean
   total_quantity: number
   has_custom_pricing?: boolean
-  discount_amount_per_item?: number // For individual items - discount per item
+  discount_amount_per_item: number // For individual items - discount per item
   batches?: BatchInfo[]       // For batch items - array of batches
   item_barcodes?: Barcode[]    // For individual items - array of barcode IDs
 }
@@ -55,15 +55,6 @@ const barcodeInfoSchema = z.object({
   barcode_id: z.string().min(1, 'Barcode ID is required'),
   barcode: z.string().min(1, 'Barcode is required')
 })
-interface CartItem {
-  type: 'BATCH' | 'INDIVIDUAL'
-  product_id: string
-  unit_price: number
-  discount?: number
-  discount_amount_per_item?: number // For individual items - discount per item
-  batches?: BatchInfo[]       // For batch items - array of batches
-  item_barcodes?: Barcode[]    // For individual items - array of barcode IDs
-}
 const cartItemSchema = z.object({
   type: z.enum(['BATCH', 'INDIVIDUAL'], {
     required_error: 'Item type is required',
@@ -91,7 +82,6 @@ const cartItemSchema = z.object({
     path: ['batches', 'item_barcodes']
   }
 )
-
 const placeOrderSchema = z.object({
   customer_id: z.string().optional(),
   items: z.array(cartItemSchema).min(1, 'At least one item is required'),
@@ -683,7 +673,7 @@ async function processIndividualSaleItem(
     salesOrderId,
     item.product_id,
     1, 
-    item.wholesale_applied,
+    item.wholesale_applied||false,
     item.unit_price,
     item.discount_amount_per_item || 0,
     lineTotal,

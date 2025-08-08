@@ -224,7 +224,6 @@ export default function EnhancedSalesOrderPage() {
         total_quantity: 1,
         line_total: product.pricing.retail_price
       }
-
       if (existingItemIndex >= 0) {
         const updatedCart = [...cart]
         updatedCart[existingItemIndex].item_barcodes!.push({
