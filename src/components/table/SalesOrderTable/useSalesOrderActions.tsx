@@ -234,23 +234,13 @@ export const useSalesOrderActions = () => {
       label: "Print Invoice",
       icon: Printer,
       onClick: handlePrintInvoice,
-    },
-    {
-      label: "Generate Return",
-      icon: RefreshCcw,
-      onClick: handleGenerateReturn,
-      disabled: (order: SalesOrder) => 
-        order.status !== 'COMPLETED' && order.status !== 'DELIVERED',
-    },
+    }
   ];
 
   // Filter actions based on order status and add dynamic properties
   const getActionsForOrder = (order: SalesOrder): TableAction[] => {
     return tableActions.map(action => ({
-      ...action,
-      disabled: typeof action.disabled === 'function' 
-        ? action.disabled(order) 
-        : action.disabled || false,
+      ...action
     }));
   };
 

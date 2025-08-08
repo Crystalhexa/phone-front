@@ -82,13 +82,13 @@ function generateCuid(): string {
 async function generateTransferNumber(): Promise<string> {
   const year = new Date().getFullYear()
   const month = String(new Date().getMonth() + 1).padStart(2, '0')
-  
+
   const result = await query(`
     SELECT COUNT(*) as count 
     FROM stock_transfer_requests 
     WHERE request_number LIKE $1
   `, [`TR${year}${month}%`])
-  
+
   const count = parseInt(result.rows[0].count) + 1
   return `TR${year}${month}${String(count).padStart(4, '0')}`
 }
@@ -100,11 +100,11 @@ async function validateBranches(fromBranchId: string, toBranchId: string): Promi
     FROM branches 
     WHERE id = ANY($1)
   `, [[fromBranchId, toBranchId]])
-  
+
   if (result.rows.length !== 2) {
     throw new Error('One or both branches not found')
   }
-  
+
   const inactiveBranches = result.rows.filter(branch => !branch.is_active)
   if (inactiveBranches.length > 0) {
     throw new Error(`Inactive branches: ${inactiveBranches.map(b => b.name).join(', ')}`)
@@ -134,11 +134,11 @@ async function validateBatchAvailability(
       AND pb.id = $3
       AND bii.is_active = true
   `, [fromBranchId, productId, batchId])
-  
+
   if (result.rows.length === 0) {
     throw new Error(`Batch ${batchId} not found for product in source branch`)
   }
-  
+
   const inventoryItem = result.rows[0]
   if (inventoryItem.available_quantity < requestedQuantity) {
     throw new Error(
@@ -166,19 +166,19 @@ async function validateIndividualItemAvailability(
     WHERE ib.id = ANY($1)
       AND ib.is_active = true
   `, [itemBarcodeIds])
-  
+
   if (result.rows.length !== itemBarcodeIds.length) {
     const foundIds = result.rows.map(r => r.id)
     const missingIds = itemBarcodeIds.filter(id => !foundIds.includes(id))
     throw new Error(`Item barcodes not found: ${missingIds.join(', ')}`)
   }
-  
+
   // Check if items are available for transfer
   for (const item of result.rows) {
     if (item.status !== 'AVAILABLE') {
       throw new Error(`Item ${item.code} is not available for transfer. Status: ${item.status}`)
     }
-    
+
     if (item.location_branch !== fromBranchId) {
       throw new Error(`Item ${item.code} is not in the source branch`)
     }
@@ -215,7 +215,7 @@ async function createTransferRequest(
   transferNumber: string
 ): Promise<string> {
   const transferRequestId = generateCuid()
-  
+
   const result = await client.query(`
     INSERT INTO stock_transfer_requests (
       id, request_number, from_branch_id, to_branch_id,
@@ -234,7 +234,7 @@ async function createTransferRequest(
     transferData.notes || null,
     'COMPLETED' // Immediately mark as completed
   ])
-  
+
   return result.rows[0].id
 }
 
@@ -253,9 +253,9 @@ async function createTransferItems(
       // Handle individual item transfers
       for (const individualItem of item.individual_items) {
         await createIndividualTransferItem(
-          client, 
-          transferRequestId, 
-          item.product_id, 
+          client,
+          transferRequestId,
+          item.product_id,
           individualItem.item_barcode_id
         )
       }
@@ -275,14 +275,14 @@ async function createBatchTransferItem(
     FROM purchase_batches
     WHERE id = $1
   `, [batch.batch_id])
-  
+
   if (batchResult.rows.length === 0) {
     throw new Error(`Batch ${batch.batch_id} not found`)
   }
-  
+
   const batchData = batchResult.rows[0]
   const transferItemId = generateCuid()
-  
+
   await client.query(`
     INSERT INTO stock_transfer_items (
       id, transfer_request_id, product_id, batch_id,
@@ -324,14 +324,14 @@ async function createIndividualTransferItem(
     JOIN purchase_batches pb ON ib.purchase_batch_id = pb.id
     WHERE ib.id = $1
   `, [itemBarcodeId])
-  
+
   if (itemResult.rows.length === 0) {
     throw new Error(`Item barcode ${itemBarcodeId} not found`)
   }
-  
+
   const itemData = itemResult.rows[0]
   const transferItemId = generateCuid()
-  console.log("ssds",itemData.purchase_batch_id)
+  console.log("ssds", itemData.purchase_batch_id)
   await client.query(`
     INSERT INTO stock_transfer_items (
       id, transfer_request_id, product_id, batch_id,
@@ -368,11 +368,11 @@ async function executeItemTransfers(
       // Handle batch transfers
       for (const batch of item.batches) {
         await executeBatchTransfer(
-          client, 
-          transferRequestId, 
-          fromBranchId, 
-          toBranchId, 
-          item.product_id, 
+          client,
+          transferRequestId,
+          fromBranchId,
+          toBranchId,
+          item.product_id,
           batch,
           requestedBy
         )
@@ -381,10 +381,10 @@ async function executeItemTransfers(
       // Handle individual item transfers
       for (const individualItem of item.individual_items) {
         await executeIndividualItemTransfer(
-          client, 
-          transferRequestId, 
-          fromBranchId, 
-          toBranchId, 
+          client,
+          transferRequestId,
+          fromBranchId,
+          toBranchId,
           individualItem.item_barcode_id,
           requestedBy
         )
@@ -408,9 +408,9 @@ async function executeBatchTransfer(
     FROM purchase_batches
     WHERE id = $1
   `, [batch.batch_id])
-  
+
   const batchData = batchResult.rows[0]
-  
+
   // 1. Update source branch inventory items
   await client.query(`
     UPDATE branch_inventory_items 
@@ -421,7 +421,7 @@ async function executeBatchTransfer(
       WHERE branch_id = $2 AND product_id = $3
     ) AND purchase_batch_id = $4
   `, [batch.quantity, fromBranchId, productId, batch.batch_id])
-  
+
   // 2. Update source branch main inventory
   await client.query(`
     UPDATE branch_inventory 
@@ -430,25 +430,25 @@ async function executeBatchTransfer(
         updated_at = NOW()
     WHERE branch_id = $2 AND product_id = $3
   `, [batch.quantity, fromBranchId, productId])
-  
+
   // 3. Handle destination branch inventory
   await updateDestinationInventory(
-    client, 
-    toBranchId, 
-    productId, 
-    batch.batch_id, 
-    batch.quantity, 
+    client,
+    toBranchId,
+    productId,
+    batch.batch_id,
+    batch.quantity,
     batchData
   )
-  
+
   // 4. Create stock ledger entries
   await createBatchStockLedgerEntries(
-    client, 
-    transferRequestId, 
-    fromBranchId, 
-    toBranchId, 
-    productId, 
-    batch, 
+    client,
+    transferRequestId,
+    fromBranchId,
+    toBranchId,
+    productId,
+    batch,
     batchData
   )
 }
@@ -468,7 +468,7 @@ async function executeIndividualItemTransfer(
         updated_at = NOW()
     WHERE id = $2
   `, [toBranchId, itemBarcodeId])
-  
+
   // 2. Create item movement history
   const movementId = generateCuid()
   await client.query(`
@@ -486,7 +486,7 @@ async function executeIndividualItemTransfer(
     requestedBy || null,
     'Individual item transfer between branches'
   ])
-  
+
   // 3. Get item details for inventory updates
   const itemResult = await client.query(`
     SELECT 
@@ -499,9 +499,9 @@ async function executeIndividualItemTransfer(
     JOIN purchase_batches pb ON ib.purchase_batch_id = pb.id
     WHERE ib.id = $1
   `, [itemBarcodeId])
-  
+
   const itemData = itemResult.rows[0]
-  
+
   // 4. Update source branch inventory (decrease by 1)
   await client.query(`
     UPDATE branch_inventory_items 
@@ -512,21 +512,21 @@ async function executeIndividualItemTransfer(
       WHERE branch_id = $1 AND product_id = $2
     ) AND purchase_batch_id = $3
   `, [fromBranchId, itemData.product_id, itemData.purchase_batch_id])
-  
+
   await client.query(`
     UPDATE branch_inventory 
     SET total_quantity = total_quantity - 1,
         updated_at = NOW()
     WHERE branch_id = $1 AND product_id = $2
   `, [fromBranchId, itemData.product_id])
-  
+
   // 5. Update destination branch inventory (increase by 1)
   await updateDestinationInventory(
-    client, 
-    toBranchId, 
-    itemData.product_id, 
-    itemData.purchase_batch_id, 
-    1, 
+    client,
+    toBranchId,
+    itemData.product_id,
+    itemData.purchase_batch_id,
+    1,
     {
       cost_price: itemData.purchase_cost,
       wholesale_price: itemData.wholesale_price,
@@ -535,13 +535,13 @@ async function executeIndividualItemTransfer(
       expiry_date: null
     }
   )
-  
+
   // 6. Create stock ledger entries for individual item
   await createIndividualItemStockLedgerEntries(
-    client, 
-    transferRequestId, 
-    fromBranchId, 
-    toBranchId, 
+    client,
+    transferRequestId,
+    fromBranchId,
+    toBranchId,
     itemData
   )
 }
@@ -560,9 +560,9 @@ async function updateDestinationInventory(
     FROM branch_inventory 
     WHERE branch_id = $1 AND product_id = $2
   `, [toBranchId, productId])
-  
+
   let destInventoryId: string
-  
+
   if (destInventoryResult.rows.length === 0) {
     // Create new inventory record for destination branch
     destInventoryId = generateCuid()
@@ -572,13 +572,13 @@ async function updateDestinationInventory(
         low_stock_threshold, reorder_quantity, last_restock_date, average_cost_price
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)
     `, [
-      destInventoryId, 
-      toBranchId, 
-      productId, 
-      quantity, 
-      0, 
-      5, 
-      20, 
+      destInventoryId,
+      toBranchId,
+      productId,
+      quantity,
+      0,
+      5,
+      20,
       batchData.cost_price
     ])
   } else {
@@ -586,12 +586,12 @@ async function updateDestinationInventory(
     const current = destInventoryResult.rows[0]
     const currentQty = current.total_quantity || 0
     const currentAvgCost = current.average_cost_price || 0
-    
+
     const newTotalQty = currentQty + quantity
-    const newAvgCost = newTotalQty > 0 
+    const newAvgCost = newTotalQty > 0
       ? ((currentQty * currentAvgCost + quantity * batchData.cost_price) / newTotalQty)
       : batchData.cost_price
-    
+
     destInventoryId = current.id
     await client.query(`
       UPDATE branch_inventory 
@@ -602,17 +602,17 @@ async function updateDestinationInventory(
       WHERE id = $3
     `, [quantity, Number(newAvgCost.toFixed(2)), destInventoryId])
   }
-  
+
   // Check if destination branch already has this batch
   const existingBatchResult = await client.query(`
     SELECT id, quantity FROM branch_inventory_items
     WHERE branch_inventory_id = $1 AND purchase_batch_id = $2
   `, [destInventoryId, batchId])
-  
+
   if (existingBatchResult.rows.length === 0) {
     // Create new batch item in destination branch
     const branchInventoryItemId = generateCuid()
-    
+
     // Get next FIFO order
     const fifoQuery = `
       SELECT COALESCE(MAX(fifo_order), 0) + 1 as next_order
@@ -621,7 +621,7 @@ async function updateDestinationInventory(
     `
     const fifoResult = await client.query(fifoQuery, [destInventoryId])
     const fifoOrder = fifoResult.rows[0].next_order
-    
+
     await client.query(`
       INSERT INTO branch_inventory_items (
         id, branch_inventory_id, purchase_batch_id, quantity, reserved_quantity,
@@ -680,7 +680,7 @@ async function createBatchStockLedgerEntries(
     batchData.retail_price,
     `Batch transfer out to branch ${toBranchId}`
   ])
-  
+
   // Create TRANSFER_IN entry for destination branch
   const inLedgerId = generateCuid()
   await client.query(`
@@ -730,7 +730,7 @@ async function createIndividualItemStockLedgerEntries(
     itemData.retail_price,
     `Individual item transfer out to branch ${toBranchId}`
   ])
-  
+
   // Create TRANSFER_IN entry for destination branch
   const inLedgerId = generateCuid()
   await client.query(`
@@ -771,7 +771,7 @@ async function createTransferLog(
     employeeId,
     action,
     notes || 'Stock transfer completed instantly',
-    JSON.stringify({ 
+    JSON.stringify({
       timestamp: new Date().toISOString(),
       auto_completed: true,
       transfer_type: 'INSTANT'
@@ -782,11 +782,11 @@ async function createTransferLog(
 // ========== API Handler ==========
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now()
-  
+
   try {
     // Parse and validate request body
     const body = await request.json()
-    
+
     const validationResult = transferRequestSchema.safeParse(body)
     if (!validationResult.success) {
       const errors = validationResult.error.errors.map(err => ({
@@ -804,24 +804,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const transferData: TransferRequest = validationResult.data
-    
+
     // Execute transfer transaction
     const result = await transaction(async (client) => {
       // 1. Validate branches
       await validateBranches(transferData.from_branch_id, transferData.to_branch_id)
-      
+
       // 2. Validate inventory availability
       await validateTransferAvailability(client, transferData.from_branch_id, transferData.transfer_items)
-      
+
       // 3. Generate transfer number
       const transferNumber = await generateTransferNumber()
-      
+
       // 4. Create transfer request (marked as COMPLETED)
       const transferRequestId = await createTransferRequest(client, transferData, transferNumber)
-      
+
       // 5. Create transfer items
       await createTransferItems(client, transferRequestId, transferData.transfer_items)
-      
+
       // 6. Execute complete inventory transfers
       await executeItemTransfers(
         client,
@@ -831,7 +831,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         transferData.transfer_items,
         transferData.requested_by
       )
-      
+
       // 7. Create transfer completion log
       await createTransferLog(
         client,
@@ -840,7 +840,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         'COMPLETED',
         'Stock transfer completed instantly - no approval required'
       )
-      
+
       return {
         transferRequestId,
         transferNumber,
@@ -853,42 +853,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
     }, { timeout: 120000 }) // Increased timeout for complex transfers
-    
+
     const duration = Date.now() - startTime
-    
+
     return NextResponse.json<ApiResponse>({
       success: true,
       data: result,
       message: 'Stock transfer completed successfully',
       timestamp: new Date().toISOString()
     }, { status: 200 })
-    
+
   } catch (error: any) {
     const duration = Date.now() - startTime
-    
+
     console.error('❌ Stock transfer API error:', {
       error: error.message,
       duration,
       stack: error.stack
     })
-    
+
     // Handle specific database errors
     let statusCode = 500
     let message = 'Internal server error'
-    
+
     if (error.message.includes('not found')) {
       statusCode = 404
       message = error.message
-    } else if (error.message.includes('Insufficient stock') || 
-               error.message.includes('not available for transfer') ||
-               error.message.includes('Validation failed')) {
+    } else if (error.message.includes('Insufficient stock') ||
+      error.message.includes('not available for transfer') ||
+      error.message.includes('Validation failed')) {
       statusCode = 400
       message = error.message
     } else if (error.message.includes('Circuit breaker')) {
       statusCode = 503
       message = 'Service temporarily unavailable'
     }
-    
+
     return NextResponse.json<ApiResponse>({
       success: false,
       data: null,
@@ -905,7 +905,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { searchParams } = new URL(request.url)
     const transferId = searchParams.get('id')
     const transferNumber = searchParams.get('number')
-    
+
     if (!transferId && !transferNumber) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -914,10 +914,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         timestamp: new Date().toISOString()
       }, { status: 400 })
     }
-    
+
     const whereClause = transferId ? 'str.id = $1' : 'str.request_number = $1'
     const paramValue = transferId || transferNumber
-    
+
     const result = await query(`
       SELECT 
         str.*,
@@ -989,7 +989,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       WHERE ${whereClause}
       GROUP BY str.id, fb.name, fb.code, tb.name, tb.code, e1.name, e2.name
     `, [paramValue])
-    
+
     if (result.rows.length === 0) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -998,17 +998,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         timestamp: new Date().toISOString()
       }, { status: 404 })
     }
-    
+
     return NextResponse.json<ApiResponse>({
       success: true,
       data: result.rows[0],
       message: 'Transfer request retrieved successfully',
       timestamp: new Date().toISOString()
     })
-    
+
   } catch (error: any) {
     console.error('❌ Get transfer API error:', error)
-    
+
     return NextResponse.json<ApiResponse>({
       success: false,
       data: null,
@@ -1027,7 +1027,7 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
     const { searchParams } = new URL(request.url)
     const branchId = searchParams.get('branch_id')
     const productId = searchParams.get('product_id')
-    
+
     if (!branchId) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -1036,15 +1036,15 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
         timestamp: new Date().toISOString()
       }, { status: 400 })
     }
-    
+
     let productFilter = ''
     let queryParams = [branchId]
-    
+
     if (productId) {
       productFilter = 'AND p.id = $2'
       queryParams.push(productId)
     }
-    
+
     // Get available batches for transfer
     const batchResult = await query(`
       SELECT 
@@ -1071,7 +1071,7 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
         ${productFilter}
       ORDER BY p.name, bii.fifo_order
     `, queryParams)
-    
+
     // Get available individual items for transfer
     const itemResult = await query(`
       SELECT 
@@ -1096,7 +1096,7 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
         ${productFilter}
       ORDER BY p.name, ib.purchased_at
     `, queryParams)
-    
+
     const availableItems = {
       batches: batchResult.rows,
       individual_items: itemResult.rows,
@@ -1106,17 +1106,17 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
         products_count: [...new Set([...batchResult.rows, ...itemResult.rows].map(item => item.product_id))].length
       }
     }
-    
+
     return NextResponse.json<ApiResponse>({
       success: true,
       data: availableItems,
       message: 'Available items retrieved successfully',
       timestamp: new Date().toISOString()
     })
-    
+
   } catch (error: any) {
     console.error('❌ Get available items API error:', error)
-    
+
     return NextResponse.json<ApiResponse>({
       success: false,
       data: null,

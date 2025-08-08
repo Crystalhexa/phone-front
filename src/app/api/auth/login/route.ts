@@ -31,8 +31,6 @@ export async function POST(req: NextRequest) {
         { status: 200 }
       );
 
-      // Set HTTP-only cookie for additional security
-
       response.cookies.set({
         name: 'accessToken',
         value: result.data?.token || '',

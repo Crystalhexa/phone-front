@@ -1,4 +1,3 @@
-// ========== OPTIMIZED API: /api/inventory/stock-logs/route.ts ==========
 import { NextRequest, NextResponse } from 'next/server'
 import { query, ApiResponse } from '@/lib/database/connection'
 import { AuthenticatedRequest, withPermission } from '@/middleware/auth'

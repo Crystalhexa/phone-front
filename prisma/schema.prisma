@@ -429,7 +429,6 @@ model purchase_batches {
   cost_price             Decimal   @db.Decimal(10, 2)
   wholesale_price        Decimal?  @db.Decimal(10, 2)
   retail_price           Decimal   @db.Decimal(10, 2)
-  expiry_date            DateTime? @db.Date
   received_date          DateTime? @db.Date
   received_by            String? // NEW: Track who received this batch
   is_active              Boolean   @default(true)
@@ -446,7 +445,6 @@ model purchase_batches {
   item_barcodes           item_barcodes[]
 
   @@index([batch_number])
-  @@index([expiry_date])
   @@index([fifo_sequence]) // NEW: For FIFO queries
   @@index([received_date])
   @@map("purchase_batches")
@@ -551,7 +549,6 @@ model branch_inventory_items {
   wholesale_price     Decimal?  @db.Decimal(10, 2)
   retail_price        Decimal   @db.Decimal(10, 2)
   received_date       DateTime  @db.Timestamptz(6)
-  expiry_date         DateTime? @db.Date
   is_active           Boolean   @default(true)
   fifo_order          Int? // NEW: For FIFO processing
   created_at          DateTime  @default(now()) @db.Timestamptz(6)
@@ -565,7 +562,6 @@ model branch_inventory_items {
   @@index([branch_inventory_id])
   @@index([purchase_batch_id])
   @@index([quantity])
-  @@index([expiry_date])
   @@index([fifo_order]) // NEW: For FIFO queries
   @@map("branch_inventory_items")
 }
@@ -763,9 +759,8 @@ model purchase_orders {
   expected_date  DateTime?    @db.Date
   received_date  DateTime?    @db.Date
   status         order_status @default(PENDING)
-  subtotal       Decimal?     @default(0) @db.Decimal(12, 2)
-  tax_amount     Decimal?     @default(0) @db.Decimal(10, 2)
-  total_amount   Decimal?     @default(0) @db.Decimal(12, 2)
+  subtotal       Decimal?     @default(0) @db.Decimal(50, 2)
+  total_amount   Decimal?     @default(0) @db.Decimal(50, 2)
   notes          String?      @db.Text
   created_at     DateTime     @default(now()) @db.Timestamptz(6)
   updated_at     DateTime     @default(now()) @db.Timestamptz(6)
@@ -790,12 +785,11 @@ model purchase_order_items {
   product_id        String
   quantity_ordered  Int
   quantity_received Int       @default(0)
-  cost_price        Decimal   @db.Decimal(10, 2)
-  wholesale_price   Decimal?  @db.Decimal(10, 2)
-  retail_price      Decimal   @db.Decimal(10, 2)
-  line_total        Decimal   @db.Decimal(12, 2)
+  cost_price        Decimal   @db.Decimal(500, 2)
+  wholesale_price   Decimal?  @db.Decimal(500, 2)
+  retail_price      Decimal   @db.Decimal(500, 2)
+  line_total        Decimal   @db.Decimal(500, 2)
   batch_number      String?   @db.VarChar(50)
-  expiry_date       DateTime? @db.Date
   created_at        DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations

@@ -166,7 +166,6 @@ async function getPurchaseOrders(params: QueryParams): Promise<{
       po.received_date,
       po.status,
       po.subtotal,
-      po.tax_amount,
       po.total_amount,
       po.notes,
       po.created_at,
@@ -207,7 +206,6 @@ async function getPurchaseOrders(params: QueryParams): Promise<{
         poi.retail_price,
         poi.line_total,
         poi.batch_number,
-        poi.expiry_date,
         pb.batch_number as batch_code,
         pb.is_active as batch_active
       FROM purchase_order_items poi

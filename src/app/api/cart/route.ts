@@ -5,7 +5,7 @@ import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
 
 // ========== Types ==========
 export interface ScannedProduct {
-  barcode_id?: string // For individual items, this is the item barcode ID
+  barcode_id?: string 
   barcode: string
   scan_type: 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL'
   product_id: string
@@ -35,7 +35,6 @@ export interface ScannedProduct {
       batch_id: string
       batch_number: string
       available_quantity: number
-      expiry_date?: string
     } // For product-level items
   }
   // For individual items
@@ -51,7 +50,6 @@ export interface ScannedProduct {
   batch_info?: {
     batch_id: string
     batch_number: string
-    expiry_date?: string
     branch_quantity?: number
     branch_available?: number
   }
@@ -73,7 +71,6 @@ function detectBarcodeType(barcode: string): 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL'
   
   // Product-level barcodes (internal or external)
   if (barcode.startsWith('PRO-') || 
-      barcode.startsWith('INT_') || 
       barcode.length === 13 || // EAN-13
       barcode.length === 12 || // UPC-A
       barcode.length === 8) {   // EAN-8
@@ -104,7 +101,6 @@ async function handleIndividualItemScan(
       pb.cost_price,
       pb.wholesale_price,
       pb.retail_price,
-      pb.expiry_date,
       ib.product_id,
       p.name as product_name,
       p.model,
@@ -233,7 +229,6 @@ async function handleIndividualItemScan(
     batch_info: {
       batch_id: item.batch_id,
       batch_number: item.batch_number,
-      expiry_date: item.expiry_date,
       branch_quantity: item.batch_quantity_in_branch,
       branch_available: item.batch_available_quantity
     },
@@ -276,7 +271,6 @@ async function handleProductLevelScan(
           'cost_price', pb.cost_price,
           'wholesale_price', pb.wholesale_price,
           'retail_price', pb.retail_price,
-          'expiry_date', pb.expiry_date,
           'received_date', pb.received_date,
           'fifo_sequence', pb.fifo_sequence,
           'fifo_order', bii.fifo_order
@@ -284,13 +278,11 @@ async function handleProductLevelScan(
           COALESCE(pb.fifo_sequence, 999999) ASC,
           COALESCE(bii.fifo_order, 999999) ASC,
           pb.received_date ASC NULLS LAST,
-          pb.expiry_date ASC NULLS LAST,
           pb.created_at ASC
       ) FILTER (
         WHERE bii.quantity > bii.reserved_quantity 
           AND bii.is_active = true 
           AND pb.is_active = true
-          AND (pb.expiry_date IS NULL OR pb.expiry_date > CURRENT_DATE)
       ) as batches
     FROM barcodes bc
     JOIN products p ON bc.product_id = p.id
@@ -380,7 +372,6 @@ async function handleProductLevelScan(
         batch_id: firstBatch.batch_id,
         batch_number: firstBatch.batch_number,
         available_quantity: firstBatch.quantity,
-        expiry_date: firstBatch.expiry_date
       } : undefined
     },
     batch_info: batches.map((batch: any) => ({
@@ -390,7 +381,6 @@ async function handleProductLevelScan(
       cost_price: parseFloat(batch.cost_price || '0'),
       wholesale_price: batch.wholesale_price ? parseFloat(batch.wholesale_price) : undefined,
       retail_price: parseFloat(batch.retail_price || '0'),
-      expiry_date: batch.expiry_date,
       received_date: batch.received_date,
       fifo_sequence: batch.fifo_sequence,
       fifo_order: batch.fifo_order,

@@ -82,7 +82,6 @@ export async function GET(
         po.received_date,
         po.status,
         po.subtotal,
-        po.tax_amount,
         po.total_amount,
         po.notes,
         s.name as supplier_name,
@@ -123,7 +122,6 @@ export async function GET(
         poi.retail_price,
         poi.line_total,
         poi.batch_number,
-        poi.expiry_date,
         p.name as product_name,
         pb.id as batch_id
       FROM purchase_order_items poi

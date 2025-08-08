@@ -39,6 +39,11 @@ interface ProductSpecification {
   spec_value: string
 }
 
+interface ProductBarcode {
+  id: string
+  code: string
+}
+
 // Initialize database connection
 let dbInitialized = false
 
@@ -47,290 +52,6 @@ async function ensureDbInit() {
     await initDatabase()
     dbInitialized = true
   }
-}
-
-// GET /api/products/[id] - Fetch product details by ID
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse<ApiResponse<ProductDetails>>> {
-  const startTime = Date.now()
-  
-  try {
-    await ensureDbInit()
-    
-    const productId = params.id
-    
-    // Validate product ID
-    if (!productId || typeof productId !== 'string') {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: 'Invalid product ID provided',
-          timestamp: new Date().toISOString(),
-        },
-        { status: 400 }
-      )
-    }
-
-    console.log(`🔍 Fetching product details for ID: ${productId}`)
-
-    // Query to fetch product with all related data
-    const productQuery = `
-      SELECT 
-        p.id,
-        p.name,
-        p.model,
-        p.description,
-        p.subcategory_id,
-        p.brand_id,
-        p.sku,
-        p.warranty_period,
-        p.low_stock_threshold,
-        p.wholesale_quantity,
-        p.is_active,
-        p.is_unique,
-        p.created_at,
-        p.updated_at,
-        -- Category information
-        c.id as category_id,
-        c.name as category_name,
-        -- Brand information
-        b.name as brand_name,
-        -- Subcategory information
-        sc.name as subcategory_name
-      FROM products p
-      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
-      LEFT JOIN categories c ON sc.category_id = c.id
-      LEFT JOIN brands b ON p.brand_id = b.id
-      WHERE p.id = $1
-    `
-
-    // Query to fetch product specifications
-    const specificationsQuery = `
-      SELECT 
-        id,
-        spec_name,
-        spec_value
-      FROM product_specifications
-      WHERE product_id = $1
-      ORDER BY spec_name ASC
-    `
-    const barcodesQuery = `
-      SELECT 
-        id,
-        code
-      FROM barcodes
-      WHERE product_id = $1
-      ORDER BY created_at ASC
-    `
-
-    // Execute queries concurrently for better performance
-    const [productResult, specificationsResult,barcodeResult] = await Promise.all([
-      query(productQuery, [productId], { logQuery: true }),
-      query(specificationsQuery, [productId], { logQuery: true }),
-      query(barcodesQuery, [productId], { logQuery: true })
-    ])
-
-    // Check if product exists
-    if (productResult.rows.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: `Product with ID '${productId}' not found`,
-          timestamp: new Date().toISOString(),
-        },
-        { status: 404 }
-      )
-    }
-
-    const productRow = productResult.rows[0]
-    const specifications = specificationsResult.rows
-    const barcodes = barcodeResult.rows
-
-    // Transform the data to match your frontend interface
-    const productDetails: ProductDetails = {
-      id: productRow.id,
-      name: productRow.name,
-      model: productRow.model,
-      description: productRow.description,
-      subcategory_id: productRow.subcategory_id,
-      brand_id: productRow.brand_id,
-      sku: productRow.sku,
-      warranty_period: productRow.warranty_period,
-      low_stock_threshold: productRow.low_stock_threshold,
-      wholesale_quantity: productRow.wholesale_quantity,
-      is_active: productRow.is_active,
-      is_unique: productRow.is_unique,
-      created_at: productRow.created_at,
-      updated_at: productRow.updated_at,
-      category_id: productRow.category_id,
-      category_name: productRow.category_name,
-      brand_name: productRow.brand_name,
-      subcategory_name: productRow.subcategory_name,
-      specifications: specifications.map(spec => ({
-        id: spec.id,
-        spec_name: spec.spec_name,
-        spec_value: spec.spec_value
-      })),
-      barcodes:barcodes.map(barcode => ({
-        id: barcode.id,
-        code: barcode.code
-      }))
-    }
-
-    const duration = Date.now() - startTime
-
-    console.log(`✅ Product details fetched successfully in ${duration}ms`, {
-      productId,
-      productName: productDetails.name,
-      specifications: specifications.length,
-      category: productDetails.category_name,
-      brand: productDetails.brand_name
-    })
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: productDetails,
-        message: 'Product details retrieved successfully',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          query_duration_ms: duration,
-          specifications_count: specifications.length
-        }
-      },
-      { status: 200 }
-    )
-
-  } catch (error: any) {
-    const duration = Date.now() - startTime
-    
-    console.error('❌ Error fetching product details:', {
-      error: error.message,
-      productId: params.id,
-      duration,
-      stack: error.stack
-    })
-
-    // Handle specific database errors
-    let statusCode = 500
-    let errorMessage = 'Internal server error occurred while fetching product details'
-
-    if (error.message.includes('invalid input syntax')) {
-      statusCode = 400
-      errorMessage = 'Invalid product ID format'
-    } else if (error.message.includes('connection')) {
-      statusCode = 503
-      errorMessage = 'Database connection error'
-    } else if (error.code === '23505') {
-      statusCode = 409
-      errorMessage = 'Data conflict error'
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        message: errorMessage,
-        errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          query_duration_ms: duration,
-          error_code: error.code || 'UNKNOWN'
-        }
-      },
-      { status: statusCode }
-    )
-  }
-}
-
-// DELETE /api/products/[id] - Delete product (soft delete)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-): Promise<NextResponse<ApiResponse<{ deleted: boolean }>>> {
-  try {
-    await ensureDbInit()
-    
-    const productId = params.id
-
-    if (!productId || typeof productId !== 'string') {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: 'Invalid product ID provided',
-          timestamp: new Date().toISOString(),
-        },
-        { status: 400 }
-      )
-    }
-
-    // Check if product exists
-    const existsResult = await query(
-      'SELECT id FROM products WHERE id = $1',
-      [productId]
-    )
-
-    if (existsResult.rows.length === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          data: null,
-          message: `Product with ID '${productId}' not found`,
-          timestamp: new Date().toISOString(),
-        },
-        { status: 404 }
-      )
-    }
-
-    // Soft delete by setting is_active to false
-    await query(
-      'UPDATE products SET is_active = false, updated_at = NOW() WHERE id = $1',
-      [productId]
-    )
-
-    console.log(`🗑️ Product soft deleted: ${productId}`)
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: { deleted: true },
-        message: 'Product deleted successfully',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 200 }
-    )
-
-  } catch (error: any) {
-    console.error('❌ Error deleting product:', error.message)
-
-    return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        message: 'Internal server error occurred while deleting product',
-        errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 }
-    )
-  }
-}
-
-
-interface ProductSpecification {
-  id: string
-  spec_name: string
-  spec_value: string
-}
-
-interface ProductBarcode {
-  id: string
-  code: string
 }
 
 // Validation schemas
@@ -498,7 +219,7 @@ async function getUpdatedProduct(productId: string): Promise<ProductDetails | nu
   return result.rows[0] || null
 }
 
-function createErrorResponse(message: string, errors?: string[], statusCode: number = 500, duration?: number): NextResponse<ApiResponse> {
+function createErrorResponse(message: string, errors?: string[], statusCode: number = 500, duration?: number): NextResponse<ApiResponse<any>> {
   return NextResponse.json(
     {
       success: false,
@@ -512,7 +233,7 @@ function createErrorResponse(message: string, errors?: string[], statusCode: num
   )
 }
 
-function createSuccessResponse(data: any, message: string = 'Success'): NextResponse<ApiResponse> {
+function createSuccessResponse(data: any, message: string = 'Success'): NextResponse<ApiResponse<any>> {
   return NextResponse.json(
     {
       success: true,
@@ -524,9 +245,286 @@ function createSuccessResponse(data: any, message: string = 'Success'): NextResp
   )
 }
 
+// GET /api/products/[id] - Fetch product details by ID
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse<ApiResponse<ProductDetails>>> {
+  const startTime = Date.now()
+  
+  try {
+    await ensureDbInit()
+    
+    // Await params in Next.js 15
+    const { id: productId } = await context.params
+    
+    // Validate product ID
+    if (!productId || typeof productId !== 'string') {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Invalid product ID provided',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 }
+      )
+    }
+
+    console.log(`🔍 Fetching product details for ID: ${productId}`)
+
+    // Query to fetch product with all related data
+    const productQuery = `
+      SELECT 
+        p.id,
+        p.name,
+        p.model,
+        p.description,
+        p.subcategory_id,
+        p.brand_id,
+        p.sku,
+        p.warranty_period,
+        p.low_stock_threshold,
+        p.wholesale_quantity,
+        p.is_active,
+        p.is_unique,
+        p.created_at,
+        p.updated_at,
+        -- Category information
+        c.id as category_id,
+        c.name as category_name,
+        -- Brand information
+        b.name as brand_name,
+        -- Subcategory information
+        sc.name as subcategory_name
+      FROM products p
+      LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
+      LEFT JOIN categories c ON sc.category_id = c.id
+      LEFT JOIN brands b ON p.brand_id = b.id
+      WHERE p.id = $1
+    `
+
+    // Query to fetch product specifications
+    const specificationsQuery = `
+      SELECT 
+        id,
+        spec_name,
+        spec_value
+      FROM product_specifications
+      WHERE product_id = $1
+      ORDER BY spec_name ASC
+    `
+    
+    const barcodesQuery = `
+      SELECT 
+        id,
+        code
+      FROM barcodes
+      WHERE product_id = $1
+      ORDER BY created_at ASC
+    `
+
+    // Execute queries concurrently for better performance
+    const [productResult, specificationsResult, barcodeResult] = await Promise.all([
+      query(productQuery, [productId], { logQuery: true }),
+      query(specificationsQuery, [productId], { logQuery: true }),
+      query(barcodesQuery, [productId], { logQuery: true })
+    ])
+
+    // Check if product exists
+    if (productResult.rows.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: `Product with ID '${productId}' not found`,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      )
+    }
+
+    const productRow = productResult.rows[0]
+    const specifications = specificationsResult.rows
+    const barcodes = barcodeResult.rows
+
+    // Transform the data to match your frontend interface
+    const productDetails: ProductDetails = {
+      id: productRow.id,
+      name: productRow.name,
+      model: productRow.model,
+      description: productRow.description,
+      subcategory_id: productRow.subcategory_id,
+      brand_id: productRow.brand_id,
+      sku: productRow.sku,
+      warranty_period: productRow.warranty_period,
+      low_stock_threshold: productRow.low_stock_threshold,
+      wholesale_quantity: productRow.wholesale_quantity,
+      is_active: productRow.is_active,
+      is_unique: productRow.is_unique,
+      created_at: productRow.created_at,
+      updated_at: productRow.updated_at,
+      category_id: productRow.category_id,
+      category_name: productRow.category_name,
+      brand_name: productRow.brand_name,
+      subcategory_name: productRow.subcategory_name,
+      specifications: specifications.map(spec => ({
+        id: spec.id,
+        spec_name: spec.spec_name,
+        spec_value: spec.spec_value
+      })),
+      barcodes: barcodes.map(barcode => ({
+        id: barcode.id,
+        code: barcode.code
+      }))
+    }
+
+    const duration = Date.now() - startTime
+
+    console.log(`✅ Product details fetched successfully in ${duration}ms`, {
+      productId,
+      productName: productDetails.name,
+      specifications: specifications.length,
+      category: productDetails.category_name,
+      brand: productDetails.brand_name
+    })
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: productDetails,
+        message: 'Product details retrieved successfully',
+        timestamp: new Date().toISOString(),
+        metadata: {
+          query_duration_ms: duration,
+          specifications_count: specifications.length
+        }
+      },
+      { status: 200 }
+    )
+
+  } catch (error: any) {
+    const duration = Date.now() - startTime
+    const params = await context.params
+    
+    console.error('❌ Error fetching product details:', {
+      error: error.message,
+      productId: params.id,
+      duration,
+      stack: error.stack
+    })
+
+    // Handle specific database errors
+    let statusCode = 500
+    let errorMessage = 'Internal server error occurred while fetching product details'
+
+    if (error.message.includes('invalid input syntax')) {
+      statusCode = 400
+      errorMessage = 'Invalid product ID format'
+    } else if (error.message.includes('connection')) {
+      statusCode = 503
+      errorMessage = 'Database connection error'
+    } else if (error.code === '23505') {
+      statusCode = 409
+      errorMessage = 'Data conflict error'
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: errorMessage,
+        errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          query_duration_ms: duration,
+          error_code: error.code || 'UNKNOWN'
+        }
+      },
+      { status: statusCode }
+    )
+  }
+}
+
+// DELETE /api/products/[id] - Delete product (soft delete)
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+): Promise<NextResponse<ApiResponse<{ deleted: boolean }>>> {
+  try {
+    await ensureDbInit()
+    
+    // Await params in Next.js 15
+    const { id: productId } = await context.params
+
+    if (!productId || typeof productId !== 'string') {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: 'Invalid product ID provided',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 }
+      )
+    }
+
+    // Check if product exists
+    const existsResult = await query(
+      'SELECT id FROM products WHERE id = $1',
+      [productId]
+    )
+
+    if (existsResult.rows.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          data: null,
+          message: `Product with ID '${productId}' not found`,
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      )
+    }
+
+    // Soft delete by setting is_active to false
+    await query(
+      'UPDATE products SET is_active = false, updated_at = NOW() WHERE id = $1',
+      [productId]
+    )
+
+    console.log(`🗑️ Product soft deleted: ${productId}`)
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: { deleted: true },
+        message: 'Product deleted successfully',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200 }
+    )
+
+  } catch (error: any) {
+    console.error('❌ Error deleting product:', error.message)
+
+    return NextResponse.json(
+      {
+        success: false,
+        data: null,
+        message: 'Internal server error occurred while deleting product',
+        errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT /api/products/[id] - Update product
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<ApiResponse<ProductDetails>>> {
   const startTime = Date.now()
   
@@ -535,11 +533,10 @@ export async function PUT(
     await initDatabase()
     
     // Await params before accessing properties (Next.js 15 requirement)
-    const resolvedParams = await params
+    const { id: productId } = await context.params
     
     // Validate product ID parameter
-    const productId = resolvedParams.id?.trim()
-    if (!productId || typeof productId !== 'string') {
+    if (!productId?.trim() || typeof productId !== 'string') {
       return createErrorResponse('Invalid or missing product ID', ['Product ID must be a valid string'], 400)
     }
 
@@ -608,10 +605,11 @@ export async function PUT(
 
   } catch (error: any) {
     const duration = Date.now() - startTime
+    const params = await context.params
     
     console.error('❌ Error updating product:', {
       error: error.message,
-      productId: (await params).id,
+      productId: params.id,
       duration,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })

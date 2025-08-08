@@ -200,17 +200,16 @@ async function createItemBarcodes(
 
     const itemBarcodeQuery = `
       INSERT INTO item_barcodes (
-        id, purchase_batch_id, product_id, type, status,
+        id, purchase_batch_id, product_id, status,
         purchased_at, purchase_cost, supplier_id, warranty_expiry,
         condition, location_branch, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `
 
     const itemBarcodeValues = [
       itemBarcodeId,
       batchId,
       productId,
-      'INTERNAL',
       'AVAILABLE',
       new Date().toISOString(),
       itemData.cost_price,
@@ -583,7 +582,6 @@ export async function POST(request: NextRequest) {
             po.received_date,
             po.status,
             po.subtotal,
-            po.tax_amount,
             po.total_amount,
             po.notes,
             po.created_at,
@@ -605,7 +603,6 @@ export async function POST(request: NextRequest) {
                 'retail_price', poi.retail_price,
                 'line_total', poi.line_total,
                 'batch_number', poi.batch_number,
-                'expiry_date', poi.expiry_date,
                 'batch_id', pb.id,
                 'individual_items_count', CASE 
                   WHEN EXISTS(

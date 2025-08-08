@@ -39,7 +39,6 @@ interface BatchInfo {
   costPrice: number
   retailPrice: number
   wholesalePrice: number | null
-  expiryDate: string | null
   receivedDate: string
 }
 
@@ -139,8 +138,7 @@ async function getProductsWithFIFOPricing(
         bii.retail_price,
         bii.wholesale_price,
         bii.received_date,
-        pb.batch_number,
-        pb.expiry_date
+        pb.batch_number
       FROM branch_inventory bi
       INNER JOIN branch_inventory_items bii ON bii.branch_inventory_id = bi.id
       INNER JOIN purchase_batches pb ON pb.id = bii.purchase_batch_id
@@ -292,7 +290,6 @@ async function getProductBatches(productId: string, branchId: string): Promise<B
       bii.cost_price,
       bii.retail_price,
       bii.wholesale_price,
-      pb.expiry_date,
       bii.received_date
     FROM branch_inventory bi
     INNER JOIN branch_inventory_items bii ON bii.branch_inventory_id = bi.id
@@ -315,7 +312,6 @@ async function getProductBatches(productId: string, branchId: string): Promise<B
     costPrice: parseFloat(row.cost_price),
     retailPrice: parseFloat(row.retail_price),
     wholesalePrice: row.wholesale_price ? parseFloat(row.wholesale_price) : null,
-    expiryDate: row.expiry_date,
     receivedDate: row.received_date
   }))
 }
