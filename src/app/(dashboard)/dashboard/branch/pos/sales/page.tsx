@@ -18,8 +18,6 @@ import {
   X,
   Percent,
   DollarSign,
-  Barcode,
-  Calendar,
   Clock,
   Info,
   AlertTriangle,
@@ -32,94 +30,13 @@ import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { ProductPrice } from '@/components/pos/ProductPrice'
 import { useAuth } from '@/hooks/useAuth'
-
-// Enhanced FIFO Allocation utility
-interface BatchInfo {
-  batch_id: string
-  batch_number: string
-  quantity: number
-  cost_price: number
-  wholesale_price?: number
-  retail_price: number
-  expiry_date?: string
-  received_date?: string
-  fifo_sequence?: number
-  fifo_order?: number
-  is_next_to_sell?: boolean
-}
-
-interface FIFOAllocationResult {
-  allocatedBatches: Array<{
-    batch_id: string
-    batch_number: string
-    allocated_quantity: number
-    available_quantity: number
-    cost_price: number
-    retail_price: number
-    wholesale_price?: number
-    expiry_date?: string
-  }>
-  totalAllocated: number
-  isFullyAllocated: boolean
-  shortfall: number
-}
-
-const allocateBatchesFIFO = (batchesInfo: BatchInfo[], requestedQuantity: number): FIFOAllocationResult => {
-  const allocatedBatches: any[] = []
-  let remainingQuantity = requestedQuantity
-
-  // Sort batches by FIFO order (earliest first)
-  const sortedBatches = [...batchesInfo].sort((a, b) => {
-    // Primary sort: FIFO sequence (if available)
-    if (a.fifo_sequence !== undefined && b.fifo_sequence !== undefined) {
-      return a.fifo_sequence - b.fifo_sequence
-    }
-
-    // Secondary sort: is_next_to_sell flag
-    if (a.is_next_to_sell && !b.is_next_to_sell) return -1
-    if (!a.is_next_to_sell && b.is_next_to_sell) return 1
-
-    // Tertiary sort: expiry date (earliest first)
-    if (a.expiry_date && b.expiry_date) {
-      return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime()
-    }
-    if (a.expiry_date && !b.expiry_date) return -1
-    if (!a.expiry_date && b.expiry_date) return 1
-
-    // Quaternary sort: received date (earliest first)
-    if (a.received_date && b.received_date) {
-      return new Date(a.received_date).getTime() - new Date(b.received_date).getTime()
-    }
-    return 0
-  })
-
-  for (const batch of sortedBatches) {
-    if (remainingQuantity <= 0) break
-    if (batch.quantity <= 0) continue
-
-    const quantityFromThisBatch = Math.min(remainingQuantity, batch.quantity)
-
-    allocatedBatches.push({
-      batch_id: batch.batch_id,
-      batch_number: batch.batch_number,
-      allocated_quantity: quantityFromThisBatch,
-      available_quantity: batch.quantity,
-      cost_price: batch.cost_price,
-      retail_price: batch.retail_price,
-      wholesale_price: batch.wholesale_price,
-      expiry_date: batch.expiry_date
-    })
-
-    remainingQuantity -= quantityFromThisBatch
-  }
-
-  return {
-    allocatedBatches,
-    totalAllocated: requestedQuantity - remainingQuantity,
-    isFullyAllocated: remainingQuantity === 0,
-    shortfall: remainingQuantity
-  }
-}
+import {
+  STORAGE_KEYS,
+  saveToStorage,
+  loadFromStorage
+} from '@/lib/utils/SalesOrderStorage'
+import { CartItem, Customer, FIFOAllocationResult, ScannedProduct } from '@/types/sales'
+import { FIFOAllocationPreview } from '@/components/sales/FIFOAllocationPreview'
 
 const QuantitySelector = ({ value, onChange, max, label }: any) => (
   <div className="space-y-2">
@@ -134,208 +51,6 @@ const QuantitySelector = ({ value, onChange, max, label }: any) => (
   </div>
 )
 
-// Enhanced FIFO Allocation Preview Component
-const FIFOAllocationPreview = ({
-  product,
-  quantity,
-  onAllocationChange
-}: {
-  product: ScannedProduct,
-  quantity: number,
-  onAllocationChange: (allocation: FIFOAllocationResult) => void
-}) => {
-  const [allocation, setAllocation] = useState<FIFOAllocationResult | null>(null)
-
-  useEffect(() => {
-    if (product.scan_type === 'PRODUCT_LEVEL' && product.batch_info && quantity > 0) {
-      const batchesInfo: BatchInfo[] = product.batch_info.map((batch: any) => ({
-        batch_id: batch.batch_id,
-        batch_number: batch.batch_number,
-        quantity: batch.quantity || batch.available_quantity || 0,
-        cost_price: batch.cost_price || 0,
-        wholesale_price: batch.wholesale_price,
-        retail_price: batch.retail_price || 0,
-        expiry_date: batch.expiry_date,
-        received_date: batch.received_date,
-        fifo_sequence: batch.fifo_sequence,
-        fifo_order: batch.fifo_order,
-        is_next_to_sell: batch.is_next_to_sell
-      }))
-
-      const allocationResult = allocateBatchesFIFO(batchesInfo, quantity)
-      setAllocation(allocationResult)
-      onAllocationChange(allocationResult)
-    }
-  }, [quantity, product, onAllocationChange])
-
-  if (!allocation || allocation.allocatedBatches.length === 0) {
-    return null
-  }
-
-  return (
-    <div className="space-y-3">
-      <Alert>
-        <Clock className="h-4 w-4" />
-        <AlertDescription>
-          <strong>FIFO Allocation:</strong> Items will be automatically allocated from the oldest batches first.
-        </AlertDescription>
-      </Alert>
-
-      <div className="space-y-2">
-        <Label className="text-sm font-medium flex items-center gap-2">
-          <Info className="h-4 w-4" />
-          FIFO Allocation Preview
-        </Label>
-        <div className="space-y-2 max-h-40 overflow-y-auto">
-          {allocation.allocatedBatches.map((batch, index) => (
-            <div key={batch.batch_id} className="bg-secondary border border-muted rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <div className="font-medium text-sm">
-                    #{index + 1} - {batch.batch_number}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Allocating: {batch.allocated_quantity} / {batch.available_quantity} available
-                  </div>
-                  {batch.expiry_date && (
-                    <div className="flex items-center gap-1 text-xs text-orange-600">
-                      <Calendar className="h-3 w-3" />
-                      Expires: {new Date(batch.expiry_date).toLocaleDateString()}
-                    </div>
-                  )}
-                </div>
-                <Badge variant="outline" className="text-xs">
-                  Qty: {batch.allocated_quantity}
-                </Badge>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className={`text-sm font-medium p-2 rounded ${allocation.isFullyAllocated
-            ? 'text-green-700 bg-green-50'
-            : 'text-red-700 bg-red-50'
-          }`}>
-          Total allocated: {allocation.totalAllocated} / {quantity} requested
-          {allocation.isFullyAllocated ? (
-            <span className="text-green-600 ml-2">✓ Fully allocated</span>
-          ) : (
-            <span className="text-red-600 ml-2">⚠ Insufficient stock ({allocation.shortfall} short)</span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Types
-interface ScannedProduct {
-  barcode_id?: string
-  barcode: string
-  scan_type: 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL'
-  product_id: string
-  name: string
-  model: string
-  sku: string
-  wholesale_quantity?: number
-  brand?: {
-    name: string
-    code: string
-  }
-  category?: {
-    category: string
-    subcategory: string
-  }
-  pricing: {
-    cost_price: number
-    wholesale_price?: number
-    retail_price: number
-    selling_price: number
-  }
-  inventory: {
-    available_quantity: number
-    is_low_stock: boolean
-    total_batches?: number
-    fifo_next_batch?: {
-      batch_id: string
-      batch_number: string
-      available_quantity: number
-      expiry_date?: string
-    }
-    available_batches?: Array<{
-      batch_id: string
-      batch_number: string
-      available_quantity: number
-      expiry_date?: string
-      cost_price?: number
-      wholesale_price?: number
-      retail_price?: number
-    }>
-  }
-  item_details?: {
-    item_id: string
-    status: string
-    condition: string
-    warranty_expiry?: string
-    location_branch: string
-    purchased_at: string
-    supplier_name?: string
-  }
-  batch_info?: any
-  requires_quantity_input: boolean
-  max_quantity?: number
-  warranty_period?: number
-}
-
-interface Barcodes {
-  batch_number?: string
-  barcode_id: string
-  barcode: string
-  cost_price: number
-  wholesale_price?: number
-  retail_price?: number
-  custom_price?: number
-}
-
-interface Batches {
-  batch_id: string
-  quantity: number
-  cost_price?: number
-  retail_price?: number
-  wholesale_price?: number
-  batch_number: string
-  custom_price?: number
-}
-
-interface CartItem {
-  type: 'INDIVIDUAL' | 'BATCH'
-  product_id: string
-  product_name: string
-  sku: string
-  wholesale_quantity?: number
-  unit_price: number
-  discount_percentage: number
-  discount_amount?: number
-  discount_amount_per_item?: number
-  item_barcodes?: Barcodes[]
-  batches?: Batches[]
-  total_quantity: number
-  line_total: number
-  max_quantity?: number
-  has_custom_pricing?: boolean
-  fifo_allocation?: FIFOAllocationResult // Store FIFO allocation info
-}
-
-interface Customer {
-  customer_id?: string
-  name?: string
-  email?: string
-  phone?: string
-  nic?: string
-  customer_type?: 'RETAIL' | 'WHOLESALE' | 'CORPORATE' | 'DISTRIBUTOR' | 'VIP'
-}
-
-// Utility functions
 const formatCurrency = (amount: number) => `Rs. ${amount.toFixed(2)}`
 
 const calculateOrderTotals = (cart: CartItem[], orderDiscount: number = 0) => {
@@ -356,8 +71,6 @@ const calculateOrderTotals = (cart: CartItem[], orderDiscount: number = 0) => {
 export default function EnhancedSalesOrderPage() {
 
   const { user } = useAuth();
-  console.log(user);
-
   const route = useRouter()
   const [cart, setCart] = useState<CartItem[]>([])
   const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null)
@@ -373,21 +86,72 @@ export default function EnhancedSalesOrderPage() {
   // Hooks
   const { scanProduct, placeOrder, isLoading } = useSalesOrder()
 
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    const savedCart = loadFromStorage(STORAGE_KEYS.CART, [])
+    const savedCustomer = loadFromStorage(STORAGE_KEYS.CUSTOMER, {})
+    const savedOrderDiscount = loadFromStorage(STORAGE_KEYS.ORDER_DISCOUNT, 0)
+    const savedOrderNotes = loadFromStorage(STORAGE_KEYS.ORDER_NOTES, '')
+    const savedScannedBarcodes = loadFromStorage(STORAGE_KEYS.SCANNED_BARCODES, [])
+
+    if (savedCart.length > 0) {
+      setCart(savedCart)
+      toast.success(`Restored ${savedCart.length} items from previous session`)
+    }
+
+    if (Object.keys(savedCustomer).length > 0) {
+      setCustomer(savedCustomer)
+    }
+
+    if (savedOrderDiscount > 0) {
+      setOrderDiscount(savedOrderDiscount)
+    }
+
+    if (savedOrderNotes) {
+      setOrderNotes(savedOrderNotes)
+    }
+
+    if (savedScannedBarcodes.length > 0) {
+      setScannedBarcodes(new Set(savedScannedBarcodes))
+    }
+  }, [])
+  // Auto-save cart changes
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.CART, cart)
+  }, [cart])
+
+  // Auto-save customer changes
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.CUSTOMER, customer)
+  }, [customer])
+
+  // Auto-save order discount changes
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.ORDER_DISCOUNT, orderDiscount)
+  }, [orderDiscount])
+
+  // Auto-save order notes changes
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.ORDER_NOTES, orderNotes)
+  }, [orderNotes])
+
+  // Auto-save scanned barcodes
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.SCANNED_BARCODES, Array.from(scannedBarcodes))
+  }, [scannedBarcodes])
+
   const handleScanProduct = useCallback(async () => {
     if (!barcodeInput.trim()) {
       toast.error('Please enter a barcode')
       return
     }
-
     const barcode = barcodeInput.trim()
-
     // Check if barcode already scanned
     if (scannedBarcodes.has(barcode)) {
       toast.error('This barcode has already been scanned!')
       setBarcodeInput('')
       return
     }
-
     try {
       const product = await scanProduct(barcode)
       setScannedProduct(product)
@@ -448,7 +212,7 @@ export default function EnhancedSalesOrderPage() {
         discount_percentage: 0,
         discount_amount: 0,
         discount_amount_per_item: 0,
-        wholesale_quantity:product.wholesale_quantity,
+        wholesale_quantity: product.wholesale_quantity,
         item_barcodes: [{
           batch_number: product.batch_info.batch_number,
           barcode_id: product.barcode_id!,
@@ -503,12 +267,13 @@ export default function EnhancedSalesOrderPage() {
         type: 'BATCH',
         product_id: product.product_id,
         product_name: product.name,
+        product_barcode: product.barcode,
         sku: product.sku,
         unit_price: product.pricing.selling_price,
         discount_percentage: 0,
         discount_amount: 0,
         discount_amount_per_item: 0,
-        wholesale_quantity:product.wholesale_quantity,
+        wholesale_quantity: product.wholesale_quantity,
         batches: currentAllocation.allocatedBatches.map(batch => ({
           batch_id: batch.batch_id,
           batch_number: batch.batch_number,
@@ -560,7 +325,6 @@ export default function EnhancedSalesOrderPage() {
         setCart([...cart, cartItem])
       }
     }
-
     setScannedProduct(null)
     setQuantityInput(1)
     setCurrentAllocation(null)
@@ -568,17 +332,41 @@ export default function EnhancedSalesOrderPage() {
     toast.success(`${currentAllocation?.totalAllocated || quantity} item(s) added to cart`)
   }, [cart, quantityInput, scannedProduct, currentAllocation])
 
+  const handleDeleteBarcode = (cartIndex: number, barcodeId: string, barcode: string) => {
+    const newScannedBarcodes = new Set(scannedBarcodes)
+    newScannedBarcodes.delete(barcode)
+    setScannedBarcodes(newScannedBarcodes)
+    setCart(prev => prev.map((item, idx) => {
+      if (idx === cartIndex && item.item_barcodes) {
+        const updatedBarcodes = item.item_barcodes.filter(b => b.barcode_id !== barcodeId);
+        return {
+          ...item,
+          item_barcodes: updatedBarcodes,
+          total_quantity: updatedBarcodes.length,
+          line_total: item.unit_price * updatedBarcodes.length
+        };
+      }
+      return item;
+    }));
+  };
   // Remove item from cart and remove its barcodes from scanned set
   const handleRemoveFromCart = useCallback((index: number) => {
     const item = cart[index]
-
-    // Remove barcodes from scanned set
-    if (item.item_barcodes) {
-      const newScannedBarcodes = new Set(scannedBarcodes)
-      item.item_barcodes.forEach(barcode => {
-        newScannedBarcodes.delete(barcode.barcode)
-      })
-      setScannedBarcodes(newScannedBarcodes)
+    if (item.type === "INDIVIDUAL") {
+      // Remove barcodes from scanned set
+      if (item.item_barcodes) {
+        const newScannedBarcodes = new Set(scannedBarcodes)
+        item.item_barcodes.forEach(barcode => {
+          newScannedBarcodes.delete(barcode.barcode)
+        })
+        setScannedBarcodes(newScannedBarcodes)
+      }
+    } else {
+      if (item.product_barcode) {
+        const newScannedBarcodes = new Set(scannedBarcodes)
+        newScannedBarcodes.delete(item.product_barcode)
+        setScannedBarcodes(newScannedBarcodes)
+      }
     }
 
     const updatedCart = cart.filter((_, i) => i !== index)
@@ -603,12 +391,13 @@ export default function EnhancedSalesOrderPage() {
   }, [cart])
 
   // Update item custom pricing
-  const handleUpdateItemPricing = useCallback((itemIndex: number, newUnitPrice: number, discountPercentage: number) => {
+  const handleUpdateItemPricing = useCallback((itemIndex: number, newUnitPrice: number, discountPercentage: number, wholesaleApplied?: boolean) => {
     const updatedCart = [...cart]
     const item = updatedCart[itemIndex]
 
     updatedCart[itemIndex].unit_price = newUnitPrice
     updatedCart[itemIndex].has_custom_pricing = true
+    updatedCart[itemIndex].wholesale_applied = wholesaleApplied;
 
     const discountAmount = calculateDiscountAmount(newUnitPrice, item.total_quantity, discountPercentage)
     updatedCart[itemIndex].discount_percentage = discountPercentage
@@ -628,12 +417,10 @@ export default function EnhancedSalesOrderPage() {
       toast.error('Cart is empty')
       return
     }
-
     if (totals.total <= 0) {
       toast.error('Order total must be greater than 0')
       return
     }
-
     const orderData = {
       customer: Object.keys(customer).length > 0 ? customer : undefined,
       items: cart,
@@ -863,6 +650,8 @@ export default function EnhancedSalesOrderPage() {
                                     index={index}
                                     onUpdateDiscount={handleUpdateItemDiscountPercentage}
                                     onUpdatePricing={handleUpdateItemPricing}
+                                    onDeleteBarcode={handleDeleteBarcode}
+                                    onDeleteEntireItem={handleRemoveFromCart}
                                   />
                                 </div>
                               </div>

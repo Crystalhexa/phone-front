@@ -1,18 +1,14 @@
-// app/api/products/create/route.ts
-
 import { initDatabase, query, transaction } from '@/lib/database/connection'
 import cuid from 'cuid'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
-// ========== CORS Headers ==========
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
-// ========== Validation Schema ==========
 const specificationSchema = z.object({
   spec_name: z.string().min(1, 'Specification name is required').max(100, 'Specification name too long'),
   spec_value: z.string().min(1, 'Specification value is required').max(255, 'Specification value too long')

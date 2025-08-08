@@ -72,7 +72,7 @@ function detectBarcodeType(barcode: string): 'INDIVIDUAL_ITEM' | 'PRODUCT_LEVEL'
   if (barcode.startsWith('ITEM')) return 'INDIVIDUAL_ITEM'
   
   // Product-level barcodes (internal or external)
-  if (barcode.startsWith('PRO_') || 
+  if (barcode.startsWith('PRO-') || 
       barcode.startsWith('INT_') || 
       barcode.length === 13 || // EAN-13
       barcode.length === 12 || // UPC-A

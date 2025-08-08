@@ -145,7 +145,6 @@ export async function GET(
           ib.id,
           ib.purchase_batch_id,
           ib.code,
-          ib.type,
           ib.status,
           ib.purchased_at,
           ib.purchase_cost,

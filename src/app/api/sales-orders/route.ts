@@ -1,4 +1,3 @@
-// app/api/sales-orders/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { PoolClient } from 'pg'
@@ -17,6 +16,9 @@ interface CartItem {
   product_id: string
   unit_price: number
   discount?: number
+  wholesale_applied?: boolean
+  total_quantity: number
+  has_custom_pricing?: boolean
   discount_amount_per_item?: number // For individual items - discount per item
   batches?: BatchInfo[]       // For batch items - array of batches
   item_barcodes?: Barcode[]    // For individual items - array of barcode IDs
@@ -25,23 +27,12 @@ interface Barcode {
   barcode_id: string
   barcode: string
 }
-interface Customer {
-  customer_id?: string
-  name?: string
-  email?: string
-  phone?: string
-  nic?: string
-  customer_type?: 'RETAIL' | 'WHOLESALE' | 'CORPORATE' | 'DISTRIBUTOR' | 'VIP'
-}
 
 interface PlaceOrderRequest {
-  customer?: Customer
+  customer_id?: string
   items: CartItem[]
-  payment_method?: 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'MOBILE_PAYMENT' | 'CREDIT' | 'CHEQUE' | 'INSTALLMENT'
-  payment_status?: 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE' | 'CANCELLED' | 'REFUNDED'
   discount?: number
   notes?: string
-  delivery_date?: string
 }
 
 interface OrderSummary {
@@ -58,18 +49,29 @@ interface OrderSummary {
 // ========== Enhanced Validation Schemas ==========
 const batchInfoSchema = z.object({
   batch_id: z.string().min(1, 'Batch ID is required'),
-  quantity: z.number().int().positive('Quantity must be positive')
+  quantity: z.number().min(1, "Batch qty need at least one").int().positive('Quantity must be positive')
 })
-const barcodeInfoSchema = z.object({  
+const barcodeInfoSchema = z.object({
   barcode_id: z.string().min(1, 'Barcode ID is required'),
   barcode: z.string().min(1, 'Barcode is required')
 })
-
+interface CartItem {
+  type: 'BATCH' | 'INDIVIDUAL'
+  product_id: string
+  unit_price: number
+  discount?: number
+  discount_amount_per_item?: number // For individual items - discount per item
+  batches?: BatchInfo[]       // For batch items - array of batches
+  item_barcodes?: Barcode[]    // For individual items - array of barcode IDs
+}
 const cartItemSchema = z.object({
   type: z.enum(['BATCH', 'INDIVIDUAL'], {
     required_error: 'Item type is required',
     invalid_type_error: 'Item type must be BATCH or INDIVIDUAL'
   }),
+  wholesale_applied: z.boolean().optional(),
+  total_quantity: z.number().min(1, "Total qty minimum need to have one"),
+  has_custom_pricing: z.boolean().optional(),
   product_id: z.string().min(1, 'Product ID is required'),
   unit_price: z.number().positive('Unit price must be positive'),
   discount: z.number().min(0).optional().default(0),
@@ -90,20 +92,9 @@ const cartItemSchema = z.object({
   }
 )
 
-const customerSchema = z.object({
-  customer_id: z.string().optional(),
-  name: z.string().min(1).max(100).optional(),
-  email: z.string().email().optional(),
-  phone: z.string().min(8).max(20).optional(),
-  nic: z.string().min(10).max(20).optional(),
-  customer_type: z.enum(['RETAIL', 'WHOLESALE', 'CORPORATE', 'DISTRIBUTOR', 'VIP']).optional().default('RETAIL')
-}).optional()
-
 const placeOrderSchema = z.object({
-  customer: customerSchema,
+  customer_id: z.string().optional(),
   items: z.array(cartItemSchema).min(1, 'At least one item is required'),
-  payment_method: z.enum(['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'MOBILE_PAYMENT', 'CREDIT', 'CHEQUE', 'INSTALLMENT']).optional().default('CASH'),
-  payment_status: z.enum(['PENDING', 'PAID', 'PARTIAL', 'OVERDUE', 'CANCELLED', 'REFUNDED']).optional().default('PAID'),
   discount: z.number().min(0).optional().default(0),
   notes: z.string().max(1000).optional(),
   delivery_date: z.string().datetime().optional()
@@ -113,9 +104,6 @@ const placeOrderSchema = z.object({
 function generateCuid(): string {
   return createId()
 }
-
-
-
 function calculateOrderTotals(items: CartItem[], orderDiscount: number = 0): OrderSummary {
   let subtotal = 0
   let totalQuantity = 0
@@ -129,25 +117,31 @@ function calculateOrderTotals(items: CartItem[], orderDiscount: number = 0): Ord
         totalQuantity += batch.quantity
         return batchSum + (item.unit_price * batch.quantity)
       }, 0)
-      const itemDiscount = item.discount_amount_per_item||0 * totalQuantity;
+      let itemDiscount = 0;
+      if (item?.discount_amount_per_item !== undefined) {
+        itemDiscount = item.discount_amount_per_item * item.total_quantity;
+      }
       subtotal += (batchTotal - itemDiscount)
     } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
       individualProducts++;
       totalQuantity += item.item_barcodes.length
       const individualTotal = item.unit_price * item.item_barcodes.length
-      const itemDiscount = item.discount_amount_per_item ||0*totalQuantity;
+      let itemDiscount = 0;
+      if(item?.discount_amount_per_item != undefined){
+        itemDiscount = item.discount_amount_per_item * item.total_quantity;
+      }
       subtotal += (individualTotal - itemDiscount)
     }
   })
 
   const totalAmount = Number((subtotal - orderDiscount).toFixed(2))
 
-  return { 
+  return {
     total_products: items.length,
     batch_products: batchProducts,
     individual_products: individualProducts,
     total_quantity: totalQuantity,
-    subtotal: Number(subtotal.toFixed(2)), 
+    subtotal: Number(subtotal.toFixed(2)),
     discount: orderDiscount,
     total_amount: totalAmount
   }
@@ -192,21 +186,21 @@ async function validateCartItems(
           const batchKey = `${batch.batch_id}-${item.product_id}`
           const currentTotal = usedBatchAllocations.get(batchKey) || 0
           const newTotal = currentTotal + batch.quantity
-          
+
           // Validate individual batch
           const batchValidation = await validateBatchItem(
-            client, 
-            branchId, 
-            item.product_id, 
-            batch.batch_id, 
+            client,
+            branchId,
+            item.product_id,
+            batch.batch_id,
             newTotal // ✅ Check against cumulative quantity
           )
-          
+
           if (!batchValidation.isValid) {
             errors.push(...batchValidation.errors)
           }
           warnings.push(...batchValidation.warnings)
-          
+
           // ✅ Update tracking
           usedBatchAllocations.set(batchKey, newTotal)
         }
@@ -223,7 +217,7 @@ async function validateCartItems(
             errors.push(...itemValidation.errors)
           }
           warnings.push(...itemValidation.warnings)
-          
+
           // ✅ Track this barcode as used
           usedItemBarcodes.add(barcode.barcode_id)
         }
@@ -237,24 +231,24 @@ async function validateCartItems(
 }
 function validateCartStructure(items: CartItem[]): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
-  
+
   // Group items by product to check for mixed types
   const productItemTypes = new Map<string, Set<string>>()
-  
+
   for (const item of items) {
     if (!productItemTypes.has(item.product_id)) {
       productItemTypes.set(item.product_id, new Set())
     }
     productItemTypes.get(item.product_id)!.add(item.type)
   }
-  
+
   // Check for products with mixed item types
   for (const [productId, types] of productItemTypes) {
     if (types.size > 1) {
       errors.push(`Product ${productId} cannot have both BATCH and INDIVIDUAL items in the same order`)
     }
   }
-  
+
   // Validate array contents match type
   for (const item of items) {
     if (item.type === 'BATCH') {
@@ -273,7 +267,7 @@ function validateCartStructure(items: CartItem[]): { isValid: boolean; errors: s
       }
     }
   }
-  
+
   return { isValid: errors.length === 0, errors }
 }
 
@@ -291,7 +285,7 @@ async function validateCompleteCart(
       warnings: []
     }
   }
-  
+
   // Then validate items with duplicate detection
   return await validateCartItems(client, branchId, items)
 }
@@ -344,7 +338,7 @@ async function validateBatchItem(
     const expiryDate = new Date(batchInfo.expiry_date)
     const today = new Date()
     const daysDiff = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
-    
+
     if (expiryDate < today) {
       errors.push(`Batch ${batchInfo.batch_number} has expired`)
     } else if (daysDiff <= 30) {
@@ -427,7 +421,7 @@ async function validateIndividualItem(
     const warrantyDate = new Date(itemInfo.warranty_expiry)
     const today = new Date()
     const daysDiff = Math.ceil((warrantyDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
-    
+
     if (warrantyDate < today) {
       warnings.push(`Item ${itemInfo.code} warranty has expired`)
     } else if (daysDiff <= 30) {
@@ -440,7 +434,7 @@ async function validateIndividualItem(
     const expiryDate = new Date(itemInfo.batch_expiry)
     const today = new Date()
     const daysDiff = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
-    
+
     if (expiryDate < today) {
       errors.push(`Item ${itemInfo.code} from expired batch`)
     } else if (daysDiff <= 30) {
@@ -453,76 +447,29 @@ async function validateIndividualItem(
 
 async function validateCustomer(
   client: PoolClient,
-  customer?: Customer
+  customer_id?: string
 ): Promise<{ customerId: string | null; isNewCustomer: boolean }> {
-  if (!customer || (!customer.customer_id && !customer.phone && !customer.email && !customer.name)) {
+  if (!customer_id) {
     return { customerId: null, isNewCustomer: false } // Anonymous customer
   }
 
-  if (customer.customer_id) {
+  if (customer_id) {
     // Validate existing customer
     const result = await client.query(`
       SELECT id, name, customer_type, is_active 
       FROM customers 
       WHERE id = $1
-    `, [customer.customer_id])
+    `, [customer_id])
 
     if (result.rows.length === 0) {
-      throw new Error(`Customer ${customer.customer_id} not found`)
+      throw new Error(`Customer ${customer_id} not found`)
     }
 
     const customerRecord = result.rows[0]
     if (!customerRecord.is_active) {
       throw new Error(`Customer ${customerRecord.name} is inactive`)
     }
-
-    return { customerId: customer.customer_id, isNewCustomer: false }
   }
-
-  // Check for existing customer by phone or email
-  if (customer.phone || customer.email) {
-    const existingResult = await client.query(`
-      SELECT id FROM customers 
-      WHERE (phone = $1 OR email = $2) AND is_active = true
-      LIMIT 1
-    `, [customer.phone || null, customer.email || null])
-
-    if (existingResult.rows.length > 0) {
-      return { customerId: existingResult.rows[0].id, isNewCustomer: false }
-    }
-  }
-
-  // Create new customer if details provided
-  if (customer.name || customer.phone || customer.email) {
-    const customerId = generateCuid()
-    
-    // Generate customer number
-    const customerNumberResult = await client.query(`
-      SELECT COALESCE(MAX(CAST(SUBSTRING(customer_number FROM 5) AS INTEGER)), 0) + 1 as next_number
-      FROM customers 
-      WHERE customer_number LIKE 'CUST%'
-    `)
-    
-    const customerNumber = `CUST${String(customerNumberResult.rows[0].next_number).padStart(6, '0')}`
-
-    await client.query(`
-      INSERT INTO customers (
-        id, customer_number, name, email, phone, nic, customer_type, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [
-      customerId,
-      customerNumber,
-      customer.name || 'Walk-in Customer',
-      customer.email || null,
-      customer.phone || null,
-      customer.nic || null,
-      customer.customer_type || 'RETAIL',
-      true
-    ])
-
-    return { customerId, isNewCustomer: true }
-  }
-
   return { customerId: null, isNewCustomer: false }
 }
 
@@ -540,9 +487,9 @@ async function createSalesOrder(
   const query = `
     INSERT INTO sales_orders (
       id, customer_id, branch_id, sold_by,
-      order_date, delivery_date, status, payment_method, payment_status,
+      order_date, status, 
       subtotal, discount, total_amount, total_cost, profit_amount, notes
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING id
   `
 
@@ -552,10 +499,7 @@ async function createSalesOrder(
     branchId,
     soldBy,
     new Date().toISOString().split('T')[0], // order_date as DATE
-    orderData.delivery_date ? new Date(orderData.delivery_date).toISOString().split('T')[0] : null,
     'COMPLETED', // Immediately mark as completed for paid orders
-    orderData.payment_method || 'CASH',
-    orderData.payment_status || 'PAID',
     totals.subtotal,
     totals.discount,
     totals.total_amount,
@@ -571,7 +515,8 @@ async function createSalesOrder(
 async function createSalesOrderItems(
   client: PoolClient,
   salesOrderId: string,
-  items: CartItem[]
+  items: CartItem[],
+  branchId: string
 ): Promise<{ totalCost: number; totalProfit: number }> {
   let totalCost = 0
   let totalProfit = 0
@@ -581,12 +526,12 @@ async function createSalesOrderItems(
       console.log(item.type)
       // Process each batch separately
       for (const batch of item.batches) {
-        const result = await processBatchSaleItem(client, salesOrderId, item, batch)
+        const result = await processBatchSaleItem(client, salesOrderId, item, batch, branchId)
         totalCost += result.lineCost
         totalProfit += result.lineProfit
       }
     } else if (item.type === 'INDIVIDUAL' && item.item_barcodes) {
-      
+
       //Process each individual item separately  
       for (const barcode of item.item_barcodes) {
         const result = await processIndividualSaleItem(client, salesOrderId, item, barcode.barcode_id)
@@ -603,11 +548,15 @@ async function processBatchSaleItem(
   client: PoolClient,
   salesOrderId: string,
   item: CartItem,
-  batch: BatchInfo
+  batch: BatchInfo,
+  branchId: string
 ): Promise<{ lineCost: number; lineProfit: number }> {
   const salesOrderItemId = generateCuid()
-  const lineTotal = (item.unit_price * batch.quantity) - (item.discount_amount_per_item || 0*batch.quantity)
-
+  let discount = 0;
+  if (item?.discount_amount_per_item !== undefined) {
+    discount = item.discount_amount_per_item * batch.quantity;
+  }
+  const lineTotal = (item.unit_price * batch.quantity) - discount;
   // Get batch cost and details
   const batchResult = await client.query(`
     SELECT 
@@ -619,8 +568,8 @@ async function processBatchSaleItem(
     JOIN branch_inventory_items bii ON pb.id = bii.purchase_batch_id
     JOIN branch_inventory bi ON bii.branch_inventory_id = bi.id
     JOIN products p ON bi.product_id = p.id
-    WHERE pb.id = $1 AND bi.product_id = $2
-  `, [batch.batch_id, item.product_id])
+    WHERE pb.id = $1 AND bi.product_id = $2 AND bi.branch_id = $3
+  `, [batch.batch_id, item.product_id, branchId])
 
   const batchInfo = batchResult.rows[0]
   const costPrice = parseFloat(batchInfo.cost_price)
@@ -647,7 +596,7 @@ async function processBatchSaleItem(
     item.product_id,
     batch.quantity,
     item.unit_price,
-    item.discount || 0,
+    discount || 0,
     lineTotal,
     lineCost,
     lineProfit,
@@ -671,12 +620,12 @@ async function processBatchSaleItem(
   ])
 
   // Update inventory
-  await updateBatchInventory(client, batch.batch_id, item.product_id, batch.quantity)
+  await updateBatchInventory(client, batch.batch_id, item.product_id, batch.quantity, branchId)
 
   // Create stock ledger entry
   await createStockLedgerEntry(
-    client, 
-    item.product_id, 
+    client,
+    item.product_id,
     batchInfo.branch_inventory_id,
     batch.batch_id,
     -batch.quantity,
@@ -726,14 +675,15 @@ async function processIndividualSaleItem(
   // Insert sales order item
   await client.query(`
     INSERT INTO sales_order_items (
-      id, sales_order_id, product_id, quantity, unit_price,
+      id, sales_order_id, product_id, quantity,is_wholesale_price, unit_price,
       discount, line_total, line_cost, line_profit, warranty_expiry
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
   `, [
     salesOrderItemId,
     salesOrderId,
     item.product_id,
-    1, // Individual items are always quantity 1
+    1, 
+    item.wholesale_applied,
     item.unit_price,
     item.discount_amount_per_item || 0,
     lineTotal,
@@ -792,30 +742,34 @@ async function updateBatchInventory(
   client: PoolClient,
   batchId: string,
   productId: string,
-  quantity: number
+  quantity: number,
+  branchId: string
 ): Promise<void> {
-  // Update branch inventory items
-  await client.query(`
-    UPDATE branch_inventory_items 
-    SET quantity = quantity - $1,
-        updated_at = NOW()
-    WHERE purchase_batch_id = $2
-  `, [quantity, batchId])
-
-  // Update main branch inventory
-  await client.query(`
-    UPDATE branch_inventory 
+  // First, update branch inventory and get the branch_inventory_id
+  const branchInventoryResult = await client.query(`
+    UPDATE branch_inventory
     SET total_quantity = total_quantity - $1,
         last_sale_date = NOW(),
         updated_at = NOW()
-    WHERE product_id = $2 
-      AND id = (
-        SELECT bi.id FROM branch_inventory bi
-        JOIN branch_inventory_items bii ON bi.id = bii.branch_inventory_id
-        WHERE bii.purchase_batch_id = $3
-        LIMIT 1
-      )
-  `, [quantity, productId, batchId])
+    WHERE product_id = $2
+      AND branch_id = $3
+    RETURNING id
+  `, [quantity, productId, branchId]);
+
+  if (branchInventoryResult.rows.length === 0) {
+    throw new Error(`Branch inventory not found for productId: ${productId}, branchId: ${branchId}`);
+  }
+
+  const branchInventoryId = branchInventoryResult.rows[0].id;
+
+  // Then, update branch inventory items using the returned branch_inventory_id
+  await client.query(`
+    UPDATE branch_inventory_items
+    SET quantity = quantity - $1,
+        updated_at = NOW()
+    WHERE branch_inventory_id = $2
+      AND purchase_batch_id = $3
+  `, [quantity, branchInventoryId, batchId]);
 }
 
 async function updateIndividualItemInventory(
@@ -931,7 +885,7 @@ async function createActivityLog(
   userAgent?: string
 ): Promise<void> {
   const logId = generateCuid()
-  
+
   await client.query(`
     INSERT INTO user_activity_logs (
       id, user_id, action, entity, entity_id, ip_address, user_agent, metadata
@@ -997,9 +951,9 @@ export async function POST(request: NextRequest) {
 
       // Rest of the processing remains the same...
       const totals = calculateOrderTotals(orderData.items, orderData.discount || 0)
-      
+
       const result = await transaction(async (client) => {
-        const customerResult = await validateCustomer(client, orderData.customer)
+        const customerResult = await validateCustomer(client, orderData.customer_id)
         const salesOrderId = await createSalesOrder(
           client,
           orderData,
@@ -1012,7 +966,8 @@ export async function POST(request: NextRequest) {
         const { totalCost, totalProfit } = await createSalesOrderItems(
           client,
           salesOrderId,
-          orderData.items
+          orderData.items,
+          userDetails.branch_id
         )
 
         await updateOrderTotals(client, salesOrderId, totalCost, totalProfit)
@@ -1039,7 +994,7 @@ export async function POST(request: NextRequest) {
           FROM sales_orders so WHERE so.id = $1
         `
         const orderResult = await client.query(orderQuery, [salesOrderId])
-        
+
         return {
           order: orderResult.rows[0],
           customer_created: customerResult.isNewCustomer,
@@ -1056,7 +1011,7 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
       console.error('Place order error:', error)
-      
+
       const pgErrors: Record<string, string> = {
         '23505': 'Duplicate entry found',
         '23503': 'Referenced record not found',
