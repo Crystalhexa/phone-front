@@ -33,7 +33,8 @@ import {
   Plus,
   Filter,
   RefreshCw,
-  Info
+  Info,
+  Barcode
 } from 'lucide-react';
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
@@ -43,6 +44,11 @@ import { AddToCartModal } from '@/components/pos/AddToCartModal';
 import { toast } from 'sonner';
 import { getStockBadge, ProductDetailsPopup, StockDetailsPopup } from '@/components/pos/ProductDetailsPopup';
 import { ProductResponse,CartItem, Filters, ApiResponse } from '@/types/inventory';
+
+// Extended Filters interface to include barcode
+interface ExtendedFilters extends Filters {
+  barcode?: string;
+}
 
 const ProductsTable: React.FC = () => {
   const [products, setProducts] = useState<ProductResponse[]>([]);
@@ -57,7 +63,7 @@ const ProductsTable: React.FC = () => {
     has_next: false,
     has_prev: false
   });
-  const [filters, setFilters] = useState<Filters>({
+  const [filters, setFilters] = useState<ExtendedFilters>({
     search: '',
     sort: 'name',
     order: 'asc',
@@ -70,7 +76,8 @@ const ProductsTable: React.FC = () => {
     has_stock: false,
     min_stock: '',
     max_stock: '',
-    branch_id: '' // Default branch
+    branch_id: '', // Default branch
+    barcode: '' // New barcode filter
   });
 
   const [selectedProduct, setSelectedProduct] = useState<ProductResponse | null>(null);
@@ -85,8 +92,9 @@ const ProductsTable: React.FC = () => {
   });
 
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const barcodeDebounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-  // Debounced search effect
+  // Debounced search effect for general search
   useEffect(() => {
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
@@ -106,6 +114,26 @@ const ProductsTable: React.FC = () => {
     };
   }, [filters.search]);
 
+  // Debounced search effect for barcode
+  useEffect(() => {
+    if (barcodeDebounceTimeout.current) {
+      clearTimeout(barcodeDebounceTimeout.current);
+    }
+
+    barcodeDebounceTimeout.current = setTimeout(() => {
+      if (filters.barcode) {
+        setPagination(prev => ({ ...prev, page: 1 }));
+      }
+      fetchProducts();
+    }, 500);
+
+    return () => {
+      if (barcodeDebounceTimeout.current) {
+        clearTimeout(barcodeDebounceTimeout.current);
+      }
+    };
+  }, [filters.barcode]);
+
   const fetchProducts = async () => {
     setLoading(true);
     try {
@@ -118,6 +146,7 @@ const ProductsTable: React.FC = () => {
         low_stock_only: filters.low_stock_only.toString(),
         branch_id: filters.branch_id,
         ...(filters.search && { search: filters.search }),
+        ...(filters.barcode && { barcode: filters.barcode }),
         ...(filters.category_id && { category_id: filters.category_id }),
         ...(filters.subcategory_id && { subcategory_id: filters.subcategory_id }),
         ...(filters.brand_id && { brand_id: filters.brand_id }),
@@ -257,7 +286,8 @@ const ProductsTable: React.FC = () => {
       has_stock: false,
       min_stock: '',
       max_stock: '',
-      branch_id: 'cmd7qdjga000fhjeu18ubhpnf'
+      branch_id: '',
+      barcode: ''
     });
     setPagination(prev => ({ ...prev, page: 1 }));
     toast.success('Filters reset');
@@ -313,7 +343,7 @@ const ProductsTable: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold">Purchesing Management</h1>
+          <h1 className="text-3xl font-bold">Purchasing Management</h1>
           <p className="text-muted-foreground mt-1">
             Manage your product inventory and create purchase orders
           </p>
@@ -358,6 +388,19 @@ const ProductsTable: React.FC = () => {
                     className="pl-10"
                     value={filters.search}
                     onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Barcode Filter */}
+              <div className="col-span-1 md:col-span-2">
+                <div className="relative">
+                  <Barcode className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by barcode..."
+                    className="pl-10"
+                    value={filters.barcode}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, barcode: e.target.value }))}
                   />
                 </div>
               </div>
@@ -446,28 +489,7 @@ const ProductsTable: React.FC = () => {
                   <SelectItem value="NOT_STOCKED">Not Stocked</SelectItem>
                 </SelectContent>
               </Select>
-
-              {/* Stock Range Filters */}
-              {/* <div className="flex gap-2">
-                <Input
-                  placeholder="Min Stock"
-                  value={filters.min_stock}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, min_stock: e.target.value }))}
-                  type="number"
-                  min="0"
-                />
-                <Input
-                  placeholder="Max Stock"
-                  value={filters.max_stock}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, max_stock: e.target.value }))}
-                  type="number"
-                  min="0"
-                />
-              </div> */}
             </div>
-
-            {/* Filter Checkboxes */}
-          
 
             <Separator className="my-4" />
 
@@ -530,6 +552,7 @@ const ProductsTable: React.FC = () => {
                         <div className="text-sm text-muted-foreground truncate">
                           {product.sku || 'No slug available'}
                         </div>
+                        {/* Display barcodes if available */}
                       </div>
                     </TableCell>
                     <TableCell>

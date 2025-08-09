@@ -1,7 +1,6 @@
 import { initDatabase, query } from '@/lib/database/connection'
 import { NextRequest, NextResponse } from 'next/server'
 
-
 // ================== TYPES & INTERFACES ==================
 interface QueryParams {
   branch_id?: string
@@ -33,14 +32,12 @@ interface ProductResponse {
   is_active: boolean
   created_at: string
   updated_at: string
-  
   brand: {
     id: string
     name: string
     code: string
     logo_url: string | null
   } | null
-  
   subcategory: {
     id: string
     name: string
@@ -57,6 +54,19 @@ interface ProductResponse {
     last_updated: string
   } | null
   
+  // NEW: Latest batch pricing information
+  latest_batch_pricing: {
+    batch_id: string
+    batch_number: string | null
+    cost_price: number
+    wholesale_price: number | null
+    retail_price: number
+    received_date: string | null
+    purchase_order_id: string
+    supplier_id: string
+    quantity_received: number
+  } | null
+  
   branch_stock: Array<{
     branch_id: string
     branch_name: string
@@ -70,15 +80,12 @@ interface ProductResponse {
     last_restock_date: string | null
     last_sale_date: string | null
   }>
-  
   total_system_stock: number
   total_available_stock: number
   overall_stock_status: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'NOT_STOCKED'
-  
   barcodes: Array<{
     code: string
   }>
-  
   specifications: Array<{
     spec_name: string
     spec_value: string
@@ -113,6 +120,25 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
       FROM products p
       LEFT JOIN branch_inventory bi ON p.id = bi.product_id
       GROUP BY p.id
+    ),
+    latest_batch_pricing AS (
+      SELECT DISTINCT ON (poi.product_id)
+        poi.product_id,
+        pb.id as batch_id,
+        pb.batch_number,
+        pb.cost_price,
+        pb.wholesale_price,
+        pb.retail_price,
+        pb.received_date,
+        pb.quantity_received,
+        po.id as purchase_order_id,
+        po.supplier_id
+      FROM purchase_order_items poi
+      JOIN purchase_batches pb ON poi.id = pb.purchase_order_item_id
+      JOIN purchase_orders po ON poi.purchase_order_id = po.id
+      WHERE pb.received_date IS NOT NULL
+        AND pb.is_active = true
+      ORDER BY poi.product_id, pb.received_date DESC, pb.created_at DESC
     ),
     filtered_products AS (
       SELECT DISTINCT p.*
@@ -235,7 +261,7 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
         )
       ELSE NULL END as subcategory,
       
-      -- Current prices
+      -- Current prices (from product_current_prices table)
       CASE WHEN pcp.product_id IS NOT NULL THEN
         jsonb_build_object(
           'cost_price', pcp.cost_price,
@@ -244,6 +270,21 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
           'last_updated', pcp.last_updated
         )
       ELSE NULL END as current_prices,
+      
+      -- NEW: Latest batch pricing information
+      CASE WHEN lbp.product_id IS NOT NULL THEN
+        jsonb_build_object(
+          'batch_id', lbp.batch_id,
+          'batch_number', lbp.batch_number,
+          'cost_price', lbp.cost_price,
+          'wholesale_price', lbp.wholesale_price,
+          'retail_price', lbp.retail_price,
+          'received_date', lbp.received_date,
+          'purchase_order_id', lbp.purchase_order_id,
+          'supplier_id', lbp.supplier_id,
+          'quantity_received', lbp.quantity_received
+        )
+      ELSE NULL END as latest_batch_pricing,
       
       -- Stock summary
       pss.total_system_stock,
@@ -255,6 +296,7 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
     LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
     LEFT JOIN categories c ON sc.category_id = c.id
     LEFT JOIN product_current_prices pcp ON p.id = pcp.product_id
+    LEFT JOIN latest_batch_pricing lbp ON p.id = lbp.product_id
     LEFT JOIN product_stock_summary pss ON p.id = pss.product_id
   `
   
@@ -421,6 +463,7 @@ async function processProductResults(rows: any[], branchId?: string): Promise<Pr
     brand: row.brand,
     subcategory: row.subcategory,
     current_prices: row.current_prices,
+    latest_batch_pricing: row.latest_batch_pricing, // NEW: Latest batch pricing
     branch_stock: branchStockMap.get(row.id) || [],
     total_system_stock: parseInt(row.total_system_stock) || 0,
     total_available_stock: parseInt(row.total_available_stock) || 0,
@@ -449,7 +492,6 @@ async function getBranchStockDetails(productIds: string[], branchId?: string): P
           WHEN (bi.total_quantity - bi.reserved_quantity) <= bi.low_stock_threshold THEN 'LOW_STOCK'
           ELSE 'IN_STOCK'
         END,
-        'average_cost_price', bi.average_cost_price,
         'last_restock_date', bi.last_restock_date,
         'last_sale_date', bi.last_sale_date
       ) as branch_stock
@@ -459,7 +501,6 @@ async function getBranchStockDetails(productIds: string[], branchId?: string): P
   `
   
   const params = [productIds]
-  
   
   stockQuery += ` ORDER BY br.name`
   

@@ -323,7 +323,7 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
         }))
       };
 
-      const response = await fetch('/api/purchase-orders/Recived', {
+      const response = await fetch('/api/purchase-orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

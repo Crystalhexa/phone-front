@@ -91,7 +91,6 @@ export async function GET(request: NextRequest) {
           (bi.total_quantity - bi.reserved_quantity) as available_quantity,
           bi.low_stock_threshold,
           bi.reorder_quantity,
-          COALESCE(bi.average_cost_price, 0) as average_cost_price,
           bi.last_restock_date,
           bi.last_sale_date,
           bi.last_counted_at,
@@ -122,7 +121,7 @@ export async function GET(request: NextRequest) {
         WHERE ${whereClause}
         GROUP BY bi.id, p.id, p.name, p.sku, bi.branch_id, b.name, br.name, c.name, sc.name,
                  bi.total_quantity, bi.reserved_quantity, bi.low_stock_threshold, bi.reorder_quantity,
-                 bi.average_cost_price, bi.last_restock_date, bi.last_sale_date, bi.last_counted_at
+                 bi.last_restock_date, bi.last_sale_date, bi.last_counted_at
         ORDER BY 
           CASE 
             WHEN bi.total_quantity = 0 THEN 1
@@ -223,7 +222,7 @@ export async function GET(request: NextRequest) {
             low_stock_items: enrichedResults.filter((row: any) => row.is_low_stock).length,
             out_of_stock_items: enrichedResults.filter((row: any) => row.is_out_of_stock).length,
             total_inventory_value: enrichedResults.reduce((sum: number, row: any) => 
-              sum + (row.total_quantity * row.average_cost_price), 0
+              sum + (row.total_quantity), 0
             ),
             total_batches: batchDetails.length,
             expired_batches: batchDetails.filter((batch: any) => batch.is_expired).length,

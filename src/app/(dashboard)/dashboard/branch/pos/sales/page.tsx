@@ -39,6 +39,7 @@ import { CartItem, FIFOAllocationResult, ScannedProduct } from '@/types/sales'
 import { FIFOAllocationPreview } from '@/components/sales/FIFOAllocationPreview'
 import CustomerSelector from '@/components/pos/customer/CustomerSelector'
 import { Customer } from '@/types/customer'
+import { formatCurrency } from '@/lib/utils/formatCurrency'
 
 const QuantitySelector = ({ value, onChange, max, label }: any) => (
   <div className="space-y-2">
@@ -52,8 +53,6 @@ const QuantitySelector = ({ value, onChange, max, label }: any) => (
     />
   </div>
 )
-
-const formatCurrency = (amount: number) => `Rs. ${amount.toFixed(2)}`
 
 const calculateOrderTotals = (cart: CartItem[], orderDiscount: number = 0) => {
   const subtotal = cart.reduce((sum, item) => sum + (item.unit_price * item.total_quantity), 0)
@@ -461,7 +460,7 @@ export default function EnhancedSalesOrderPage() {
 
       // Check credit limit for wholesale customers
       if (customer.customer_type === 'WHOLESALE' && customer.credit_limit) {
-        const totalWithOutstanding = cartTotal + customer.outstanding_balance
+        const totalWithOutstanding =  customer.outstanding_balance
         if (totalWithOutstanding > customer.credit_limit) {
           console.warn('Customer credit limit exceeded!')
         }

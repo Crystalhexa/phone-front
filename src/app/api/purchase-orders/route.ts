@@ -1,416 +1,614 @@
 // app/api/purchase-orders/route.ts
-import { transaction } from '@/lib/database/connection'
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { PoolClient } from 'pg'
+import { ApiResponse, initDatabase, transaction } from '@/lib/database/connection'
+import { createId } from '@paralleldrive/cuid2'
+import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
 import { validateProducts, validateSupplier } from '@/lib/services/validation.service'
 import { handleApiError } from '@/lib/utils/apiHelpers'
 import { AppError } from '@/lib/utils/AppError'
-import { AuthenticatedRequest, withPermission } from '@/middleware/auth'
-import { CreatePurchaseOrderRequest } from '@/types/purchase_order'
-import cuid from 'cuid'
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 
-
-// ========== Validation Schema ==========
+// ========== Zod Validation Schemas ==========
 const purchaseOrderItemSchema = z.object({
   product_id: z.string().min(1, 'Product ID is required'),
-  quantity: z.number().min(1, 'Quantity must be at least 1'),
-  cost_price: z.number().min(0, 'Cost price must be non-negative'),
-  wholesale_price: z.number().min(0).optional(),
-  retail_price: z.number().min(0, 'Retail price must be non-negative'),
-  quantity_received: z.number().min(0).optional()
-})
+  quantity: z.coerce.number().int().positive('Quantity must be positive'),
+  cost_price: z.coerce.number().min(0, 'Cost price cannot be negative').default(0),
+  wholesale_price: z.coerce.number().min(0, 'Wholesale price cannot be negative').default(0).optional(),
+  retail_price: z.coerce.number().min(0, 'Retail price cannot be negative').default(0),
+  quantity_received: z.coerce.number().min(0).default(0).optional(),
+  is_unique: z.boolean().optional(),
+});
 
-const createPurchaseOrderSchema = z.object({
+const purchaseOrderSchema = z.object({
   supplier_id: z.string().min(1, 'Supplier ID is required'),
-  order_date: z.string().optional(),
-  expected_date: z.string().optional(),
-  received_date: z.string().optional(),
+  order_date: z.string().datetime().optional(),
+  expected_date: z.string().datetime().optional(),
+  received_date: z.string().datetime().optional(),
   status: z.enum(['PENDING', 'RECEIVED']),
   notes: z.string().optional(),
-  items: z.array(purchaseOrderItemSchema).min(1, 'At least one item is required')
+  items: z.array(purchaseOrderItemSchema).min(1, 'At least one item is required'),
 })
 
+type PurchaseOrderInput = z.infer<typeof purchaseOrderSchema>
+type PurchaseOrderItem = z.infer<typeof purchaseOrderItemSchema>
 
-async function createPendingOrder(orderData: CreatePurchaseOrderRequest, user: any) {
-  return await transaction(async (client) => {
-    // Calculate totals
-    const subtotal = orderData.items.reduce(
-      (sum, item) => sum + (item.cost_price * item.quantity), 0
-    )
-    const purchase_order_id = cuid();
-    // Insert purchase order
-    const orderResult = await client.query(`
-      INSERT INTO purchase_orders (
-        id, supplier_id, purchased_by, branch_id, 
-        order_date, expected_date, status, subtotal, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id
-    `, [
-      purchase_order_id,
-      orderData.supplier_id,
-      user.employee_id,
-      user.branch_id,
-      orderData.order_date || new Date().toISOString().split('T')[0],
-      orderData.expected_date,
-      'PENDING',
-      subtotal,
-      orderData.notes
-    ])
-    for (const item of orderData.items) {
-      const line_total = item.cost_price * item.quantity
-      const item_id = cuid()
-      await client.query(`
-        INSERT INTO purchase_order_items (
-          id,purchase_order_id, product_id, quantity_ordered, 
-          cost_price, wholesale_price, retail_price, line_total
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      `, [
-        item_id,
-        purchase_order_id,
-        item.product_id,
-        item.quantity,
-        item.cost_price,
-        item.wholesale_price,
-        item.retail_price,
-        line_total,
-      ])
-    }
+// ========== Helper Functions ==========
 
-    return { purchase_order_id }
-  })
+function generateCuid(): string {
+  return createId()
 }
 
-// async function createReceivedOrder(orderData: CreatePurchaseOrderRequest, orderNumber: string) {
-//   return await transaction(async (client) => {
-//     // Calculate totals
-//     const subtotal = orderData.items.reduce(
-//       (sum, item) => sum + (item.cost_price * item.quantity_ordered), 0
-//     )
-//     const tax_amount = subtotal * 0.1
-//     const total_amount = subtotal + tax_amount
-//         const purchase_order_id = cuid()
+function calculateLineTotal(quantity: number, costPrice: number): number {
+  return Number((quantity * costPrice).toFixed(2))
+}
 
-//     // Insert purchase order
-//     const orderResult = await client.query(`
-//       INSERT INTO purchase_orders (
-//         id,order_number, supplier_id, purchased_by, branch_id, 
-//         order_date, expected_date, received_date, status, 
-//         subtotal, tax_amount, total_amount, notes
-//       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,$13)
-//       RETURNING id
-//     `, [
-//       purchase_order_id,
-//       orderNumber,
-//       orderData.supplier_id,
-//       orderData.purchased_by,
-//       orderData.branch_id,
-//       orderData.order_date || new Date().toISOString().split('T')[0],
-//       orderData.expected_date,
-//       orderData.received_date || new Date().toISOString(),
-//       'RECEIVED',
-//       subtotal,
-//       tax_amount,
-//       total_amount,
-//       orderData.notes
-//     ])
+function calculateOrderTotals(items: PurchaseOrderItem[]) {
+  const subtotal = items.reduce((sum, item) => {
+    return sum + calculateLineTotal(item.quantity, item.cost_price)
+  }, 0)
 
-//     const receipt_id = cuid()
+  const totalAmount = Number(subtotal.toFixed(2))
 
-//     // Create receipt record
-//     const receiptNumber = `RCP${Date.now().toString().slice(-8)}`
-//     const receiptResult = await client.query(`
-//       INSERT INTO purchase_receipts (
-//         id,receipt_number, purchase_order_id, received_by, 
-//         received_date, total_items, total_received, status
-//       ) VALUES ($1, $2, $3, $4, $5, $6, $7,$8)
-//       RETURNING id
-//     `, [
-//       receipt_id,
-//       receiptNumber,
-//       purchase_order_id,
-//       orderData.purchased_by,
-//       orderData.received_date || new Date().toISOString(),
-//       orderData.items.length,
-//       orderData.items.reduce((sum, item) => sum + (item.quantity_received || item.quantity_ordered), 0),
-//       'COMPLETED'
-//     ])
+  return { subtotal, totalAmount }
+}
 
+// ========== Database Operations ==========
 
-//     // Process each item
-//     for (const item of orderData.items) {
-//       const line_total = item.cost_price * item.quantity_ordered
-//       const quantity_received = item.quantity_received || item.quantity_ordered
-//       const batch_number = item.batch_number || `BATCH${Date.now()}${Math.random().toString(36).substr(2, 5)}`
+async function createPurchaseOrder(
+  user: any,
+  client: PoolClient,
+  data: PurchaseOrderInput,
+  totals: ReturnType<typeof calculateOrderTotals>
+): Promise<{ id: string; order_number: string }> {
+  const id = generateCuid()
 
-//       const purchase_order_item_id = cuid()
+  const query = `
+    INSERT INTO purchase_orders (
+      id, supplier_id, purchased_by, branch_id,
+      order_date, expected_date, received_date, status, 
+      subtotal, total_amount, notes
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    RETURNING id, order_number
+  `
 
-//       // Insert order item
-//       const orderItemResult = await client.query(`
-//         INSERT INTO purchase_order_items (
-//           id,purchase_order_id, product_id, quantity_ordered, quantity_received,
-//           cost_price, wholesale_price, retail_price, line_total,
-//           batch_number, expiry_date
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
-//         RETURNING id
-//       `, [
-//         purchase_order_item_id,
-//         purchase_order_id,
-//         item.product_id,
-//         item.quantity_ordered,
-//         quantity_received,
-//         item.cost_price,
-//         item.wholesale_price,
-//         item.retail_price,
-//         line_total,
-//         batch_number,
-//         item.expiry_date
-//       ])
+  const values = [
+    id,
+    data.supplier_id,
+    user.user_id,
+    user.branch_id,
+    data.order_date || new Date().toISOString(),
+    data.expected_date || null,
+    data.status === 'RECEIVED' ? (data.received_date || new Date().toISOString()) : null,
+    data.status=== 'RECEIVED' ?"COMPLETED":"PENDING",
+    totals.subtotal,
+    totals.totalAmount,
+    data.notes || null
+  ]
 
-//             const batch_id =cuid()
+  const result = await client.query(query, values)
+  return result.rows[0]
+}
 
+async function createPurchaseOrderItems(
+  client: PoolClient,
+  purchaseOrderId: string,
+  items: PurchaseOrderItem[],
+  status: string
+): Promise<Array<{ id: string; product_id: string }>> {
+  const createdItems = []
 
-//       // Create purchase batch
-//       const batchResult = await client.query(`
-//         INSERT INTO purchase_batches (
-//           id,batch_number, purchase_order_item_id, quantity_ordered, 
-//           quantity_received, cost_price, wholesale_price, retail_price,
-//           expiry_date, received_date, received_by, fifo_sequence
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11, 
-//           COALESCE((SELECT MAX(fifo_sequence) FROM purchase_batches) + 1, 1))
-//         RETURNING id
-//       `, [
-//         batch_id,
-//         batch_number,
-//         purchase_order_item_id,
-//         item.quantity_ordered,
-//         quantity_received,
-//         item.cost_price,
-//         item.wholesale_price,
-//         item.retail_price,
-//         item.expiry_date,
-//         orderData.received_date || new Date().toISOString(),
-//         orderData.purchased_by
-//       ])
+  for (const item of items) {
+    const id = generateCuid()
+    const lineTotal = calculateLineTotal(item.quantity, item.cost_price)
+    
+    // For RECEIVED orders, set quantity_received to quantity if not specified
+    const quantityReceived = status === 'RECEIVED' 
+      ? (item.quantity_received ?? item.quantity) 
+      : (item.quantity_received ?? 0)
 
-//       const recipt_item_id = cuid()
-//       // Create receipt item
-//       await client.query(`
-//         INSERT INTO purchase_receipt_items (
-//           id,receipt_id, purchase_order_item_id, quantity_received,
-//           quantity_expected, batch_number, expiry_date, condition,
-//           cost_price, wholesale_price, retail_price
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
-//       `, [
-//         recipt_item_id,
-//         receipt_id,
-//         purchase_order_item_id,
-//         quantity_received,
-//         item.quantity_ordered,
-//         batch_number,
-//         item.expiry_date,
-//         'GOOD',
-//         item.cost_price,
-//         item.wholesale_price,
-//         item.retail_price
-//       ])
+    const query = `
+      INSERT INTO purchase_order_items (
+        id, purchase_order_id, product_id, quantity_ordered, quantity_received,
+        cost_price, wholesale_price, retail_price, line_total
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, product_id
+    `
 
-//       // Update or create branch inventory
-//       const inventoryResult = await client.query(`
-//         SELECT id, total_quantity, average_cost_price
-//         FROM branch_inventory 
-//         WHERE branch_id = $1 AND product_id = $2
-//       `, [orderData.branch_id, item.product_id])
+    const values = [
+      id,
+      purchaseOrderId,
+      item.product_id,
+      item.quantity,
+      quantityReceived,
+      item.cost_price,
+      item.wholesale_price || null,
+      item.retail_price,
+      lineTotal,
+    ]
 
-//       let branch_inventory_id: string
-//       let new_average_cost: number
+    const result = await client.query(query, values)
+    createdItems.push(result.rows[0])
+  }
 
-//       if (inventoryResult.rows.length > 0) {
-//         // Update existing inventory
-//         const existing = inventoryResult.rows[0]
-//         const current_qty = existing.total_quantity
-//         const current_avg_cost = parseFloat(existing.average_cost_price) || 0
+  return createdItems
+}
 
-//         // Calculate weighted average cost
-//         const total_cost = (current_qty * current_avg_cost) + (quantity_received * item.cost_price)
-//         const total_qty = current_qty + quantity_received
-//         new_average_cost = total_cost / total_qty
+async function createPurchaseBatches(
+  client: PoolClient,
+  orderItems: Array<{ id: string; product_id: string }>,
+  itemsData: PurchaseOrderItem[],
+  user: any,
+  supplier_id: string,
+  status: string
+): Promise<string[]> {
+  // Only create batches for RECEIVED orders
+  if (status !== 'RECEIVED') {
+    return []
+  }
 
-//         await client.query(`
-//           UPDATE branch_inventory 
-//           SET total_quantity = total_quantity + $1,
-//               average_cost_price = $2,
-//               last_restock_date = $3,
-//               updated_at = NOW()
-//           WHERE id = $4
-//         `, [quantity_received, new_average_cost, new Date().toISOString(), existing.id])
+  const batchIds: string[] = []
 
-//         branch_inventory_id = existing.id
-//       } else {
-//         branch_inventory_id = cuid()
-//         // Create new inventory record
-//         const newInventoryResult = await client.query(`
-//           INSERT INTO branch_inventory (
-//             id,branch_id, product_id, total_quantity, average_cost_price,
-//             last_restock_date
-//           ) VALUES ($1, $2, $3, $4, $5,$6)
-//           RETURNING id
-//         `, [
-//           branch_inventory_id,
-//           orderData.branch_id,
-//           item.product_id,
-//           quantity_received,
-//           item.cost_price,
-//           new Date().toISOString()
-//         ])
+  // Get next FIFO sequence number
+  const fifoQuery = `SELECT COALESCE(MAX(fifo_sequence), 0) + 1 as next_sequence FROM purchase_batches`
+  const fifoResult = await client.query(fifoQuery)
+  let currentFifoSequence = fifoResult.rows[0].next_sequence
 
-//         new_average_cost = item.cost_price
-//       }
+  for (let i = 0; i < orderItems.length; i++) {
+    const orderItem = orderItems[i]
+    const itemData = itemsData[i]
+    const quantityReceived = itemData.quantity_received ?? itemData.quantity
+    
+    // Skip if no quantity received
+    if (quantityReceived <= 0) continue
 
-//       // Create inventory item record
-//       await client.query(`
-//         INSERT INTO branch_inventory_items (
-//           branch_inventory_id, purchase_batch_id, quantity,
-//           cost_price, wholesale_price, retail_price,
-//           received_date, expiry_date, fifo_order
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-//           COALESCE((SELECT MAX(fifo_order) FROM branch_inventory_items WHERE branch_inventory_id = $1) + 1, 1))
-//       `, [
-//         branch_inventory_id,
-//         batch_id,
-//         quantity_received,
-//         item.cost_price,
-//         item.wholesale_price,
-//         item.retail_price,
-//         orderData.received_date || new Date().toISOString(),
-//         item.expiry_date
-//       ])
+    const batchId = generateCuid()
 
-//       // Create stock ledger entry
-//       await client.query(`
-//         INSERT INTO product_stock_ledgers (
-//           product_id, branch_id, batch_id, quantity, entry_type,
-//           reference_id, reference_type, cost_price, selling_price
-//         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-//       `, [
-//         item.product_id,
-//         orderData.branch_id,
-//         batch_id,
-//         quantity_received,
-//         'PURCHASE_RECEIVED',
-//         purchase_order_id,
-//         'PURCHASE_ORDER',
-//         item.cost_price,
-//         item.retail_price
-//       ])
+    const batchInsertQuery = `
+      INSERT INTO purchase_batches (
+        id, purchase_order_item_id, quantity_ordered,
+        quantity_received, cost_price, wholesale_price, retail_price,
+        received_date, received_by, is_active, fifo_sequence
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id
+    `
 
-//       // Update product prices if this is from main branch
-//       const branchInfo = await validateBranch(orderData.branch_id)
-//       if (branchInfo.is_main_branch) {
-//         // Check if we need to update product price history
-//         const priceHistoryResult = await client.query(`
-//           SELECT cost_price, wholesale_price, retail_price
-//           FROM product_price_history
-//           WHERE product_id = $1 AND is_active = true
-//           ORDER BY effective_date DESC
-//           LIMIT 1
-//         `, [item.product_id])
+    const batchInsertValues = [
+      batchId,
+      orderItem.id,
+      itemData.quantity,
+      quantityReceived,
+      itemData.cost_price,
+      itemData.wholesale_price || null,
+      itemData.retail_price,
+      new Date().toISOString(),
+      user.user_id || user.employee_id,
+      true,
+      currentFifoSequence++
+    ]
 
-//         const needsPriceUpdate = priceHistoryResult.rows.length === 0 || 
-//           priceHistoryResult.rows[0].cost_price !== item.cost_price ||
-//           priceHistoryResult.rows[0].wholesale_price !== item.wholesale_price ||
-//           priceHistoryResult.rows[0].retail_price !== item.retail_price
+    const batchResult = await client.query(batchInsertQuery, batchInsertValues)
+    batchIds.push(batchResult.rows[0].id)
 
-//         if (needsPriceUpdate) {
-//           // Deactivate old price records
-//           await client.query(`
-//             UPDATE product_price_history 
-//             SET is_active = false 
-//             WHERE product_id = $1 AND is_active = true
-//           `, [item.product_id])
+    // Create individual item barcodes if item is marked as unique
+    if (itemData.is_unique) {
+      await createItemBarcodes(client, batchId, orderItem.product_id, itemData, supplier_id, user, quantityReceived)
+    }
+  }
 
-//           // Insert new price record
-//           await client.query(`
-//             INSERT INTO product_price_history (
-//               product_id, effective_date, cost_price, wholesale_price,
-//               retail_price, created_by, reason
-//             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-//           `, [
-//             item.product_id,
-//             new Date().toISOString(),
-//             item.cost_price,
-//             item.wholesale_price,
-//             item.retail_price,
-//             orderData.purchased_by,
-//             `Price updated from purchase order ${orderNumber}`
-//           ])
+  return batchIds
+}
 
-//           // Update current prices table
-//           await client.query(`
-//             INSERT INTO product_current_prices (
-//               product_id, cost_price, wholesale_price, retail_price, last_updated
-//             ) VALUES ($1, $2, $3, $4, $5)
-//             ON CONFLICT (product_id) DO UPDATE SET
-//               cost_price = EXCLUDED.cost_price,
-//               wholesale_price = EXCLUDED.wholesale_price,
-//               retail_price = EXCLUDED.retail_price,
-//               last_updated = EXCLUDED.last_updated
-//           `, [
-//             item.product_id,
-//             item.cost_price,
-//             item.wholesale_price,
-//             item.retail_price,
-//             new Date().toISOString()
-//           ])
-//         }
-//       }
-//     }
+async function createItemBarcodes(
+  client: PoolClient,
+  batchId: string,
+  productId: string,
+  itemData: PurchaseOrderItem,
+  supplierId: string,
+  user: any,
+  quantityReceived: number
+): Promise<void> {
+  // Calculate warranty expiry if product has warranty
+  const warrantyQuery = `SELECT warranty_period FROM products WHERE id = $1`
+  const warrantyResult = await client.query(warrantyQuery, [productId])
+  const warrantyPeriod = warrantyResult.rows[0]?.warranty_period
 
-//     return { 
-//       purchase_order_id, 
-//       order_number: orderNumber, 
-//       receipt_number: receiptNumber 
-//     }
-//   })
-// }
+  let warrantyExpiry = null
+  if (warrantyPeriod) {
+    const expiry = new Date()
+    expiry.setMonth(expiry.getMonth() + warrantyPeriod)
+    warrantyExpiry = expiry.toISOString().split('T')[0]
+  }
 
-// ========== API Route Handler ==========
+  for (let j = 0; j < quantityReceived; j++) {
+    const itemBarcodeId = generateCuid()
+
+    const itemBarcodeQuery = `
+      INSERT INTO item_barcodes (
+        id, purchase_batch_id, product_id, status,
+        purchased_at, purchase_cost, supplier_id, warranty_expiry,
+        condition, location_branch, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `
+
+    const itemBarcodeValues = [
+      itemBarcodeId,
+      batchId,
+      productId,
+      'AVAILABLE',
+      new Date().toISOString(),
+      itemData.cost_price,
+      supplierId,
+      warrantyExpiry,
+      'GOOD',
+      user.branch_id,
+      true
+    ]
+
+    await client.query(itemBarcodeQuery, itemBarcodeValues)
+
+    // Create movement history entry
+    await createItemMovementHistory(
+      client, 
+      itemBarcodeId, 
+      null, 
+      user.branch_id, 
+      'PURCHASE_RECEIVED', 
+      null, 
+      user.user_id || user.employee_id
+    )
+  }
+}
+
+async function createItemMovementHistory(
+  client: PoolClient,
+  itemId: string,
+  fromBranch: string | null,
+  toBranch: string | null,
+  movementType: string,
+  referenceId: string | null,
+  movedBy: string | null,
+  reason?: string
+): Promise<void> {
+  const movementId = generateCuid()
+
+  const query = `
+    INSERT INTO item_movement_history (
+      id, item_id, from_branch, to_branch, movement_type,
+      reference_id, moved_by, reason, moved_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  `
+
+  await client.query(query, [
+    movementId,
+    itemId,
+    fromBranch,
+    toBranch,
+    movementType,
+    referenceId,
+    movedBy,
+    reason || `${movementType.replace('_', ' ').toLowerCase()}`,
+    new Date().toISOString()
+  ])
+}
+
+async function updateBranchInventory(
+  client: PoolClient,
+  branchId: string,
+  items: Array<{ product_id: string; quantity_received: number; cost_price: number }>
+): Promise<void> {
+  for (const item of items) {
+    // Skip if no quantity received
+    if (item.quantity_received <= 0) continue
+
+    const updateQuery = `
+      UPDATE branch_inventory
+      SET total_quantity = total_quantity + $1,
+          last_restock_date = $2,
+          updated_at = $3
+      WHERE branch_id = $4 AND product_id = $5
+    `
+
+    await client.query(updateQuery, [
+      item.quantity_received,
+      new Date().toISOString(),
+      new Date().toISOString(),
+      branchId,
+      item.product_id
+    ])
+  }
+}
+
+async function createBranchInventoryItems(
+  client: PoolClient,
+  branchId: string,
+  batchIds: string[],
+  orderItems: Array<{ product_id: string }>,
+  itemsData: PurchaseOrderItem[]
+): Promise<void> {
+  for (let i = 0; i < batchIds.length; i++) {
+    const batchId = batchIds[i]
+    const orderItem = orderItems[i]
+    const itemData = itemsData[i]
+    const quantityReceived = itemData.quantity_received ?? itemData.quantity
+
+    // Skip if no quantity received
+    if (quantityReceived <= 0) continue
+
+    // Get branch inventory ID
+    const inventoryQuery = `
+      SELECT id FROM branch_inventory
+      WHERE branch_id = $1 AND product_id = $2
+    `
+
+    const inventoryResult = await client.query(inventoryQuery, [branchId, orderItem.product_id])
+
+    if (inventoryResult.rows.length === 0) {
+      throw new AppError(`Branch inventory not found for product ${orderItem.product_id}`, 404)
+    }
+
+    const branchInventoryId = inventoryResult.rows[0].id
+    const id = generateCuid()
+
+    // Get next FIFO order for this inventory
+    const fifoQuery = `
+      SELECT COALESCE(MAX(fifo_order), 0) + 1 as next_order
+      FROM branch_inventory_items
+      WHERE branch_inventory_id = $1
+    `
+
+    const fifoResult = await client.query(fifoQuery, [branchInventoryId])
+    const fifoOrder = fifoResult.rows[0].next_order
+
+    const insertQuery = `
+      INSERT INTO branch_inventory_items (
+        id, branch_inventory_id, purchase_batch_id, quantity,
+        reserved_quantity, cost_price, wholesale_price, retail_price,
+        received_date, is_active, fifo_order
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `
+
+    await client.query(insertQuery, [
+      id,
+      branchInventoryId,
+      batchId,
+      quantityReceived,
+      0,
+      itemData.cost_price,
+      itemData.wholesale_price || null,
+      itemData.retail_price,
+      new Date().toISOString(),
+      true,
+      fifoOrder
+    ])
+  }
+}
+
+async function createStockLedgerEntries(
+  client: PoolClient,
+  purchaseOrderId: string,
+  branchId: string,
+  batchIds: string[],
+  orderItems: Array<{ product_id: string }>,
+  itemsData: PurchaseOrderItem[]
+): Promise<void> {
+  for (let i = 0; i < batchIds.length; i++) {
+    const batchId = batchIds[i]
+    const orderItem = orderItems[i]
+    const itemData = itemsData[i]
+    const quantityReceived = itemData.quantity_received ?? itemData.quantity
+    
+    // Skip if no quantity received
+    if (quantityReceived <= 0) continue
+
+    const id = generateCuid()
+
+    const query = `
+      INSERT INTO product_stock_ledgers (
+        id, product_id, branch_id, batch_id, quantity,
+        entry_type, reference_id, reference_type,
+        cost_price, selling_price
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `
+
+    await client.query(query, [
+      id,
+      orderItem.product_id,
+      branchId,
+      batchId,
+      quantityReceived,
+      'PURCHASE',
+      purchaseOrderId,
+      'purchase_order',
+      itemData.cost_price,
+      itemData.retail_price
+    ])
+  }
+}
+
+async function fetchCreatedOrder(client: PoolClient, orderId: string) {
+  const orderQuery = `
+    SELECT 
+      po.id,
+      po.order_number,
+      po.supplier_id,
+      po.purchased_by,
+      po.branch_id,
+      po.order_date,
+      po.expected_date,
+      po.received_date,
+      po.status,
+      po.subtotal,
+      po.total_amount,
+      po.notes,
+      po.created_at,
+      po.updated_at,
+      s.name as supplier_name,
+      s.code as supplier_code,
+      b.name as branch_name,
+      u.username as purchased_by_name,
+      json_agg(
+        json_build_object(
+          'id', poi.id,
+          'product_id', poi.product_id,
+          'product_name', p.name,
+          'product_sku', p.sku,
+          'quantity_ordered', poi.quantity_ordered,
+          'quantity_received', poi.quantity_received,
+          'cost_price', poi.cost_price,
+          'wholesale_price', poi.wholesale_price,
+          'retail_price', poi.retail_price,
+          'line_total', poi.line_total,
+          'batch_id', pb.id,
+          'individual_items_count', CASE 
+            WHEN EXISTS(
+              SELECT 1 FROM item_barcodes ib 
+              WHERE ib.purchase_batch_id = pb.id
+            ) THEN (
+              SELECT COUNT(*) FROM item_barcodes ib 
+              WHERE ib.purchase_batch_id = pb.id
+            )
+            ELSE 0
+          END
+        )
+      ) as items
+    FROM purchase_orders po
+    LEFT JOIN purchase_order_items poi ON po.id = poi.purchase_order_id
+    LEFT JOIN products p ON poi.product_id = p.id
+    LEFT JOIN purchase_batches pb ON poi.id = pb.purchase_order_item_id
+    LEFT JOIN suppliers s ON po.supplier_id = s.id
+    LEFT JOIN branches b ON po.branch_id = b.id
+    LEFT JOIN users u ON po.purchased_by = u.id
+    WHERE po.id = $1
+    GROUP BY po.id, s.name, s.code, b.name, u.username
+  `
+
+  const orderResult = await client.query(orderQuery, [orderId])
+  return orderResult.rows[0]
+}
+
+// ========== Main API Handler ==========
 export async function POST(request: NextRequest) {
   return withPermission('create_product')(async (authedReq: AuthenticatedRequest) => {
     try {
+      // Initialize database if needed
+      await initDatabase();
+      
+      const { user: userDetails } = authedReq.user
+
+
+      // Parse request body
       let body
       try {
-        body = await request.json();
+        body = await request.json()
       } catch {
-        return NextResponse.json({
+        return NextResponse.json<ApiResponse>({
           success: false,
+          data: null,
           message: 'Invalid JSON payload',
           timestamp: new Date().toISOString()
         }, { status: 400 })
       }
-      // Zod validation
-      const validatedData = createPurchaseOrderSchema.parse(body)
-      // Business validations
-      await validateSupplier(validatedData.supplier_id)
-      await validateProducts(validatedData.items)
-      // Handle order creation based on status
-      let result
-      if (validatedData.status === 'PENDING') {
-        result = await createPendingOrder(validatedData, authedReq.user)
-      } else {
-        // result = await createReceivedOrder(validatedData)
-        throw new AppError('Received orders not implemented yet', 501)
+
+      // Validate input with Zod
+      const validationResult = purchaseOrderSchema.safeParse(body)
+
+      if (!validationResult.success) {
+        const errors = validationResult.error.errors.map(err => ({
+          path: err.path.join('.'),
+          message: err.message
+        }))
+
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          data: null,
+          message: 'Validation failed',
+          errors,
+          timestamp: new Date().toISOString()
+        }, { status: 400 })
       }
 
-      // Success response
-      return NextResponse.json({
+      const data = validationResult.data
+
+      // Business validations
+      await validateSupplier(data.supplier_id)
+      await validateProducts(data.items)
+
+      // Calculate totals
+      const totals = calculateOrderTotals(data.items)
+
+      // Execute transaction
+      const result = await transaction(async (client) => {
+        // 1. Create purchase order
+        const purchaseOrder = await createPurchaseOrder(userDetails, client, data, totals)
+
+        // 2. Create purchase order items
+        const orderItems = await createPurchaseOrderItems(client, purchaseOrder.id, data.items, data.status)
+
+        let batchIds: string[] = []
+
+        // For RECEIVED orders, create inventory records
+        if (data.status === 'RECEIVED') {
+          // 3. Create purchase batches (with individual item barcodes if needed)
+          batchIds = await createPurchaseBatches(
+            client, 
+            orderItems, 
+            data.items, 
+            userDetails,
+            data.supplier_id,
+            data.status
+          )
+
+          // 4. Update branch inventory
+          await updateBranchInventory(
+            client, 
+            userDetails.branch_id, 
+            data.items.map((item, idx) => ({
+              product_id: orderItems[idx].product_id,
+              quantity_received: item.quantity_received ?? item.quantity,
+              cost_price: item.cost_price
+            }))
+          )
+
+          // 5. Create branch inventory items (only if we have batches)
+          if (batchIds.length > 0) {
+            await createBranchInventoryItems(
+              client, 
+              userDetails.branch_id, 
+              batchIds, 
+              orderItems, 
+              data.items
+            )
+
+            // 6. Create stock ledger entries
+            await createStockLedgerEntries(
+              client,
+              purchaseOrder.id,
+              userDetails.branch_id,
+              batchIds,
+              orderItems,
+              data.items
+            )
+          }
+        }
+
+        // Fetch created order with full details
+        return await fetchCreatedOrder(client, purchaseOrder.id)
+      })
+
+      const statusMessage = data.status === 'PENDING' 
+        ? 'Purchase order created successfully' 
+        : 'Purchase order received successfully'
+
+      return NextResponse.json<ApiResponse>({
         success: true,
-        message: `Purchase order ${validatedData.status.toLowerCase()} successfully`,
         data: result,
+        message: statusMessage,
         timestamp: new Date().toISOString()
       }, { status: 201 })
 
     } catch (error: any) {
-      return handleApiError(error);
+      return handleApiError(error)
     }
-  })(request);
+  })(request)
 }

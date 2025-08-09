@@ -1,4 +1,3 @@
-
 import { ApiResponse, initDatabase, query, transaction } from '@/lib/database/connection';
 import cuid from 'cuid';
 import { NextRequest, NextResponse } from 'next/server';

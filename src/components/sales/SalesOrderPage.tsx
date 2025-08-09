@@ -37,7 +37,6 @@ import { DiscountCalculator } from '@/components/sales/DiscountCalculator'
 import { useSalesOrder } from '@/hooks/useSalesOrder'
 import { 
   calculateOrderTotals, 
-  formatCurrency, 
   transformCartToAPIFormat,
   type CartItem,
   type OrderTotals
@@ -50,6 +49,7 @@ import {
   loadCustomerFromStorage
 } from '@/lib/utils/localStorage'
 import { printReceipt, type ReceiptData } from '@/lib/utils/print'
+import { formatCurrency } from '@/lib/utils/formatCurrency'
 
 // Types
 interface ScannedProduct {

@@ -1,6 +1,5 @@
 // app/api/customers/route.ts
 import { query } from '@/lib/database/connection'
-import cuid2 from '@paralleldrive/cuid2'
 import cuid from 'cuid'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -224,71 +223,6 @@ export async function POST(request: NextRequest): Promise<Response> {
       success: false,
       data: null,
       message: 'Failed to create customer',
-      errors: [error.message],
-      timestamp: new Date().toISOString()
-    }
-    
-    return Response.json(response, { status: 500 })
-  }
-}
-
-// app/api/customers/[id]/route.ts
-// GET /api/customers/[id] - Get customer by ID
-export async function GET_BY_ID(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-): Promise<Response> {
-  try {
-    const { id } = await context.params
-    
-    const result = await query<Customer>(`
-      SELECT 
-        id,
-        customer_number,
-        name,
-        email,
-        nic,
-        phone,
-        address,
-        date_of_birth,
-        customer_type,
-        credit_limit,
-        outstanding_balance,
-        loyalty_points,
-        discount_percentage,
-        is_active,
-        created_at,
-        updated_at
-      FROM customers 
-      WHERE id = $1 AND is_active = true
-    `, [id])
-    
-    if (result.rows.length === 0) {
-      const response: ApiResponse = {
-        success: false,
-        data: null,
-        message: 'Customer not found',
-        timestamp: new Date().toISOString()
-      }
-      return Response.json(response, { status: 404 })
-    }
-    
-    const response: ApiResponse<Customer> = {
-      success: true,
-      data: result.rows[0],
-      message: 'Customer retrieved successfully',
-      timestamp: new Date().toISOString()
-    }
-    
-    return Response.json(response)
-    
-  } catch (error: any) {
-    console.error('Error fetching customer:', error)
-    
-    const response: ApiResponse = {
-      success: false,
-      data: null,
-      message: 'Failed to fetch customer',
       errors: [error.message],
       timestamp: new Date().toISOString()
     }
