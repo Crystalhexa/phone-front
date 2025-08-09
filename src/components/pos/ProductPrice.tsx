@@ -5,7 +5,6 @@ import { DialogDescription, DialogTrigger } from "@radix-ui/react-dialog";
 import { Button } from "../ui/button";
 import { Badge } from '@/components/ui/badge'
 import { AlertTriangle, Barcode, DollarSign, FileText, Package, Percent, Info, Trash2, AlertCircle } from "lucide-react";
-import { formatCurrency } from "@/lib/utils/salesCalculations";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { Separator } from "@radix-ui/react-select";
 import { Label } from "recharts";
@@ -14,6 +13,7 @@ import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { CartItem } from "@/types/sales";
+import { formatCurrency } from "@/lib/utils/formatCurrency";
 
 
 // Enhanced ProductPrice Component with Custom Pricing Logic and Barcode Delete

@@ -111,9 +111,6 @@ export async function GET(request: NextRequest) {
           COUNT(bii.id) FILTER (WHERE bii.is_active = true) as batches_count,
           COUNT(bii.id) FILTER (
             WHERE bii.is_active = true 
-            AND bii.expiry_date IS NOT NULL 
-            AND bii.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
-            AND bii.expiry_date > CURRENT_DATE
           ) as expiring_batches_count
         FROM branch_inventory bi
         JOIN products p ON bi.product_id = p.id
@@ -158,35 +155,15 @@ export async function GET(request: NextRequest) {
             bii.wholesale_price,
             bii.retail_price,
             bii.received_date,
-            bii.expiry_date,
             bii.fifo_order,
             bii.is_active,
             pb.quantity_ordered,
-            pb.quantity_received,
-            CASE 
-              WHEN bii.expiry_date IS NOT NULL AND bii.expiry_date <= CURRENT_DATE THEN true
-              ELSE false
-            END as is_expired,
-            CASE 
-              WHEN bii.expiry_date IS NOT NULL 
-              AND bii.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
-              AND bii.expiry_date > CURRENT_DATE THEN true
-              ELSE false
-            END as is_expiring_soon,
-            CASE 
-              WHEN bii.quantity = 0 THEN 'OUT_OF_STOCK'
-              WHEN bii.expiry_date IS NOT NULL AND bii.expiry_date <= CURRENT_DATE THEN 'EXPIRED'
-              WHEN bii.expiry_date IS NOT NULL 
-              AND bii.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
-              AND bii.expiry_date > CURRENT_DATE THEN 'EXPIRING_SOON'
-              WHEN bii.quantity > 0 THEN 'AVAILABLE'
-              ELSE 'UNKNOWN'
-            END as batch_status
+            pb.quantity_received
           FROM branch_inventory bi
           JOIN branch_inventory_items bii ON bi.id = bii.branch_inventory_id
           JOIN purchase_batches pb ON bii.purchase_batch_id = pb.id
           WHERE bi.id = ANY($1::text[]) AND bii.is_active = true
-          ORDER BY bi.id, bii.fifo_order ASC NULLS LAST, bii.received_date ASC NULLS LAST, bii.expiry_date ASC NULLS LAST
+          ORDER BY bi.id, bii.fifo_order ASC NULLS LAST, bii.received_date ASC NULLS LAST
         `
         
         const batchResult = await query(batchQuery, [productIds])
@@ -210,7 +187,6 @@ export async function GET(request: NextRequest) {
           wholesale_price: batch.wholesale_price,
           retail_price: batch.retail_price,
           received_date: batch.received_date,
-          expiry_date: batch.expiry_date,
           fifo_order: batch.fifo_order,
           is_active: batch.is_active,
           quantity_ordered: batch.quantity_ordered,

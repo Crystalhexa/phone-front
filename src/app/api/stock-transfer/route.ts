@@ -404,7 +404,7 @@ async function executeBatchTransfer(
 ): Promise<void> {
   // Get batch details
   const batchResult = await client.query(`
-    SELECT cost_price, wholesale_price, retail_price, received_date, expiry_date
+    SELECT cost_price, wholesale_price, retail_price, received_date
     FROM purchase_batches
     WHERE id = $1
   `, [batch.batch_id])
@@ -531,8 +531,7 @@ async function executeIndividualItemTransfer(
       cost_price: itemData.purchase_cost,
       wholesale_price: itemData.wholesale_price,
       retail_price: itemData.retail_price,
-      received_date: new Date(),
-      expiry_date: null
+      received_date: new Date()
     }
   )
 
@@ -625,9 +624,9 @@ async function updateDestinationInventory(
     await client.query(`
       INSERT INTO branch_inventory_items (
         id, branch_inventory_id, purchase_batch_id, quantity, reserved_quantity,
-        cost_price, wholesale_price, retail_price, received_date, expiry_date,
+        cost_price, wholesale_price, retail_price, received_date,
         is_active, fifo_order
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, true, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), true, $9)
     `, [
       branchInventoryItemId,
       destInventoryId,
@@ -637,7 +636,6 @@ async function updateDestinationInventory(
       batchData.cost_price,
       batchData.wholesale_price,
       batchData.retail_price,
-      batchData.expiry_date,
       fifoOrder
     ])
   } else {
@@ -1053,7 +1051,6 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
         p.sku as product_sku,
         pb.id as batch_id,
         pb.batch_number,
-        pb.expiry_date,
         bii.quantity,
         bii.reserved_quantity,
         (bii.quantity - bii.reserved_quantity) as available_quantity,
@@ -1085,8 +1082,7 @@ export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
         p.name as product_name,
         p.sku as product_sku,
         pb.id as batch_id,
-        pb.batch_number,
-        pb.expiry_date
+        pb.batch_number
       FROM item_barcodes ib
       JOIN products p ON ib.product_id = p.id
       JOIN purchase_batches pb ON ib.purchase_batch_id = pb.id

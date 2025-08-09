@@ -114,7 +114,6 @@ const data = {
       url: "/locations",
       icon: IconInnerShadowTop,
       items: [
-        { title: "Stores", url: "/locations/stores" },
         { title: "Branches", url: "/dashboard/branches/view" },
       ],
     },
@@ -133,7 +132,6 @@ const data = {
       icon: IconUsers,
       items: [
         { title: "Employees", url: "/dashboard/user/employees" },
-        { title: "Users", url: "/dashboard/user/users" },
         { title: "Roles", url: "/dashboard/user/roles" },
         { title: "Logs", url: "/dashboard/user/logs" },
       ],

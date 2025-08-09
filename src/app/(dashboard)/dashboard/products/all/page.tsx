@@ -20,7 +20,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -50,7 +49,6 @@ import {
 import { useBrandData } from '@/components/table/BrandTable/useBrandData';
 import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 import { SearchableDropdown } from '@/components/form/SearchableDropdown';
-import { OrderFormData, PurchaseCart } from '@/components/pos/PurchaseCart';
 import { toast } from 'sonner';
 
 // Updated types to match API response structure

@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import WebSocketPrinter from '@/components/barcode/WebSocketPrinter';
+import { formatCurrency } from '@/lib/utils/formatCurrency';
 
 // Types (same as before)
 interface Barcode {
@@ -106,7 +107,6 @@ const PurchaseOrderDetailsPage = () => {
         setLoading(true);
         const response = await fetch(`/api/purchase-orders/${id}`);
         const result = await response.json();
-
         if (result.success) {
           setOrderDetails(result.data);
         } else {
@@ -153,19 +153,6 @@ const PurchaseOrderDetailsPage = () => {
   // Get barcodes for specific item
   const getItemBarcodes = (item: PurchaseOrderItem) => {
     return convertBarcodesToPrintFormat(item.barcodes, item);
-  };
-
-  // Format currency
-  const formatCurrency = (amount: unknown) => {
-    const num = typeof amount === 'number'
-      ? amount
-      : typeof amount === 'string'
-        ? Number(amount)
-        : NaN;
-
-    if (isNaN(num)) return 'Rs. 0.00';
-
-    return `Rs. ${num.toFixed(2)}`;
   };
 
   // Format date

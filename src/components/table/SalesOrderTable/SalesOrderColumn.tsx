@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { SalesOrder } from "./useSalesOrderData";
 import { TableAction } from "@/types/table";
+import { formatCurrency } from "@/lib/utils/formatCurrency";
 
 // Status Badge Component
 const StatusBadge = ({ status }: { status: string }) => {
@@ -213,10 +214,6 @@ export const createSalesOrderColumns = (actions?: TableAction[]): ColumnDef<Sale
     size: 180,
     cell: ({ row }) => {
       const order = row.original;
-      const formatCurrency = (amount: number) => {
-        return `Rs. ${amount.toFixed(2)}`;
-      };
-
       return (
         <div className="text-right space-y-1">
           <div className="font-medium text-lg">

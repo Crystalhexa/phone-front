@@ -35,8 +35,10 @@ import {
   saveToStorage,
   loadFromStorage
 } from '@/lib/utils/SalesOrderStorage'
-import { CartItem, Customer, FIFOAllocationResult, ScannedProduct } from '@/types/sales'
+import { CartItem, FIFOAllocationResult, ScannedProduct } from '@/types/sales'
 import { FIFOAllocationPreview } from '@/components/sales/FIFOAllocationPreview'
+import CustomerSelector from '@/components/pos/customer/CustomerSelector'
+import { Customer } from '@/types/customer'
 
 const QuantitySelector = ({ value, onChange, max, label }: any) => (
   <div className="space-y-2">
@@ -76,41 +78,38 @@ export default function EnhancedSalesOrderPage() {
   const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
   const [quantityInput, setQuantityInput] = useState(1)
-  const [customer, setCustomer] = useState<Customer>({})
+  const [customer, setCustomer] = useState<Customer | null>(null)
   const [orderDiscount, setOrderDiscount] = useState(0)
   const [orderNotes, setOrderNotes] = useState('')
   const [scannedBarcodes, setScannedBarcodes] = useState<Set<string>>(new Set())
   const [currentAllocation, setCurrentAllocation] = useState<FIFOAllocationResult | null>(null)
   const [allocationError, setAllocationError] = useState<string | null>(null)
   const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   // Hooks
+  
   const { scanProduct, placeOrder, isLoading } = useSalesOrder()
 
   // Load data from localStorage on component mount
   useEffect(() => {
     const savedCart = loadFromStorage(STORAGE_KEYS.CART, [])
-    const savedCustomer = loadFromStorage(STORAGE_KEYS.CUSTOMER, {})
+    const savedCustomer = loadFromStorage(STORAGE_KEYS.CUSTOMER)
     const savedOrderDiscount = loadFromStorage(STORAGE_KEYS.ORDER_DISCOUNT, 0)
     const savedOrderNotes = loadFromStorage(STORAGE_KEYS.ORDER_NOTES, '')
     const savedScannedBarcodes = loadFromStorage(STORAGE_KEYS.SCANNED_BARCODES, [])
-
     if (savedCart.length > 0) {
       setCart(savedCart)
-      toast.success(`Restored ${savedCart.length} items from previous session`)
-    }
+      toast.success(`Restored ${savedCart.length} items from previous session`)    }
 
-    if (Object.keys(savedCustomer).length > 0) {
-      setCustomer(savedCustomer)
+    if (savedCustomer) {
+      setSelectedCustomer(savedCustomer)
     }
-
     if (savedOrderDiscount > 0) {
       setOrderDiscount(savedOrderDiscount)
     }
-
     if (savedOrderNotes) {
       setOrderNotes(savedOrderNotes)
     }
-
     if (savedScannedBarcodes.length > 0) {
       setScannedBarcodes(new Set(savedScannedBarcodes))
     }
@@ -122,8 +121,8 @@ export default function EnhancedSalesOrderPage() {
 
   // Auto-save customer changes
   useEffect(() => {
-    saveToStorage(STORAGE_KEYS.CUSTOMER, customer)
-  }, [customer])
+    saveToStorage(STORAGE_KEYS.CUSTOMER, selectedCustomer)
+  }, [selectedCustomer])
 
   // Auto-save order discount changes
   useEffect(() => {
@@ -421,7 +420,7 @@ export default function EnhancedSalesOrderPage() {
       return
     }
     const orderData = {
-      customer: Object.keys(customer).length > 0 ? customer : undefined,
+      customer_id: selectedCustomer ? selectedCustomer.id : undefined,
       items: cart,
       discount: orderDiscount,
       notes: orderNotes.trim() || undefined
@@ -433,7 +432,7 @@ export default function EnhancedSalesOrderPage() {
 
       // Reset form
       setCart([])
-      setCustomer({})
+      setSelectedCustomer(null)
       setOrderDiscount(0)
       setOrderNotes('')
       setScannedProduct(null)
@@ -445,7 +444,31 @@ export default function EnhancedSalesOrderPage() {
     } catch (error: any) {
       toast.error(error.message || 'Failed to place order')
     }
-  }, [cart, customer, orderDiscount, totals, placeOrder])
+  }, [cart, selectedCustomer, orderDiscount, totals, placeOrder])
+
+
+  const handleCustomerSelect = (customer: Customer | null) => {
+    setSelectedCustomer(customer)
+    console.log('Selected customer:', customer)
+
+    // Here you can apply customer-specific pricing, discounts, etc.
+    if (customer) {
+      // Apply customer discount if available
+      if (customer.discount_percentage) {
+        console.log(`Applying ${customer.discount_percentage}% discount for ${customer.name}`)
+        // Update cart totals with discount
+      }
+
+      // Check credit limit for wholesale customers
+      if (customer.customer_type === 'WHOLESALE' && customer.credit_limit) {
+        const totalWithOutstanding = cartTotal + customer.outstanding_balance
+        if (totalWithOutstanding > customer.credit_limit) {
+          console.warn('Customer credit limit exceeded!')
+        }
+      }
+    }
+  }
+
 
   return (
     <div className="min-h-screen">
@@ -825,7 +848,10 @@ export default function EnhancedSalesOrderPage() {
                 </div>
               </CardContent>
             </Card>
-
+            <CustomerSelector
+              onCustomerSelect={handleCustomerSelect}
+              selectedCustomer={selectedCustomer}
+            />
             {/* FIFO Summary Card */}
             {cart.some(item => item.type === 'BATCH' && item.fifo_allocation) && (
               <Card>

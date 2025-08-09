@@ -13,14 +13,6 @@ export interface ScannedProduct {
   model: string
   sku: string
   wholesale_quantity?: number // For product-level items
-  brand?: {
-    name: string
-    code: string
-  }
-  category?: {
-    category: string
-    subcategory: string
-  }
   pricing: {
     cost_price: number
     wholesale_price?: number
@@ -107,11 +99,6 @@ async function handleIndividualItemScan(
       p.sku,
       p.warranty_period,
       p.wholesale_quantity,
-      b.name as brand_name,
-      sc.name as subcategory_name,
-      c.name as category_name,
-      s.name as supplier_name,
-      s.code as supplier_code,
       -- Branch inventory details
       bi.total_quantity,
       bi.reserved_quantity,
@@ -128,10 +115,6 @@ async function handleIndividualItemScan(
     FROM item_barcodes ib
     JOIN purchase_batches pb ON ib.purchase_batch_id = pb.id
     JOIN products p ON ib.product_id = p.id
-    LEFT JOIN suppliers s ON ib.supplier_id = s.id
-    LEFT JOIN brands b ON p.brand_id = b.id
-    LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
-    LEFT JOIN categories c ON sc.category_id = c.id
     LEFT JOIN product_current_prices pcp ON p.id = pcp.product_id
     -- Branch inventory check
     LEFT JOIN branch_inventory bi ON p.id = bi.product_id AND bi.branch_id = $2
@@ -199,14 +182,6 @@ async function handleIndividualItemScan(
     model: item.model,
     sku: item.sku,
     wholesale_quantity: item.wholesale_quantity,
-    brand: item.brand_name ? {
-      name: item.brand_name,
-      code: item.brand_code
-    } : undefined,
-    category: item.category_name ? {
-      category: item.category_name,
-      subcategory: item.subcategory_name
-    } : undefined,
     pricing: {
       cost_price: parseFloat(costPrice || '0'),
       wholesale_price: wholesalePrice ? parseFloat(wholesalePrice) : undefined,
@@ -253,9 +228,6 @@ async function handleProductLevelScan(
       p.sku,
       p.warranty_period,
       p.wholesale_quantity,
-      b.name as brand_name,
-      sc.name as subcategory_name,
-      c.name as category_name,
       -- Branch-specific inventory
       bi.total_quantity,
       bi.reserved_quantity,
@@ -286,9 +258,6 @@ async function handleProductLevelScan(
       ) as batches
     FROM barcodes bc
     JOIN products p ON bc.product_id = p.id
-    LEFT JOIN brands b ON p.brand_id = b.id
-    LEFT JOIN subcategories sc ON p.subcategory_id = sc.id
-    LEFT JOIN categories c ON sc.category_id = c.id
     LEFT JOIN branch_inventory bi ON p.id = bi.product_id AND bi.branch_id = $2
     LEFT JOIN branch_inventory_items bii ON bi.id = bii.branch_inventory_id 
                                           AND bii.is_active = true
@@ -296,7 +265,7 @@ async function handleProductLevelScan(
                                    AND pb.is_active = true
     WHERE bc.code = $1
     GROUP BY bc.id, bc.code,  p.id, p.name, p.model, p.sku, p.warranty_period,
-             b.name, sc.name, c.name, bi.total_quantity, bi.reserved_quantity, 
+              bi.total_quantity, bi.reserved_quantity, 
              bi.low_stock_threshold, bi.average_cost_price
   `
 
@@ -346,14 +315,6 @@ async function handleProductLevelScan(
     model: product.model,
     sku: product.sku,
     wholesale_quantity: product.wholesale_quantity,
-    brand: product.brand_name ? {
-      name: product.brand_name,
-      code: product.brand_code
-    } : undefined,
-    category: product.category_name ? {
-      category: product.category_name,
-      subcategory: product.subcategory_name
-    } : undefined,
     pricing: {
       // Primary pricing based on FIFO (first batch out)
       

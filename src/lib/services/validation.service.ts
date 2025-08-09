@@ -343,30 +343,36 @@ export class ValidationService {
   }
 
   static async validateCustomer(
-    client: PoolClient,
-    customer_id?: string
-  ): Promise<CustomerValidation> {
-    if (!customer_id) {
-      return { customerId: null, isNewCustomer: false } // Anonymous customer
-    }
-
-    if (customer_id) {
-      // Validate existing customer
-      const result = await client.query(`
-        SELECT id, name, customer_type, is_active 
-        FROM customers 
-        WHERE id = $1
-      `, [customer_id])
-
-      if (result.rows.length === 0) {
-        throw new Error(`Customer ${customer_id} not found`)
-      }
-
-      const customerRecord = result.rows[0]
-      if (!customerRecord.is_active) {
-        throw new Error(`Customer ${customerRecord.name} is inactive`)
-      }
-    }
+  client: PoolClient,
+  customer_id?: string
+): Promise<CustomerValidation> {
+  // Case 1: Anonymous customer
+  if (!customer_id) {
     return { customerId: null, isNewCustomer: false }
   }
+
+  // Case 2: Existing customer validation
+  const result = await client.query(
+    `
+    SELECT id, name, customer_type, is_active
+    FROM customers
+    WHERE id = $1
+    `,
+    [customer_id]
+  )
+
+  if (result.rows.length === 0) {
+    throw new Error(`Customer ${customer_id} not found`)
+  }
+
+  const customerRecord = result.rows[0]
+
+  if (!customerRecord.is_active) {
+    throw new Error(`Customer ${customerRecord.name} is inactive`)
+  }
+
+  // Customer is valid and active
+  return { customerId: customerRecord.id, isNewCustomer: false }
+}
+
 }

@@ -51,10 +51,6 @@ export function calculateOrderTotals(cart: CartItem[], orderDiscount: number = 0
   }
 }
 
-export function formatCurrency(amount: number): string {
-  return `Rs. ${amount.toFixed(2)}`
-}
-
 export function validateCartItem(item: CartItem): { isValid: boolean; errors: string[] } {
   const errors: string[] = []
 

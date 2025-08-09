@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       }
 
       const orderData: PlaceOrderRequest = validationResult.data;
-
+      console.log(orderData.customer_id)
       // ✅ UPDATED: Use enhanced validation
       const preValidation = await transaction(async (client) => {
         return await ValidationService.validateCompleteCart(client, userDetails.branch_id, orderData.items)
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
 
       const result = await transaction(async (client) => {
         const customerResult = await ValidationService.validateCustomer(client, orderData.customer_id)
+        console.log(customerResult)
         const salesOrderId = await OrderService.createSalesOrder(
           client,
           orderData,

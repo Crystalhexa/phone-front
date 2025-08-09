@@ -200,8 +200,7 @@ export const ProductDetailsPopup: React.FC<{ product: ProductResponse }> = ({ pr
 };
 
 
-export // Stock Details Popup Component
-const StockDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }) => {
+export const StockDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -212,11 +211,11 @@ const StockDetailsPopup: React.FC<{ product: ProductResponse }> = ({ product }) 
       <DialogContent className="w-full max-w-2xl sm:max-w-3xl rounded-2xl p-0">
         <div className="max-h-[85vh] overflow-y-auto px-6 py-8">
           <DialogHeader className="mb-6">
-            <DialogTitle className="text-xl flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 text-xl">
               <Warehouse className="w-5 h-5" />
               Stock Details - {product.name}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-base">
               View detailed stock information across all branches
             </DialogDescription>
           </DialogHeader>

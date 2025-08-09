@@ -31,10 +31,7 @@ export async function GET(request: NextRequest) {
         FROM purchase_batches pb
         JOIN branch_inventory_items bii ON pb.id = bii.purchase_batch_id
         JOIN branch_inventory bi ON bii.branch_inventory_id = bi.id
-        WHERE pb.expiry_date IS NOT NULL 
-          AND pb.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
-          AND pb.expiry_date > CURRENT_DATE
-          AND pb.is_active = true
+        WHERE pb.is_active = true
           AND bii.is_active = true
           ${branchFilter}
       `

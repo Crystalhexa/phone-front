@@ -11,6 +11,7 @@ import {
   Building2,
   User,
 } from 'lucide-react';
+import { formatCurrency } from "@/lib/utils/formatCurrency";
 
 // Types
 interface PurchaseOrder {
@@ -195,13 +196,6 @@ export const createPurchaseOrderColumns = (actions: TableAction[]): ColumnDef<Pu
     size: 150,
     cell: ({ row }) => {
       const order = row.original;
-      const formatCurrency = (amount: string) => {
-        return new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-        }).format(parseFloat(amount));
-      };
-
       return (
         <div className="text-right space-y-1">
           <div className="font-medium text-lg">

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package } from 'lucide-react';
 import { ProductResponse } from '@/types/pos';
 import { QuickInfoPopover } from './QuickInfoPopover';
+import { formatCurrency } from '@/lib/utils/formatCurrency';
 
 // Lazy load ProductBatchDetailsPopover
 const ProductBatchDetailsPopover = React.lazy(() =>
@@ -42,13 +43,6 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
     } else {
       return <Badge variant="default">In Stock</Badge>;
     }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price);
   };
 
   return (
@@ -87,6 +81,9 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                       {product.model && (
                         <div className="text-sm text-muted-foreground">Model: {product.model}</div>
                       )}
+                      {product.sku && (
+                        <div className="text-sm text-muted-foreground">sku: {product.sku}</div>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -117,11 +114,11 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                     {product.costPrice || product.retailPrice ? (
                       <div className="space-y-1">
                         <div className="text-sm">
-                          <span className="text-purple-600">Retail: {formatPrice(product.retailPrice)}</span>
+                          <span className="text-purple-600">Retail: {formatCurrency(product.retailPrice)}</span>
                         </div>
                         {product.wholesalePrice && (
                           <div className="text-xs text-green-600">
-                            Wholesale: {formatPrice(product.wholesalePrice)}
+                            Wholesale: {formatCurrency(product.wholesalePrice)}
                           </div>
                         )}
                       </div>
@@ -137,18 +134,6 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                       </Suspense>
                     </div>
                   </TableCell>
-                  {/* <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => router.push('/dashboard/products/all/view/' + product.id)}
-                      >
-                        <Eye className="w-3 h-3 mr-1" />
-                        View
-                      </Button>
-                    </div>
-                  </TableCell> */}
                 </TableRow>
               ))}
             </TableBody>

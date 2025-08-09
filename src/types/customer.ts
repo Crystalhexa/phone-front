@@ -53,22 +53,7 @@ export interface ApiResponse<T = any> {
   timestamp: string;
 }
 // Interfaces
-export interface Customer {
-  id: string;
-  customer_number: string;
-  name: string;
-  email?: string;
-  nic?: string;
-  phone?: string;
-  address?: string;
-  date_of_birth?: string;
-  credit_limit?: number;
-  outstanding_balance: number;
-  loyalty_points: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
+
 
 export interface CustomerFormData {
     name: string;
@@ -113,4 +98,59 @@ export interface GetCustomersParams {
 export interface DeleteCustomerResponse {
   success: boolean;
   message: string;
+}
+
+// types/customer.ts
+export interface Customer {
+  id: string
+  customer_number: string
+  name: string
+  email: string | null
+  nic: string | null
+  phone: string | null
+  address: string | null
+  date_of_birth: Date | null
+  customer_type: CustomerType
+  credit_limit: number | null
+  outstanding_balance: number
+  loyalty_points: number
+  discount_percentage: number | null
+  is_active: boolean
+  created_at: Date
+  updated_at: Date
+}
+
+export type CustomerType = 'RETAIL' | 'WHOLESALE' | 'VIP'
+
+export interface CreateCustomerRequest {
+  name: string
+  email?: string
+  nic?: string
+  phone?: string
+  address?: string
+  date_of_birth?: string
+  customer_type?: CustomerType
+  credit_limit?: number
+  discount_percentage?: number
+}
+
+export interface ApiResponse<T = any> {
+  success: boolean
+  data: T | null
+  message: string
+  errors?: any[] | null
+  timestamp: string
+  metadata?: any
+}
+
+// Customer display format for POS
+export interface CustomerDisplay {
+  id: string
+  customer_number: string
+  name: string
+  phone: string | null
+  nic: string | null
+  outstanding_balance: number
+  customer_type: CustomerType
+  discount_percentage: number | null
 }
