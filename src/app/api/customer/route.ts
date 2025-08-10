@@ -25,6 +25,7 @@ const corsHeaders = {
 };
 
 // GET handler — list customers
+// GET handler — list customers
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '10', 10), 100);
@@ -60,8 +61,15 @@ export async function GET(request: NextRequest) {
     const params = [`%${search}%`, limit, offset];
     const result = await query(queryText, params);
     const customers = result.rows;
-    const total = customers.length > 0 ? parseInt(customers[0].total_count, 10) : 0;
-    const cleanCustomers = customers.map(({ total_count, ...rest }) => rest);
+
+    const total = customers.length > 0 ? Number(customers[0].total_count) : 0;
+
+    const cleanCustomers = customers.map(({ total_count, ...rest }) => ({
+      ...rest,
+      outstanding_balance: rest.outstanding_balance !== null ? Number(rest.outstanding_balance) : 0,
+      credit_limit: rest.credit_limit !== null ? Number(rest.credit_limit) : null,
+      loyalty_points: rest.loyalty_points !== null ? Number(rest.loyalty_points) : 0,
+    }));
 
     return NextResponse.json({
       success: true,
@@ -80,6 +88,7 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
 
 export async function POST(req: NextRequest) {
   await initDatabase();

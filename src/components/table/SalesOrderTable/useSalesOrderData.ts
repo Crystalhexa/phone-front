@@ -106,7 +106,7 @@ export const useSalesOrderData = () => {
         }, {} as Record<string, string>),
       });
 
-      const response = await fetch(`/api/sales-orders/branch-wise?${params}`);
+      const response = await fetch(`/api/sales-orders?${params}`);
       const result = await response.json();
       if (result.success) {
         setOrders(result.data.sales_orders);

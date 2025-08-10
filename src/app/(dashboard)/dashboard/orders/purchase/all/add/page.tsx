@@ -44,6 +44,7 @@ import { AddToCartModal } from '@/components/pos/AddToCartModal';
 import { toast } from 'sonner';
 import { getStockBadge, ProductDetailsPopup, StockDetailsPopup } from '@/components/pos/ProductDetailsPopup';
 import { ProductResponse,CartItem, Filters, ApiResponse } from '@/types/inventory';
+import { formatCurrency } from '@/lib/utils/formatCurrency';
 
 // Extended Filters interface to include barcode
 interface ExtendedFilters extends Filters {
@@ -158,7 +159,6 @@ const ProductsTable: React.FC = () => {
 
       const response = await fetch(`/api/products?${params}`);
       const data: ApiResponse = await response.json();
-
       if (data.success) {
         setProducts(data.data.products);
         setPagination(prev => ({
@@ -263,13 +263,6 @@ const ProductsTable: React.FC = () => {
 
     setModalOpen(false);
     setSelectedProduct(null);
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price);
   };
 
   const resetFilters = () => {
@@ -586,17 +579,17 @@ const ProductsTable: React.FC = () => {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {product.current_prices ? (
+                      {product.latest_batch_pricing ? (
                         <div className="space-y-1">
                           <div className="text-sm">
-                            <span className="text-green-600 font-medium">Cost: {formatPrice(product.current_prices.cost_price)}</span>
+                            <span className="text-green-600 font-medium">Cost: {formatCurrency(product.latest_batch_pricing.cost_price)}</span>
                           </div>
                           <div className="text-sm">
-                            <span className="text-purple-600">Retail: {formatPrice(product.current_prices.retail_price)}</span>
+                            <span className="text-purple-600">Retail: {formatCurrency(product.latest_batch_pricing.retail_price)}</span>
                           </div>
-                          {product.current_prices.wholesale_price && (
+                          {product.latest_batch_pricing.wholesale_price && (
                             <div className="text-xs text-blue-600">
-                              Wholesale: {formatPrice(product.current_prices.wholesale_price)}
+                              Wholesale: {formatCurrency(product.latest_batch_pricing.wholesale_price)}
                             </div>
                           )}
                         </div>

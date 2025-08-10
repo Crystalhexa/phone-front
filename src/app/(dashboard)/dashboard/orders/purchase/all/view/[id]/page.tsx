@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +32,8 @@ import {
   FileText,
   Eye,
   Loader2,
-  Settings
+  Settings,
+  ChevronLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import WebSocketPrinter from '@/components/barcode/WebSocketPrinter';
@@ -93,7 +94,7 @@ interface PurchaseOrderDetails {
 const PurchaseOrderDetailsPage = () => {
   const params = useParams();
   const id = params.id as string;
-
+  const router = useRouter();
   const [orderDetails, setOrderDetails] = useState<PurchaseOrderDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +214,16 @@ const PurchaseOrderDetailsPage = () => {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
+          <div className="mb-4">
+          <Button 
+            variant="outline" 
+            onClick={()=>router.back()}
+            className="flex items-center gap-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Back to Purchase Orders
+          </Button>
+        </div>
           <h1 className="text-3xl font-bold">Purchase Order Details</h1>
           <p className="text-muted-foreground">Order #{orderDetails.order_number}</p>
         </div>

@@ -15,7 +15,11 @@ export interface Subcategory {
   name: string;
   category: Category;
 }
-
+export interface Latest_batch_pricing{
+  cost_price:number;
+  retail_price	:number;
+  wholesale_price	:number;
+}
 export interface CurrentPrices {
   cost_price: number;
   wholesale_price: number | null;
@@ -63,6 +67,7 @@ export interface ProductResponse {
   brand: Brand | null;
   subcategory: Subcategory | null;
   current_prices: CurrentPrices | null;
+  latest_batch_pricing: Latest_batch_pricing;
   branch_stock: BranchStock[];
   total_system_stock: number;
   total_available_stock: number;

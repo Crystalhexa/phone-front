@@ -20,8 +20,8 @@ export class OrderService {
       INSERT INTO sales_orders (
         id, customer_id, branch_id, sold_by,
         order_date, status, 
-        subtotal, discount, total_amount, total_cost, profit_amount, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        subtotal, discount, balance_due,total_amount, total_cost, profit_amount, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,$13)
       RETURNING id
     `
 
@@ -34,6 +34,7 @@ export class OrderService {
       'COMPLETED', // Immediately mark as completed for paid orders
       totals.subtotal,
       totals.discount,
+      totals.total_amount,
       totals.total_amount,
       0, // Will be calculated after items
       0, // Will be calculated after items

@@ -233,8 +233,6 @@ async function handleProductLevelScan(
       bi.reserved_quantity,
       (bi.total_quantity - bi.reserved_quantity) as available_quantity,
       bi.low_stock_threshold,
-      bi.average_cost_price,
-      -- Available batches with FIFO ordering
       json_agg(
         json_build_object(
           'batch_id', pb.id,
@@ -266,7 +264,7 @@ async function handleProductLevelScan(
     WHERE bc.code = $1
     GROUP BY bc.id, bc.code,  p.id, p.name, p.model, p.sku, p.warranty_period,
               bi.total_quantity, bi.reserved_quantity, 
-             bi.low_stock_threshold, bi.average_cost_price
+             bi.low_stock_threshold
   `
 
   const result = await query(productQuery, [barcode, branchId])
@@ -420,7 +418,7 @@ export async function POST(request: NextRequest) {
     try {
       const body = await authedReq.json()
       const { user: userDetails } = authedReq.user
-
+      
       // Validate request
       const validation = scanRequestSchema.safeParse(body)
       if (!validation.success) {

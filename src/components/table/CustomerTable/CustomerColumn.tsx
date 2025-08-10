@@ -1,6 +1,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { ActionCell } from "../../ui/DataTable/ActionCell";
 import { Customer } from "@/types/customer";
+import { formatCurrency } from "@/lib/utils/formatCurrency";
 
 export interface TableAction {
   label: string;
@@ -69,7 +70,7 @@ export const createCustomerColumns = (
     cell: ({ row }) => (
       <div className="text-red-400 font-semibold text-sm">
         Rs. {typeof row.getValue("outstanding_balance") === "number"
-          ? (row.getValue("outstanding_balance") as number).toFixed(2)
+          ? formatCurrency(row.getValue("outstanding_balance"))
           : "0.00"}
       </div>
     ),

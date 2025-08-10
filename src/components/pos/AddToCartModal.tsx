@@ -6,9 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Form } from '@/components/ui/form';
-import { ProductResponse } from '@/app/(dashboard)/dashboard/products/all/page';
 import CustomFormField, { FormFieldType } from '@/components/form/CustomFormField';
 import {  ShoppingCart, TrendingUp } from 'lucide-react';
+import { ProductResponse } from '@/types/inventory';
 
 const purchaseItemSchema = z.object({
   quantity: z.coerce.number().min(1, 'Quantity must be at least 1'),
@@ -42,9 +42,9 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
     resolver: zodResolver(purchaseItemSchema),
     defaultValues: {
       quantity: 1,
-      cost_price: 0,
-      wholesale_price: 0,
-      retail_price: 0,
+      cost_price: product.latest_batch_pricing.cost_price,
+      wholesale_price: product.latest_batch_pricing.wholesale_price,
+      retail_price:product.latest_batch_pricing.retail_price,
     },
   });
 

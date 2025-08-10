@@ -80,7 +80,7 @@ interface StockLevel {
   stock_status: 'GOOD' | 'LOW' | 'OUT' | 'CRITICAL';
   brand_name?: string;
   category_name?: string;
-  batches_count?: string | number; // API might return string
+  batches_count?: string | number; // API miht return string
   expiring_batches_count?: string | number; // API might return string
 }
 
@@ -437,18 +437,6 @@ const StockLevelsComponent: React.FC = () => {
             </div>
 
             <div>
-              <SearchableDropdown
-                value={filters.category}
-                onValueChange={(value) =>
-          setFilters((prev) => ({ ...prev, category_id: value, subcategory_id: '' }))
-                }
-                placeholder="Category"
-                searchPlaceholder="Search categories..."
-                options={categoryOptions}
-                emptyMessage="No categories"
-                onSearch={handleCategorySearch}
-                searchTerm={categorySearchTerm}
-              />
             </div>
 
             <div className="flex items-end">

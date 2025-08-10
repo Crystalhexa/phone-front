@@ -1,410 +1,460 @@
-// app/api/sales-orders/route.ts
-import { ApiResponse, initDatabase, query } from '@/lib/database/connection'
 import { NextRequest, NextResponse } from 'next/server'
+import { query, initDatabase, ApiResponse } from '@/lib/database/connection'
+import { withPermission, AuthenticatedRequest } from '@/middleware/auth' // Adjust import path as needed
 
-// ========== Types ==========
-interface SalesOrderItem {
+// Types for the response
+interface PendingSalesOrderItem {
   id: string
   product_id: string
   product_name: string
-  product_sku: string
-  brand_name?: string
-  quantity: number
-  unit_price: number
-  discount: number
-  line_total: number
-  line_cost?: number
-  line_profit?: number
-  warranty_expiry?: string
+  product_code: string
+  quantity: number  // This will now be total_quantity
+  unit_price: number  // This will now be avg_unit_price
+  discount: number  // This will now be total_discount
+  line_total: number  // This will now be total_line_total
+  is_wholesale_price: boolean  // This will now be has_wholesale_price
+  warranty_expiry: string | null
+  line_count: number  // NEW: How many times this product appears
+  quantity_breakdown: string  // NEW: Shows "2 + 3 + 1" format
 }
 
-interface SalesOrder {
+interface PendingSalesOrder {
   id: string
   order_number: string
-  customer_id?: string
-  customer_name?: string
-  customer_phone?: string
-  customer_email?: string
+  customer_id: string | null
+  customer_name: string | null
+  customer_phone: string | null
+  customer_email: string | null
+  customer_type: string | null
   branch_id: string
   branch_name: string
-  branch_code: string
-  sold_by?: string
-  employee_name?: string
-  employee_number?: string
+  sold_by: string | null
+  sold_by_name: string | null
   order_date: string
   status: string
-  payment_method?: string
   payment_status: string
   subtotal: number
   total_amount: number
+  balance_due: number
   discount: number
-  total_cost?: number
-  profit_amount?: number
-  notes?: string
+  notes: string | null
   created_at: string
   updated_at: string
-  items: SalesOrderItem[]
+  items: PendingSalesOrderItem[]
 }
 
-interface FilterParams {
-  branch_id?: string
-  employee_id?: string
-  customer_id?: string
-  status?: string
-  payment_status?: string
-  order_date_from?: string
-  order_date_to?: string
-  page?: number
-  limit?: number
-  search?: string
-  sort_by?: 'order_date' | 'total_amount' | 'order_number' | 'customer_name'
-  sort_order?: 'asc' | 'desc'
+interface PendingSalesOrdersResponse {
+  orders: PendingSalesOrder[]
+  total_count: number
+  total_amount: number
+  branch_info: {
+    id: string
+    name: string
+    code: string
+  }
 }
 
-// ========== Helper Functions ==========
-function buildWhereClause(filters: FilterParams): { whereClause: string; params: any[] } {
-  const conditions: string[] = []
-  const params: any[] = []
-  let paramCount = 0
+export async function GET(request: NextRequest) {
+  return withPermission('create_product')(async (authedReq: AuthenticatedRequest) => {
+    try {
+      // Initialize database if needed
+      await initDatabase()
 
-  if (filters.branch_id) {
-    conditions.push(`so.branch_id = $${++paramCount}`)
-    params.push(filters.branch_id)
-  }
+      const { user: userDetails } = authedReq.user
+      const branchId = userDetails.branch_id;
 
-  if (filters.employee_id) {
-    conditions.push(`so.sold_by = $${++paramCount}`)
-    params.push(filters.employee_id)
-  }
+      if (!branchId) {
+        return NextResponse.json({
+          success: false,
+          data: null,
+          message: 'Branch ID not found for user',
+          timestamp: new Date().toISOString()
+        } as ApiResponse, { status: 400 })
+      }
 
-  if (filters.customer_id) {
-    conditions.push(`so.customer_id = $${++paramCount}`)
-    params.push(filters.customer_id)
-  }
+      // Parse query parameters for pagination and filtering
+      const { searchParams } = new URL(request.url)
+      const page = parseInt(searchParams.get('page') || '1')
+      const limit = parseInt(searchParams.get('limit') || '20')
+      const offset = (page - 1) * limit
+      const search = searchParams.get('search') || ''
+      const sortBy = searchParams.get('sortBy') || 'order_date'
+      const sortOrder = searchParams.get('sortOrder') || 'DESC'
 
-  if (filters.status) {
-    conditions.push(`so.status = $${++paramCount}`)
-    params.push(filters.status)
-  }
+      // Validate sort parameters
+      const validSortFields = ['order_date', 'order_number', 'total_amount', 'customer_name', 'created_at']
+      const validSortOrders = ['ASC', 'DESC']
 
-  if (filters.payment_status) {
-    conditions.push(`so.payment_status = $${++paramCount}`)
-    params.push(filters.payment_status)
-  }
+      const orderBy = validSortFields.includes(sortBy) ? sortBy : 'order_date'
+      const orderDirection = validSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC'
 
-  if (filters.order_date_from) {
-    conditions.push(`so.order_date >= $${++paramCount}`)
-    params.push(filters.order_date_from)
-  }
+      // First, get branch information
+      const branchQuery = `
+        SELECT id, name, code
+        FROM branches
+        WHERE id = $1
+      `
+      const branchResult = await query(branchQuery, [branchId])
 
-  if (filters.order_date_to) {
-    conditions.push(`so.order_date <= $${++paramCount}`)
-    params.push(filters.order_date_to)
-  }
+      if (branchResult.rows.length === 0) {
+        return NextResponse.json({
+          success: false,
+          data: null,
+          message: 'Branch not found',
+          timestamp: new Date().toISOString()
+        } as ApiResponse, { status: 404 })
+      }
 
-  if (filters.search) {
-    conditions.push(`(
-      so.order_number ILIKE $${++paramCount} OR 
-      c.name ILIKE $${paramCount} OR 
-      c.phone ILIKE $${paramCount} OR 
-      e.name ILIKE $${paramCount}
-    )`)
-    params.push(`%${filters.search}%`)
-  }
+      const branch = branchResult.rows[0]
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
-  return { whereClause, params }
-}
-
-function buildOrderClause(filters: FilterParams): string {
-  const sortBy = filters.sort_by || 'order_date'
-  const sortOrder = filters.sort_order || 'desc'
-  
-  const sortMapping: Record<string, string> = {
-    order_date: 'so.order_date',
-    total_amount: 'so.total_amount',
-    order_number: 'so.order_number',
-    customer_name: 'c.name'
-  }
-  
-  const sortColumn = sortMapping[sortBy] || 'so.order_date'
-  return `ORDER BY ${sortColumn} ${sortOrder.toUpperCase()}, so.created_at DESC`
-}
-
-// ========== Main API Handler ==========
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  try {
-    // Initialize database connection
-    await initDatabase()
-
-    // Parse query parameters
-    const { searchParams } = new URL(request.url)
-    const filters: FilterParams = {
-      branch_id: searchParams.get('branch_id') || undefined,
-      employee_id: searchParams.get('employee_id') || undefined,
-      customer_id: searchParams.get('customer_id') || undefined,
-      status: searchParams.get('status') || undefined,
-      payment_status: searchParams.get('payment_status') || undefined,
-      order_date_from: searchParams.get('order_date_from') || undefined,
-      order_date_to: searchParams.get('order_date_to') || undefined,
-      page: parseInt(searchParams.get('page') || '1'),
-      limit: Math.min(parseInt(searchParams.get('limit') || '50'), 100), // Max 100 per page
-      search: searchParams.get('search') || undefined,
-      sort_by: (searchParams.get('sort_by') as FilterParams['sort_by']) || 'order_date',
-      sort_order: (searchParams.get('sort_order') as FilterParams['sort_order']) || 'desc'
-    }
-
-    // Build dynamic query
-    const { whereClause, params } = buildWhereClause(filters)
-    const orderClause = buildOrderClause(filters)
-    
-    // Calculate pagination
-    const offset = ((filters.page || 1) - 1) * (filters.limit || 50)
-    const limitClause = `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
-    params.push(filters.limit, offset)
-
-    // Main query to get sales orders
-    const salesOrdersQuery = `
-      SELECT 
-        so.id,
-        so.order_number,
-        so.customer_id,
-        c.name as customer_name,
-        c.phone as customer_phone,
-        c.email as customer_email,
-        so.branch_id,
-        b.name as branch_name,
-        b.code as branch_code,
-        so.sold_by,
-        e.name as employee_name,
-        e.employee_number,
-        so.order_date,
-        so.status,
-        so.payment_method,
-        so.payment_status,
-        so.subtotal,
-        so.total_amount,
-        so.discount,
-        so.total_cost,
-        so.profit_amount,
-        so.notes,
-        so.created_at,
-        so.updated_at
-      FROM sales_orders so
-      LEFT JOIN customers c ON so.customer_id = c.id
-      LEFT JOIN branches b ON so.branch_id = b.id
-      LEFT JOIN employees e ON so.sold_by = e.id
-      ${whereClause}
-      ${orderClause}
-      ${limitClause}
-    `
-
-    // Count query for pagination
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM sales_orders so
-      LEFT JOIN customers c ON so.customer_id = c.id
-      LEFT JOIN employees e ON so.sold_by = e.id
-      ${whereClause}
-    `
-
-    // Execute queries
-    const [salesOrdersResult, countResult] = await Promise.all([
-      query<SalesOrder>(salesOrdersQuery, params),
-      query<{ total: string }>(countQuery, params.slice(0, -2)) // Remove limit and offset for count
-    ])
-
-    const salesOrders = salesOrdersResult.rows
-    const totalCount = parseInt(countResult.rows[0].total)
-
-    // Get sales order items for all retrieved orders
-    if (salesOrders.length > 0) {
-      const orderIds = salesOrders.map(order => order.id)
-      const placeholders = orderIds.map((_, index) => `$${index + 1}`).join(',')
-      
-      const itemsQuery = `
+      // Main query to get pending sales orders with customer and employee details
+      const salesOrdersQuery = `
         SELECT 
-          soi.id,
-          soi.sales_order_id,
-          soi.product_id,
-          p.name as product_name,
-          p.sku as product_sku,
-          b.name as brand_name,
-          soi.quantity,
-          soi.unit_price,
-          soi.discount,
-          soi.line_total,
-          soi.line_cost,
-          soi.line_profit,
-          soi.warranty_expiry
-        FROM sales_order_items soi
-        LEFT JOIN products p ON soi.product_id = p.id
-        LEFT JOIN brands b ON p.brand_id = b.id
-        WHERE soi.sales_order_id IN (${placeholders})
-        ORDER BY soi.created_at ASC
+          so.id,
+          so.order_number,
+          so.customer_id,
+          c.name as customer_name,
+          c.phone as customer_phone,
+          c.email as customer_email,
+          c.customer_type,
+          so.branch_id,
+          b.name as branch_name,
+                    e.employee_number as sold_by,
+          e.name as sold_by_name,
+          so.order_date,
+          so.status,
+          so.payment_status,
+          so.subtotal,
+          so.total_amount,
+          so.balance_due,
+          so.discount,
+          so.notes,
+          so.created_at,
+          so.updated_at
+        FROM sales_orders so
+        LEFT JOIN customers c ON so.customer_id = c.id
+        LEFT JOIN branches b ON so.branch_id = b.id  
+        LEFT JOIN employees e ON so.sold_by = e.id
+        WHERE so.branch_id = $1 
+          AND so.payment_status = 'PENDING'
+          AND ($2 = '' OR 
+     LOWER(so.order_number) LIKE LOWER($2) OR 
+     LOWER(COALESCE(c.name, '')) LIKE LOWER($2) OR
+     LOWER(COALESCE(c.phone, '')) LIKE LOWER($2) OR
+     LOWER(COALESCE(e.name, '')) LIKE LOWER($2))
+        ORDER BY ${orderBy === 'customer_name' ? 'c.name' : 'so.' + orderBy} ${orderDirection}
+        LIMIT $3 OFFSET $4
       `
 
-      const itemsResult = await query<SalesOrderItem & { sales_order_id: string }>(
-        itemsQuery, 
-        orderIds
-      )
+      const searchPattern = search ? `%${search}%` : ''
+      const salesOrdersResult = await query(salesOrdersQuery, [branchId, searchPattern, limit, offset])
 
-      // Group items by sales order
-      const itemsByOrder: Record<string, SalesOrderItem[]> = {}
-      itemsResult.rows.forEach(item => {
-        if (!itemsByOrder[item.sales_order_id]) {
-          itemsByOrder[item.sales_order_id] = []
-        }
-        itemsByOrder[item.sales_order_id].push({
-          id: item.id,
-          product_id: item.product_id,
-          product_name: item.product_name,
-          product_sku: item.product_sku,
-          brand_name: item.brand_name,
-          quantity: item.quantity,
-          unit_price: parseFloat(item.unit_price.toString()),
-          discount: parseFloat(item.discount.toString()),
-          line_total: parseFloat(item.line_total.toString()),
-          line_cost: item.line_cost ? parseFloat(item.line_cost.toString()) : undefined,
-          line_profit: item.line_profit ? parseFloat(item.line_profit.toString()) : undefined,
-          warranty_expiry: item.warranty_expiry
+      // Get total count for pagination
+      const countQuery = `
+        SELECT COUNT(*) as total_count,
+               COALESCE(SUM(so.total_amount), 0) as total_amount
+        FROM sales_orders so
+        LEFT JOIN customers c ON so.customer_id = c.id
+                LEFT JOIN employees e ON so.sold_by = e.id
+
+        WHERE so.branch_id = $1 
+          AND so.payment_status = 'PENDING'
+          AND ($2 = '' OR 
+     LOWER(so.order_number) LIKE LOWER($2) OR 
+     LOWER(COALESCE(c.name, '')) LIKE LOWER($2) OR
+     LOWER(COALESCE(c.phone, '')) LIKE LOWER($2) OR
+     LOWER(COALESCE(e.name, '')) LIKE LOWER($2))
+      `
+      const countResult = await query(countQuery, [branchId, searchPattern])
+      const totalCount = parseInt(countResult.rows[0].total_count)
+      const totalAmount = parseFloat(countResult.rows[0].total_amount)
+
+      // Get order items for each sales order
+      const orderIds = salesOrdersResult.rows.map(order => order.id)
+      let orderItems: { [key: string]: PendingSalesOrderItem[] } = {}
+
+      if (orderIds.length > 0) {
+        // Replace your existing itemsQuery with this:
+        const itemsQuery = `
+  SELECT 
+    MIN(soi.id) as id,
+    soi.sales_order_id,
+    soi.product_id,
+    p.name as product_name,
+    SUM(soi.quantity) as total_quantity,
+    AVG(soi.unit_price) as avg_unit_price,
+    SUM(soi.discount) as total_discount,
+    SUM(soi.line_total) as total_line_total,
+    BOOL_OR(soi.is_wholesale_price) as has_wholesale_price,
+    MIN(soi.warranty_expiry) as warranty_expiry,
+    COUNT(*) as line_count,
+    STRING_AGG(soi.quantity::text, ' + ') as quantity_breakdown
+  FROM sales_order_items soi
+  JOIN products p ON soi.product_id = p.id
+  WHERE soi.sales_order_id = ANY($1)
+  GROUP BY soi.sales_order_id, soi.product_id, p.name
+  ORDER BY MIN(soi.created_at) ASC
+`
+
+        const itemsResult = await query(itemsQuery, [orderIds])
+
+        // Group items by sales_order_id
+        // Replace the items processing section with:
+        itemsResult.rows.forEach((item: any) => {
+          if (!orderItems[item.sales_order_id]) {
+            orderItems[item.sales_order_id] = []
+          }
+          orderItems[item.sales_order_id].push({
+            id: item.id,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            product_code: item.product_code,
+            quantity: parseInt(item.total_quantity),
+            unit_price: parseFloat(item.avg_unit_price),
+            discount: parseFloat(item.total_discount),
+            line_total: parseFloat(item.total_line_total),
+            is_wholesale_price: item.has_wholesale_price,
+            warranty_expiry: item.warranty_expiry,
+            line_count: parseInt(item.line_count),
+            quantity_breakdown: item.quantity_breakdown
+          })
         })
-      })
-
-      // Attach items to sales orders
-      salesOrders.forEach(order => {
-        order.items = itemsByOrder[order.id] || []
-        // Convert decimal fields to numbers
-        order.subtotal = parseFloat(order.subtotal.toString())
-        order.total_amount = parseFloat(order.total_amount.toString())
-        order.discount = parseFloat(order.discount.toString())
-        order.total_cost = order.total_cost ? parseFloat(order.total_cost.toString()) : undefined
-        order.profit_amount = order.profit_amount ? parseFloat(order.profit_amount.toString()) : undefined
-      })
-    }
-
-    // Prepare response metadata
-    const totalPages = Math.ceil(totalCount / (filters.limit || 50))
-    const hasNextPage = (filters.page || 1) < totalPages
-    const hasPrevPage = (filters.page || 1) > 1
-
-    const response: ApiResponse<{
-      sales_orders: SalesOrder[]
-      pagination: {
-        current_page: number
-        total_pages: number
-        total_count: number
-        per_page: number
-        has_next_page: boolean
-        has_prev_page: boolean
       }
-      filters_applied: FilterParams
-    }> = {
-      success: true,
-      data: {
-        sales_orders: salesOrders,
-        pagination: {
-          current_page: filters.page || 1,
-          total_pages: totalPages,
-          total_count: totalCount,
-          per_page: filters.limit || 50,
-          has_next_page: hasNextPage,
-          has_prev_page: hasPrevPage
-        },
-        filters_applied: filters
-      },
-      message: `Retrieved ${salesOrders.length} sales orders successfully`,
-      timestamp: new Date().toISOString(),
-      metadata: {
-        query_execution_time: `${Date.now()}ms`,
-        filters_count: Object.keys(filters).filter(key => filters[key as keyof FilterParams] !== undefined).length
-      }
-    }
 
-    return NextResponse.json(response, { status: 200 })
+      // Format the response
+      const orders: PendingSalesOrder[] = salesOrdersResult.rows.map((order: any) => ({
+        id: order.id,
+        order_number: order.order_number,
+        customer_id: order.customer_id,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        customer_email: order.customer_email,
+        customer_type: order.customer_type,
+        branch_id: order.branch_id,
+        branch_name: order.branch_name,
+        sold_by: order.sold_by,
+        sold_by_name: order.sold_by_name,
+        order_date: order.order_date,
+        status: order.status,
+        payment_status: order.payment_status,
+        subtotal: parseFloat(order.subtotal),
+        total_amount: parseFloat(order.total_amount),
+        balance_due: parseFloat(order.balance_due),
+        discount: parseFloat(order.discount),
+        notes: order.notes,
+        created_at: order.created_at,
+        updated_at: order.updated_at,
+        items: orderItems[order.id] || []
+      }))
 
-  } catch (error: any) {
-    console.error('❌ Error fetching sales orders:', error)
-
-    const errorResponse: ApiResponse = {
-      success: false,
-      data: null,
-      message: 'Failed to fetch sales orders',
-      errors: [
-        {
-          code: 'FETCH_ERROR',
-          message: error.message,
-          details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      const response: PendingSalesOrdersResponse = {
+        orders,
+        total_count: totalCount,
+        total_amount: totalAmount,
+        branch_info: {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code
         }
-      ],
-      timestamp: new Date().toISOString()
-    }
-
-    return NextResponse.json(errorResponse, { status: 500 })
-  }
-}
-
-// ========== Additional Endpoint for Aggregated Stats ==========
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  try {
-    await initDatabase()
-
-    const body = await request.json()
-    const filters: FilterParams = body.filters || {}
-
-    const { whereClause, params } = buildWhereClause(filters)
-
-    // Get aggregated statistics
-    const statsQuery = `
-      SELECT 
-        COUNT(*) as total_orders,
-        COUNT(CASE WHEN so.status = 'COMPLETED' THEN 1 END) as completed_orders,
-        COUNT(CASE WHEN so.status = 'PENDING' THEN 1 END) as pending_orders,
-        COUNT(CASE WHEN so.payment_status = 'PAID' THEN 1 END) as paid_orders,
-        COALESCE(SUM(so.total_amount), 0) as total_revenue,
-        COALESCE(SUM(so.profit_amount), 0) as total_profit,
-        COALESCE(AVG(so.total_amount), 0) as average_order_value,
-        COUNT(DISTINCT so.customer_id) as unique_customers,
-        COUNT(DISTINCT so.branch_id) as branches_involved
-      FROM sales_orders so
-      LEFT JOIN customers c ON so.customer_id = c.id
-      LEFT JOIN employees e ON so.sold_by = e.id
-      ${whereClause}
-    `
-
-    const statsResult = await query(statsQuery, params)
-    const stats = statsResult.rows[0]
-
-    // Convert string numbers to actual numbers
-    Object.keys(stats).forEach(key => {
-      if (stats[key] !== null && !isNaN(stats[key])) {
-        stats[key] = parseFloat(stats[key])
       }
-    })
 
-    const response: ApiResponse = {
-      success: true,
-      data: {
-        statistics: stats,
-        filters_applied: filters
-      },
-      message: 'Sales order statistics retrieved successfully',
-      timestamp: new Date().toISOString()
+      return NextResponse.json({
+        success: true,
+        data: response,
+        message: `Found ${totalCount} pending sales orders`,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          page,
+          limit,
+          total_count: totalCount,
+          total_pages: Math.ceil(totalCount / limit),
+          has_next_page: offset + limit < totalCount,
+          has_prev_page: page > 1
+        }
+      } as ApiResponse<PendingSalesOrdersResponse>, { status: 200 })
+
+    } catch (error: any) {
+      console.error('❌ Error fetching pending sales orders:', error)
+
+      return NextResponse.json({
+        success: false,
+        data: null,
+        message: 'Internal server error while fetching pending sales orders',
+        errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
+        timestamp: new Date().toISOString()
+      } as ApiResponse, { status: 500 })
     }
-
-    return NextResponse.json(response, { status: 200 })
-
-  } catch (error: any) {
-    console.error('❌ Error fetching sales order statistics:', error)
-
-    const errorResponse: ApiResponse = {
-      success: false,
-      data: null,
-      message: 'Failed to fetch sales order statistics',
-      errors: [{ code: 'STATS_ERROR', message: error.message }],
-      timestamp: new Date().toISOString()
-    }
-
-    return NextResponse.json(errorResponse, { status: 500 })
-  }
+  })(request)
 }
+
+// // Optional: POST endpoint to fetch specific orders by IDs
+// export async function POST(request: NextRequest) {
+//   return withPermission('view_sales_orders')(async (authedReq: AuthenticatedRequest) => {
+//     try {
+//       await initDatabase()
+
+//       const { user: userDetails } = authedReq.user
+//       const branchId = userDetails.branch_id
+
+//       if (!branchId) {
+//         return NextResponse.json({
+//           success: false,
+//           data: null,
+//           message: 'Branch ID not found for user',
+//           timestamp: new Date().toISOString()
+//         } as ApiResponse, { status: 400 })
+//       }
+
+//       const body = await request.json()
+//       const { orderIds } = body
+
+//       if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+//         return NextResponse.json({
+//           success: false,
+//           data: null,
+//           message: 'Order IDs are required and must be a non-empty array',
+//           timestamp: new Date().toISOString()
+//         } as ApiResponse, { status: 400 })
+//       }
+
+//       // Get specific orders
+//       const salesOrdersQuery = `
+//         SELECT 
+//           so.id,
+//           so.order_number,
+//           so.customer_id,
+//           c.name as customer_name,
+//           c.phone as customer_phone,
+//           c.email as customer_email,
+//           c.customer_type,
+//           so.branch_id,
+//           b.name as branch_name,
+//           e.employee_number as sold_by,
+//           e.name as sold_by_name,
+//           so.order_date,
+//           so.status,
+//           so.payment_status,
+//           so.subtotal,
+//           so.total_amount,
+//           so.balance_due,
+//           so.discount,
+//           so.notes,
+//           so.created_at,
+//           so.updated_at
+//         FROM sales_orders so
+//         LEFT JOIN customers c ON so.customer_id = c.id
+//         LEFT JOIN branches b ON so.branch_id = b.id  
+//         LEFT JOIN employees e ON so.sold_by = e.id
+//         WHERE so.branch_id = $1 
+//           AND so.payment_status = 'PENDING'
+//           AND so.id = ANY($2)
+//         ORDER BY so.created_at DESC
+//       `
+
+//       const salesOrdersResult = await query(salesOrdersQuery, [branchId, orderIds])
+
+//       if (salesOrdersResult.rows.length === 0) {
+//         return NextResponse.json({
+//           success: false,
+//           data: null,
+//           message: 'No pending sales orders found for the provided IDs',
+//           timestamp: new Date().toISOString()
+//         } as ApiResponse, { status: 404 })
+//       }
+
+//       // Get items for found orders
+//       const foundOrderIds = salesOrdersResult.rows.map(order => order.id)
+//       const itemsQuery = `
+//         SELECT 
+//           soi.id,
+//           soi.sales_order_id,
+//           soi.product_id,
+//           p.name as product_name,
+//           soi.quantity,
+//           soi.unit_price,
+//           soi.discount,
+//           soi.line_total,
+//           soi.is_wholesale_price,
+//           soi.warranty_expiry
+//         FROM sales_order_items soi
+//         JOIN products p ON soi.product_id = p.id
+//         WHERE soi.sales_order_id = ANY($1)
+//         ORDER BY soi.created_at ASC
+//       `
+
+//       const itemsResult = await query(itemsQuery, [foundOrderIds])
+
+//       // Group items by sales_order_id
+//       const orderItems: { [key: string]: PendingSalesOrderItem[] } = {}
+//       itemsResult.rows.forEach((item: any) => {
+//         if (!orderItems[item.sales_order_id]) {
+//           orderItems[item.sales_order_id] = []
+//         }
+//         orderItems[item.sales_order_id].push({
+//           id: item.id,
+//           product_id: item.product_id,
+//           product_name: item.product_name,
+//           product_code: item.product_code,
+//           quantity: parseInt(item.total_quantity),
+//           unit_price: parseFloat(item.avg_unit_price),
+//           discount: parseFloat(item.total_discount),
+//           line_total: parseFloat(item.total_line_total),
+//           is_wholesale_price: item.has_wholesale_price,
+//           warranty_expiry: item.warranty_expiry,
+//           line_count: parseInt(item.line_count),
+//           quantity_breakdown: item.quantity_breakdown
+//         })
+//       })
+
+//       // Format response
+//       const orders: PendingSalesOrder[] = salesOrdersResult.rows.map((order: any) => ({
+//         id: order.id,
+//         order_number: order.order_number,
+//         customer_id: order.customer_id,
+//         customer_name: order.customer_name,
+//         customer_phone: order.customer_phone,
+//         customer_email: order.customer_email,
+//         customer_type: order.customer_type,
+//         branch_id: order.branch_id,
+//         branch_name: order.branch_name,
+//         sold_by: order.sold_by,
+//         sold_by_name: order.sold_by_name,
+//         order_date: order.order_date,
+//         status: order.status,
+//         payment_status: order.payment_status,
+//         subtotal: parseFloat(order.subtotal),
+//         total_amount: parseFloat(order.total_amount),
+//         balance_due: parseFloat(order.balance_due),
+//         discount: parseFloat(order.discount),
+//         notes: order.notes,
+//         created_at: order.created_at,
+//         updated_at: order.updated_at,
+//         items: orderItems[order.id] || []
+//       }))
+
+//       const totalAmount = orders.reduce((sum, order) => sum + order.total_amount, 0)
+
+//       return NextResponse.json({
+//         success: true,
+//         data: {
+//           orders,
+//           total_count: orders.length,
+//           total_amount: totalAmount
+//         },
+//         message: `Found ${orders.length} pending sales orders`,
+//         timestamp: new Date().toISOString()
+//       } as ApiResponse, { status: 200 })
+
+//     } catch (error: any) {
+//       console.error('❌ Error fetching specific pending sales orders:', error)
+
+//       return NextResponse.json({
+//         success: false,
+//         data: null,
+//         message: 'Internal server error while fetching specific pending sales orders',
+//         errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
+//         timestamp: new Date().toISOString()
+//       } as ApiResponse, { status: 500 })
+//     }
+//   })
+// }

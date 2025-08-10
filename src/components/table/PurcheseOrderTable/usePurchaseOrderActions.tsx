@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { format } from 'date-fns';
+import GRNReceipt from './GRNReceipt'; // Import the GRN component
 
 // Types
 interface PurchaseOrder {
@@ -54,26 +55,6 @@ export const usePurchaseOrderActions = () => {
   const handleView = (order: PurchaseOrder) => {
     router.push(`/dashboard/orders/purchase/all/view/${order.id}`);
   };
-
-  const handleQuickInfo = (order: PurchaseOrder) => {
-    // This will be handled by the Popover in the action cell
-    return (
-      <PopoverContent className="w-80">
-        <div className="space-y-2">
-          <h4 className="font-semibold">Quick Info</h4>
-          <div className="text-sm space-y-1">
-            <p><span className="font-medium">Created:</span> {formatDate(order.created_at)}</p>
-            <p><span className="font-medium">Updated:</span> {formatDate(order.updated_at)}</p>
-            <p><span className="font-medium">Items:</span> {order.items_count}</p>
-            {order.notes && (
-              <p><span className="font-medium">Notes:</span> {order.notes.substring(0, 100)}{order.notes.length > 100 ? '...' : ''}</p>
-            )}
-          </div>
-        </div>
-      </PopoverContent>
-    );
-  };
-
   const fetchOrderWithItems = async (id: string) => {
     try {
       // Replace with your actual API call
@@ -91,6 +72,7 @@ export const usePurchaseOrderActions = () => {
   };
 
   const handleGenerateGRN = async (order: PurchaseOrder) => {
+    console.log(order)
     // Check if order already has items, if not fetch them
     if (!order.items || order.items.length === 0) {
       const orderWithItems = await fetchOrderWithItems(order.id);
@@ -176,15 +158,12 @@ export const usePurchaseOrderActions = () => {
             Back to Purchase Orders
           </Button>
         </div>
-        
-        {/* GRN Component - You'll need to implement this */}
-        {/* <GRNGenerator purchaseOrder={selectedOrderForGRN} /> */}
-        <div className="p-8 border-2 border-dashed border-gray-300 rounded-lg text-center">
-          <p className="text-gray-500">GRN Generator Component will be rendered here</p>
-          <p className="text-sm text-gray-400 mt-2">
-            Order: {selectedOrderForGRN.order_number}
-          </p>
-        </div>
+        {/* GRN Receipt Component */}
+          <GRNReceipt 
+            purchaseOrder={selectedOrderForGRN}
+            receivedBy="Warehouse Manager" // You can make this dynamic
+            receivedDate={format(new Date(), 'yyyy-MM-dd')}
+          />
       </div>
     );
   };

@@ -2,6 +2,7 @@ import { User } from "@/types/auth"
 
 export interface ReceiptData {
   orderNumber: string
+  paymentNumber: string
   date: string
   customerName?: string
   items: Array<{
@@ -14,10 +15,17 @@ export interface ReceiptData {
   discount: number
   total: number
   paymentMethod: string
-  cashier: string
+  sales_ref: string
+  sales_ref_name:string,
+  paymentDetails: {
+    amountPaid: number
+    receivedAmount: number
+    changeGiven: number
+    reference?: string
+  }
 }
 
-export function generateReceiptHTML(data: ReceiptData,user:User): string {
+export function generateReceiptHTML(data: ReceiptData, user: User): string {
  return `
     <!DOCTYPE html>
     <html>
@@ -111,6 +119,23 @@ export function generateReceiptHTML(data: ReceiptData,user:User): string {
         .payment-info {
           margin: 15px 0;
           font-size: 11px;
+          padding: 10px;
+          background: #f9f9f9;
+          border: 1px solid #ddd;
+        }
+        .payment-details {
+          margin: 10px 0;
+          padding: 10px;
+          background: #e8f5e8;
+          border: 1px solid #28a745;
+        }
+        .change-highlight {
+          background: #fff3cd;
+          border: 1px solid #ffc107;
+          padding: 8px;
+          margin: 5px 0;
+          font-weight: bold;
+          text-align: center;
         }
         .center { 
           text-align: center; 
@@ -148,12 +173,13 @@ export function generateReceiptHTML(data: ReceiptData,user:User): string {
       </div>
 
       <div class="employee-info center">
-        <div><strong>Served by:</strong> ${user?.employee_name || data.cashier}</div>
-        <div><strong>Employee ID:</strong> ${user?.employee_number || 'N/A'}</div>
+        <div><strong>Cashier:</strong> ${user?.employee_name," - ",user?.employee_number}</div>
+        <div><strong>Sales ref:</strong> ${data?.sales_ref_name , "-",data?.sales_ref}</div>
       </div>
 
       <div class="order-info">
         <div><strong>Receipt No:</strong> ${data.orderNumber}</div>
+        <div><strong>Payment No:</strong> ${data.paymentNumber}</div>
         <div><strong>Date & Time:</strong> ${data.date}</div>
         ${data.customerName ? `<div><strong>Customer:</strong> ${data.customerName}</div>` : ''}
       </div>
@@ -196,6 +222,31 @@ export function generateReceiptHTML(data: ReceiptData,user:User): string {
           <span><strong>Payment Method:</strong></span>
           <span>${data.paymentMethod}</span>
         </div>
+        ${data.paymentDetails.reference ? `
+          <div class="row">
+            <span><strong>Reference No:</strong></span>
+            <span>${data.paymentDetails.reference}</span>
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="payment-details">
+        <div class="center" style="font-weight: bold; margin-bottom: 8px;">PAYMENT DETAILS</div>
+        <div class="row">
+          <span>Amount Paid:</span>
+          <span><strong>Rs.${data.paymentDetails.amountPaid.toFixed(2)}</strong></span>
+        </div>
+        ${data.paymentMethod === 'Cash' ? `
+          <div class="row">
+            <span>Amount Received:</span>
+            <span>Rs.${data.paymentDetails.receivedAmount.toFixed(2)}</span>
+          </div>
+          ${data.paymentDetails.changeGiven > 0 ? `
+            <div class="change-highlight">
+              CHANGE GIVEN: Rs.${data.paymentDetails.changeGiven.toFixed(2)}
+            </div>
+          ` : ''}
+        ` : ''}
       </div>
 
       <div class="center thank-you">
@@ -223,12 +274,18 @@ export function generateReceiptHTML(data: ReceiptData,user:User): string {
   `
 }
 
-export function printReceipt(data: ReceiptData,user:User) {
-  const receiptWindow = window.open('', '_blank', 'width=300,height=600')
+export function printReceipt(data: ReceiptData, user: User) {
+  const receiptWindow = window.open('', '_blank', 'width=300,height=700')
   if (receiptWindow) {
-    receiptWindow.document.write(generateReceiptHTML(data,user))
+    receiptWindow.document.write(generateReceiptHTML(data, user))
     receiptWindow.document.close()
-    receiptWindow.print()
-    receiptWindow.close()
+    
+    // Wait for content to load before printing
+    receiptWindow.onload = () => {
+      receiptWindow.print()
+      receiptWindow.close()
+    }
+  } else {
+    alert('Please allow popups to print the receipt')
   }
 }
