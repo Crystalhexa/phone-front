@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Maximize2,
 } from 'lucide-react';
-import SalesOrderPage from '../sales/SalesOrderPage';
 import { User } from '@/types/auth';
 
 
@@ -69,7 +68,6 @@ export const SalesPopover: React.FC<SalesPopoverProps> = ({ user }) => {
             </Button>
           </div>
         </div>
-                 <SalesOrderPage user={user}/>
       </div>
     </>
   );
