@@ -59,8 +59,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<ApiResponse<PurchaseOrderDetails>>> {
   try {
-         const { id: idParam } = await params;
-  const id = idParam;
+    
+    const { id: idParam } = await params;
+    const id = idParam;
 
     if (!id) {
       return NextResponse.json({

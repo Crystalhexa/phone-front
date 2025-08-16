@@ -19,6 +19,9 @@ import { formatCurrency } from '@/lib/utils/formatCurrency';
 const ProductBatchDetailsPopover = React.lazy(() =>
   import('@/components/pos/ProductDetailsPopover')
 );
+const ProductBranchBatchDetailsPopover = React.lazy(() =>
+  import('@/components/pos/BatchDetailsViewer')
+);
 
 interface PosTableContentProps {
   products: ProductResponse[];
@@ -131,6 +134,7 @@ export const PosTableContent: React.FC<PosTableContentProps> = ({
                       <QuickInfoPopover product={product} />
                       <Suspense fallback={<div className="w-4 h-4 animate-spin border border-muted border-t-transparent rounded-full" />}>
                         <ProductBatchDetailsPopover product={product} />
+                        <ProductBranchBatchDetailsPopover product={product}/>
                       </Suspense>
                     </div>
                   </TableCell>

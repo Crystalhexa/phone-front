@@ -192,62 +192,6 @@ export class AuthService {
     }
   }
 
-  static async refreshToken(refreshToken: string): Promise<AuthResponse> {
-    try {
-      const decoded = JWTService.verifyRefreshToken(refreshToken);
-      
-      if (!decoded) {
-        return {
-          success: false,
-          message: 'Invalid refresh token'
-        };
-      }
-
-      // Get user data
-      const userQuery = `
-        SELECT id, username, email, is_active, role_id, created_at, updated_at
-        FROM users
-        WHERE id = $1 AND is_active = true
-      `;
-
-      const result = await query(userQuery, [decoded.userId]);
-      
-      if (result.rows.length === 0) {
-        return {
-          success: false,
-          message: 'User not found'
-        };
-      }
-
-      const user = result.rows[0];
-      const permissions = await this.getUserPermissions(user.id);
-
-      const token = JWTService.generateToken({
-        userId: user.id,
-        username: user.username,
-        email: user.email,
-        roleId: user.role_id,
-        permissions
-      });
-
-      return {
-        success: true,
-        data: {
-          user,
-          token,
-          permissions
-        },
-        message: 'Token refreshed successfully'
-      };
-
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      return {
-        success: false,
-        message: 'Token refresh failed'
-      };
-    }
-  }
 
   static async logUserActivity(
     userId: string,

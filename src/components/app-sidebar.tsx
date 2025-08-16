@@ -144,6 +144,7 @@ const data = {
         { title: "POS", url: "/dashboard/branch/pos" },
         { title: "Cashier", url: "/dashboard/branch/cash" },
         { title: "Return", url: "/dashboard/branch/return" },
+                { title: "Initial-stock", url: "/dashboard/branch/initial-stock" },
       ],
     }
   ],

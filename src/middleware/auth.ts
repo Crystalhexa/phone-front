@@ -137,7 +137,6 @@ export function withAuth(handler: (req: AuthenticatedRequest) => Promise<NextRes
         if (tokenError.name === 'TokenExpiredError' || tokenError.name === 'JsonWebTokenError') {
           const response = NextResponse.json({ error: 'Token expired or invalid' }, { status: 401 });
           response.cookies.delete('accessToken');
-          response.cookies.delete('refreshToken');
           return response;
         }
 

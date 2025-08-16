@@ -555,7 +555,7 @@ async function updateDestinationInventory(
 ): Promise<void> {
   // Check if destination branch has inventory record for this product
   const destInventoryResult = await client.query(`
-    SELECT id, total_quantity, average_cost_price 
+    SELECT id, total_quantity 
     FROM branch_inventory 
     WHERE branch_id = $1 AND product_id = $2
   `, [toBranchId, productId])
@@ -568,8 +568,8 @@ async function updateDestinationInventory(
     await client.query(`
       INSERT INTO branch_inventory (
         id, branch_id, product_id, total_quantity, reserved_quantity,
-        low_stock_threshold, reorder_quantity, last_restock_date, average_cost_price
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8)
+        low_stock_threshold, reorder_quantity, last_restock_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
     `, [
       destInventoryId,
       toBranchId,
@@ -577,29 +577,22 @@ async function updateDestinationInventory(
       quantity,
       0,
       5,
-      20,
-      batchData.cost_price
+      20
     ])
   } else {
     // Update existing inventory record with weighted average cost
     const current = destInventoryResult.rows[0]
     const currentQty = current.total_quantity || 0
-    const currentAvgCost = current.average_cost_price || 0
 
-    const newTotalQty = currentQty + quantity
-    const newAvgCost = newTotalQty > 0
-      ? ((currentQty * currentAvgCost + quantity * batchData.cost_price) / newTotalQty)
-      : batchData.cost_price
 
     destInventoryId = current.id
     await client.query(`
       UPDATE branch_inventory 
       SET total_quantity = total_quantity + $1,
-          average_cost_price = $2,
           last_restock_date = NOW(),
           updated_at = NOW()
-      WHERE id = $3
-    `, [quantity, Number(newAvgCost.toFixed(2)), destInventoryId])
+      WHERE id = $2
+    `, [quantity, destInventoryId])
   }
 
   // Check if destination branch already has this batch
@@ -1017,108 +1010,108 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-// ========== Additional Utility Endpoints ==========
+// // ========== Additional Utility Endpoints ==========
 
-// GET available items for transfer from a specific branch
-export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
-  try {
-    const { searchParams } = new URL(request.url)
-    const branchId = searchParams.get('branch_id')
-    const productId = searchParams.get('product_id')
+// // GET available items for transfer from a specific branch
+// export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
+//   try {
+//     const { searchParams } = new URL(request.url)
+//     const branchId = searchParams.get('branch_id')
+//     const productId = searchParams.get('product_id')
 
-    if (!branchId) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        data: null,
-        message: 'Branch ID is required',
-        timestamp: new Date().toISOString()
-      }, { status: 400 })
-    }
+//     if (!branchId) {
+//       return NextResponse.json<ApiResponse>({
+//         success: false,
+//         data: null,
+//         message: 'Branch ID is required',
+//         timestamp: new Date().toISOString()
+//       }, { status: 400 })
+//     }
 
-    let productFilter = ''
-    let queryParams = [branchId]
+//     let productFilter = ''
+//     let queryParams = [branchId]
 
-    if (productId) {
-      productFilter = 'AND p.id = $2'
-      queryParams.push(productId)
-    }
+//     if (productId) {
+//       productFilter = 'AND p.id = $2'
+//       queryParams.push(productId)
+//     }
 
-    // Get available batches for transfer
-    const batchResult = await query(`
-      SELECT 
-        p.id as product_id,
-        p.name as product_name,
-        p.sku as product_sku,
-        pb.id as batch_id,
-        pb.batch_number,
-        bii.quantity,
-        bii.reserved_quantity,
-        (bii.quantity - bii.reserved_quantity) as available_quantity,
-        bii.cost_price,
-        bii.wholesale_price,
-        bii.retail_price,
-        bii.fifo_order
-      FROM branch_inventory_items bii
-      JOIN branch_inventory bi ON bii.branch_inventory_id = bi.id
-      JOIN purchase_batches pb ON bii.purchase_batch_id = pb.id
-      JOIN products p ON bi.product_id = p.id
-      WHERE bi.branch_id = $1 
-        AND bii.is_active = true 
-        AND (bii.quantity - bii.reserved_quantity) > 0
-        ${productFilter}
-      ORDER BY p.name, bii.fifo_order
-    `, queryParams)
+//     // Get available batches for transfer
+//     const batchResult = await query(`
+//       SELECT 
+//         p.id as product_id,
+//         p.name as product_name,
+//         p.sku as product_sku,
+//         pb.id as batch_id,
+//         pb.batch_number,
+//         bii.quantity,
+//         bii.reserved_quantity,
+//         (bii.quantity - bii.reserved_quantity) as available_quantity,
+//         bii.cost_price,
+//         bii.wholesale_price,
+//         bii.retail_price,
+//         bii.fifo_order
+//       FROM branch_inventory_items bii
+//       JOIN branch_inventory bi ON bii.branch_inventory_id = bi.id
+//       JOIN purchase_batches pb ON bii.purchase_batch_id = pb.id
+//       JOIN products p ON bi.product_id = p.id
+//       WHERE bi.branch_id = $1 
+//         AND bii.is_active = true 
+//         AND (bii.quantity - bii.reserved_quantity) > 0
+//         ${productFilter}
+//       ORDER BY p.name, bii.fifo_order
+//     `, queryParams)
 
-    // Get available individual items for transfer
-    const itemResult = await query(`
-      SELECT 
-        ib.id as item_barcode_id,
-        ib.code as barcode_code,
-        ib.status,
-        ib.condition,
-        ib.warranty_expiry,
-        ib.purchase_cost,
-        p.id as product_id,
-        p.name as product_name,
-        p.sku as product_sku,
-        pb.id as batch_id,
-        pb.batch_number
-      FROM item_barcodes ib
-      JOIN products p ON ib.product_id = p.id
-      JOIN purchase_batches pb ON ib.purchase_batch_id = pb.id
-      WHERE ib.location_branch = $1 
-        AND ib.status = 'AVAILABLE'
-        AND ib.is_active = true
-        ${productFilter}
-      ORDER BY p.name, ib.purchased_at
-    `, queryParams)
+//     // Get available individual items for transfer
+//     const itemResult = await query(`
+//       SELECT 
+//         ib.id as item_barcode_id,
+//         ib.code as barcode_code,
+//         ib.status,
+//         ib.condition,
+//         ib.warranty_expiry,
+//         ib.purchase_cost,
+//         p.id as product_id,
+//         p.name as product_name,
+//         p.sku as product_sku,
+//         pb.id as batch_id,
+//         pb.batch_number
+//       FROM item_barcodes ib
+//       JOIN products p ON ib.product_id = p.id
+//       JOIN purchase_batches pb ON ib.purchase_batch_id = pb.id
+//       WHERE ib.location_branch = $1 
+//         AND ib.status = 'AVAILABLE'
+//         AND ib.is_active = true
+//         ${productFilter}
+//       ORDER BY p.name, ib.purchased_at
+//     `, queryParams)
 
-    const availableItems = {
-      batches: batchResult.rows,
-      individual_items: itemResult.rows,
-      summary: {
-        total_batches: batchResult.rows.length,
-        total_individual_items: itemResult.rows.length,
-        products_count: [...new Set([...batchResult.rows, ...itemResult.rows].map(item => item.product_id))].length
-      }
-    }
+//     const availableItems = {
+//       batches: batchResult.rows,
+//       individual_items: itemResult.rows,
+//       summary: {
+//         total_batches: batchResult.rows.length,
+//         total_individual_items: itemResult.rows.length,
+//         products_count: [...new Set([...batchResult.rows, ...itemResult.rows].map(item => item.product_id))].length
+//       }
+//     }
 
-    return NextResponse.json<ApiResponse>({
-      success: true,
-      data: availableItems,
-      message: 'Available items retrieved successfully',
-      timestamp: new Date().toISOString()
-    })
+//     return NextResponse.json<ApiResponse>({
+//       success: true,
+//       data: availableItems,
+//       message: 'Available items retrieved successfully',
+//       timestamp: new Date().toISOString()
+//     })
 
-  } catch (error: any) {
-    console.error('❌ Get available items API error:', error)
+//   } catch (error: any) {
+//     console.error('❌ Get available items API error:', error)
 
-    return NextResponse.json<ApiResponse>({
-      success: false,
-      data: null,
-      message: 'Failed to retrieve available items',
-      errors: [error.message],
-      timestamp: new Date().toISOString()
-    }, { status: 500 })
-  }
-}
+//     return NextResponse.json<ApiResponse>({
+//       success: false,
+//       data: null,
+//       message: 'Failed to retrieve available items',
+//       errors: [error.message],
+//       timestamp: new Date().toISOString()
+//     }, { status: 500 })
+//   }
+// }

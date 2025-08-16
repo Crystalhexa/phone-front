@@ -52,6 +52,8 @@ interface ExtendedFilters extends Filters {
 }
 
 const ProductsTable: React.FC = () => {
+          const [popoverOpen, setPopoverOpen] = useState(false);
+
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -534,127 +536,191 @@ const ProductsTable: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.id} className="hover:bg-muted/50">
-                    <TableCell>
-                      <div className="max-w-xs">
-                        <div className="font-medium truncate">{product.name}</div>
-                        {product.model && (
-                          <div className="text-sm text-muted-foreground">Model: {product.model}</div>
-                        )}
-                        <div className="text-sm text-muted-foreground truncate">
-                          {product.sku || 'No slug available'}
-                        </div>
-                        {/* Display barcodes if available */}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {product.brand?.logo_url && (
-                          <img 
-                            src={product.brand.logo_url} 
-                            alt={product.brand.name} 
-                            className="w-6 h-6 rounded object-cover" 
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{product.brand?.name || 'No Brand'}</div>
-                          <div className="text-xs text-muted-foreground">{product.brand?.code || ''}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{product.subcategory?.category?.name || 'No Category'}</div>
-                        <div className="text-sm text-muted-foreground">{product.subcategory?.name || 'No Subcategory'}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
+  {loading
+    ? Array.from({ length: 5 }).map((_, i) => (
+        <TableRow key={`skeleton-${i}`} className="hover:bg-muted/50">
+          {/* ... same skeleton structure as before */}
+        </TableRow>
+      ))
+    : products.map((product) => {
+
+        return (
+          <TableRow key={product.id} className="hover:bg-muted/50">
+            {/* Product Info */}
+            <TableCell>
+              <div className="max-w-xs">
+                <div className="font-medium truncate">{product.name}</div>
+                <div className="text-sm text-muted-foreground min-h-[1rem]">
+                  {product.model ? `Model: ${product.model}` : ''}
+                </div>
+                <div className="text-sm text-muted-foreground truncate min-h-[1rem]">
+                  {product.sku || 'No slug available'}
+                </div>
+              </div>
+            </TableCell>
+
+            {/* Brand */}
+            <TableCell>
+              <div className="flex items-center gap-2">
+                {product.brand?.logo_url ? (
+                  <img
+                    src={product.brand.logo_url}
+                    alt={product.brand.name}
+                    width={24}
+                    height={24}
+                    className="w-6 h-6 rounded object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                    —
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-medium truncate min-h-[1rem]">
+                    {product.brand?.name || 'No Brand'}
+                  </div>
+                  <div className="text-xs text-muted-foreground min-h-[0.75rem]">
+                    {product.brand?.code || ''}
+                  </div>
+                </div>
+              </div>
+            </TableCell>
+
+            {/* Category */}
+            <TableCell>
+              <div>
+                <div className="font-medium min-h-[1rem]">
+                  {product.subcategory?.category?.name || 'No Category'}
+                </div>
+                <div className="text-sm text-muted-foreground min-h-[1rem]">
+                  {product.subcategory?.name || 'No Subcategory'}
+                </div>
+              </div>
+            </TableCell>
+
+            {/* Stock */}
+            <TableCell>
+              <div className="space-y-2 min-h-[4rem]">
+                {getStockBadge(product)}
+                <div className="text-xs text-muted-foreground">
+                  <div>Available: {product.total_available_stock}</div>
+                  <div>Total: {product.total_system_stock}</div>
+                </div>
+              </div>
+            </TableCell>
+
+            {/* Pricing */}
+            <TableCell>
+              <div className="space-y-1 min-h-[4rem]">
+                {product.latest_batch_pricing ? (
+                  <>
+                    <div className="text-sm">
+                      <span className="text-green-600 font-medium">
+                        Cost: {formatCurrency(product.latest_batch_pricing.cost_price)}
+                      </span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-purple-600">
+                        Retail: {formatCurrency(product.latest_batch_pricing.retail_price)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-600 min-h-[0.75rem]">
+                      {product.latest_batch_pricing.wholesale_price
+                        ? `Wholesale: ${formatCurrency(product.latest_batch_pricing.wholesale_price)}`
+                        : ''}
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">No pricing</span>
+                )}
+              </div>
+            </TableCell>
+
+            {/* Status */}
+            <TableCell>
+              <Badge variant={product.is_active ? 'default' : 'secondary'}>
+                {product.is_active ? 'Active' : 'Inactive'}
+              </Badge>
+            </TableCell>
+
+            {/* Actions */}
+            <TableCell>
+              <div className="flex gap-1">
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="sm" className="p-1 h-auto">
+                      <Info className="w-4 h-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  {popoverOpen && (
+                    <PopoverContent className="w-80">
                       <div className="space-y-2">
-                        {getStockBadge(product)}
-                        <div className="text-xs text-muted-foreground">
-                          <div>Available: {product.total_available_stock}</div>
-                          <div>Total: {product.total_system_stock}</div>
+                        <h4 className="font-semibold">Quick Info</h4>
+                        <div className="text-sm space-y-1">
+                          <p>
+                            <span className="font-medium">Created:</span>{' '}
+                            {new Date(product.created_at).toLocaleDateString()}
+                          </p>
+                          <p>
+                            <span className="font-medium">Updated:</span>{' '}
+                            {new Date(product.updated_at).toLocaleDateString()}
+                          </p>
+                          <p>
+                            <span className="font-medium">Warranty:</span>{' '}
+                            {product.warranty_period
+                              ? `${product.warranty_period} months`
+                              : 'None'}
+                          </p>
+                          <p>
+                            <span className="font-medium">Barcodes:</span>{' '}
+                            {product.barcodes.length}
+                          </p>
+                          <p>
+                            <span className="font-medium">Specifications:</span>{' '}
+                            {product.specifications.length}
+                          </p>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {product.latest_batch_pricing ? (
-                        <div className="space-y-1">
-                          <div className="text-sm">
-                            <span className="text-green-600 font-medium">Cost: {formatCurrency(product.latest_batch_pricing.cost_price)}</span>
-                          </div>
-                          <div className="text-sm">
-                            <span className="text-purple-600">Retail: {formatCurrency(product.latest_batch_pricing.retail_price)}</span>
-                          </div>
-                          {product.latest_batch_pricing.wholesale_price && (
-                            <div className="text-xs text-blue-600">
-                              Wholesale: {formatCurrency(product.latest_batch_pricing.wholesale_price)}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">No pricing</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={product.is_active ? "default" : "secondary"}>
-                        {product.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="ghost" size="sm" className="p-1 h-auto">
-                              <Info className="w-4 h-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80">
-                            <div className="space-y-2">
-                              <h4 className="font-semibold">Quick Info</h4>
-                              <div className="text-sm space-y-1">
-                                <p><span className="font-medium">Created:</span> {new Date(product.created_at).toLocaleDateString()}</p>
-                                <p><span className="font-medium">Updated:</span> {new Date(product.updated_at).toLocaleDateString()}</p>
-                                <p><span className="font-medium">Warranty:</span> {product.warranty_period ? `${product.warranty_period} months` : 'None'}</p>
-                                <p><span className="font-medium">Barcodes:</span> {product.barcodes.length}</p>
-                                <p><span className="font-medium">Specifications:</span> {product.specifications.length}</p>
-                              </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                        <StockDetailsPopup product={product} />
-                        <ProductDetailsPopup product={product} />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {orderFormData.supplier_id ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAddToCart(product)}
-                            disabled={!product.is_active}
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Add
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled
-                            title="Create a purchase order first"
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Add
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+                    </PopoverContent>
+                  )}
+                </Popover>
+
+                <StockDetailsPopup product={product} />
+                <ProductDetailsPopup product={product} />
+              </div>
+            </TableCell>
+
+            {/* Add to Cart */}
+            <TableCell>
+              <div className="flex gap-2">
+                {orderFormData.supplier_id ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddToCart(product)}
+                    disabled={!product.is_active}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled
+                    title="Create a purchase order first"
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add
+                  </Button>
+                )}
+              </div>
+            </TableCell>
+          </TableRow>
+        );
+      })}
+</TableBody>
             </Table>
           </div>
 

@@ -56,8 +56,50 @@ export async function validateProducts(items: PurchaseOrderItem[]): Promise<void
     throw new AppError('Internal server error validating products', 500)
   }
 }
+
+
+export async function validateProduct(productId: string): Promise<void> {
+  // Input validation
+  if (!productId || typeof productId !== 'string' || productId.trim() === '') {
+    throw new AppError('Product ID is required and must be a valid string', 400)
+  }
+
+  try {
+    const result = await query(
+      `SELECT 
+        id, 
+        name, 
+        sku, 
+        is_active, 
+        is_unique,
+        warranty_period,
+        category_id,
+        brand_id
+      FROM products 
+      WHERE id = $1`,
+      [productId.trim()]
+    )
+
+    if (result.rows.length === 0) {
+      throw new AppError(`Product with ID '${productId}' not found`, 404)
+    }
+
+    const product = result.rows[0]
+
+    if (!product.is_active) {
+      throw new AppError(`Product '${product.name}' (${product.sku}) is inactive and cannot be used`, 400)
+    }
+
+    return product
+  } catch (err) {
+    if (err instanceof AppError) throw err
+    console.error('Database error validating product:', err)
+    throw new AppError('Internal server error validating product', 500)
+  }
+}
+
 export class ValidationService {
-  
+
   static async validateCartItems(
     client: PoolClient,
     branchId: string,
@@ -343,36 +385,35 @@ export class ValidationService {
   }
 
   static async validateCustomer(
-  client: PoolClient,
-  customer_id?: string
-): Promise<CustomerValidation> {
-  // Case 1: Anonymous customer
-  if (!customer_id) {
-    return { customerId: null, isNewCustomer: false }
-  }
+    client: PoolClient,
+    customer_id?: string
+  ): Promise<CustomerValidation> {
+    // Case 1: Anonymous customer
+    if (!customer_id) {
+      return { customerId: null, isNewCustomer: false }
+    }
 
-  // Case 2: Existing customer validation
-  const result = await client.query(
-    `
+    // Case 2: Existing customer validation
+    const result = await client.query(
+      `
     SELECT id, name, customer_type, is_active
     FROM customers
     WHERE id = $1
     `,
-    [customer_id]
-  )
+      [customer_id]
+    )
 
-  if (result.rows.length === 0) {
-    throw new Error(`Customer ${customer_id} not found`)
+    if (result.rows.length === 0) {
+      throw new Error(`Customer ${customer_id} not found`)
+    }
+
+    const customerRecord = result.rows[0]
+
+    if (!customerRecord.is_active) {
+      throw new Error(`Customer ${customerRecord.name} is inactive`)
+    }
+
+    // Customer is valid and active
+    return { customerId: customerRecord.id, isNewCustomer: false }
   }
-
-  const customerRecord = result.rows[0]
-
-  if (!customerRecord.is_active) {
-    throw new Error(`Customer ${customerRecord.name} is inactive`)
-  }
-
-  // Customer is valid and active
-  return { customerId: customerRecord.id, isNewCustomer: false }
-}
-
 }

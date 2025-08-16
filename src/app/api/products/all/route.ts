@@ -293,6 +293,7 @@ interface ProductResponse {
   model: string
   description: string | null
   sku: string
+  product_code:string
   warranty_period: number | null
   is_active: boolean
   created_at: string
@@ -344,6 +345,7 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
       p.model,
       p.description,
       p.sku,
+      p.product_code,
       p.warranty_period,
       p.is_active,
       p.created_at,
@@ -383,7 +385,8 @@ function buildProductQuery(params: QueryParams, offset: number, limit: number): 
     queryText += ` AND (
       LOWER(p.name) LIKE LOWER($${paramIndex}) OR 
       LOWER(p.model) LIKE LOWER($${paramIndex}) OR 
-      LOWER(p.sku) LIKE LOWER($${paramIndex})
+      LOWER(p.sku) LIKE LOWER($${paramIndex}) OR
+      LOWER(p.product_code) LIKE($${paramIndex})
     )`
     queryParams.push(`%${params.search}%`)
     paramIndex++
@@ -528,6 +531,7 @@ async function processProductResults(rows: any[]): Promise<ProductResponse[]> {
     model: row.model,
     description: row.description,
     sku: row.sku,
+    product_code:row.product_code,
     warranty_period: row.warranty_period,
     is_active: row.is_active,
     created_at: row.created_at,

@@ -87,6 +87,7 @@ export interface ProductResponse {
   name: string;
   model: string;
   description: string | null;
+  product_code: string| null;
   sku: string;
   warranty_period: number | null;
   is_active: boolean;
@@ -394,7 +395,6 @@ const ProductsTable: React.FC = () => {
     toast.success('Products refreshed');
   };
 
-  // Brand and category data hooks
   const {
     data: brand,
     handleSearch: handleBrandSearch,
@@ -573,6 +573,7 @@ const ProductsTable: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
+                  <TableHead>Code</TableHead>
                   <TableHead>Brand</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Status</TableHead>
@@ -593,6 +594,9 @@ const ProductsTable: React.FC = () => {
                           <div className="text-sm text-muted-foreground">SKU: {product.sku}</div>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                          <div className="font-medium">{product?.product_code}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

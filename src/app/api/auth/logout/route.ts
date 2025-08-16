@@ -6,7 +6,6 @@ import { AuthenticatedRequest, withAuth } from '@/middleware/auth';
 export async function POST(req: NextRequest) {
   return withAuth(async (authedReq: AuthenticatedRequest) => {
     await initDatabase();
-      
 
     try {
       const { user: userDetails } = authedReq.user

@@ -8,8 +8,8 @@ datasource db {
 }
 
 model CodeSequence {
-  sequence_key String   @id
-  current_value Int     @default(0)
+  sequence_key  String   @id
+  current_value Int      @default(0)
   created_at    DateTime @default(now())
   updated_at    DateTime @default(now())
 
@@ -109,11 +109,11 @@ model user_activity_logs {
   ip_address String?  @db.VarChar(45)
   user_agent String?  @db.Text
   metadata   Json?    @default("{}")
-  branch_id  String?  // <- Add this line
+  branch_id  String? // <- Add this line
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
-  user users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user   users     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   branch branches? @relation(fields: [branch_id], references: [id], onDelete: SetNull) // <- Add this line
 
   @@index([user_id, created_at])
@@ -126,8 +126,8 @@ model user_activity_logs {
 model employees {
   id              String    @id @default(cuid())
   employee_number String    @unique @db.VarChar(20)
-  name            String?    @db.VarChar(100)
-  email           String?    @unique @db.VarChar(255)
+  name            String?   @db.VarChar(100)
+  email           String?   @unique @db.VarChar(255)
   phone           String?   @unique @db.VarChar(20)
   nic             String?   @unique @db.VarChar(20)
   gender          gender?
@@ -142,7 +142,7 @@ model employees {
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
-  payments             payments[]   
+  payments             payments[]
   price_overrides      price_overrides[]         @relation("ApprovedBy")
   price_changes        product_price_history[]   @relation("CreatedBy")
   user                 users?                    @relation(fields: [user_id], references: [id], onDelete: SetNull)
@@ -156,7 +156,8 @@ model employees {
   items_returned       item_barcodes[]           @relation("ReturnedBy")
   item_movements       item_movement_history[]
   stock_ledger_entries product_stock_ledgers[]
-  sales_orders         sales_orders[]            @relation("SoldBy")  // Add this line
+  sales_orders         sales_orders[]            @relation("SoldBy") // Add this line
+  credit_notes         credit_notes[]
 
   @@index([employee_number])
   @@index([email])
@@ -233,26 +234,27 @@ model brands {
 
 // ================== PRODUCTS ==================
 model products {
-  id              String   @id @default(cuid())
-  name            String   @db.VarChar(255)
-  model           String?   @db.VarChar(255)
-  description     String?  @db.Text
-  subcategory_id  String?
-  brand_id        String?
-  low_stock_threshold     Int       @default(5)
-  sku             String   @unique @db.VarChar(1000)
-  warranty_period Int? // in months
+  id                  String   @id @default(cuid())
+  name                String   @db.VarChar(255)
+  product_code        String    @unique
+  model               String?  @db.VarChar(255)
+  description         String?  @db.Text
+  subcategory_id      String?
+  brand_id            String?
+  low_stock_threshold Int      @default(5)
+  sku                 String   @unique @db.VarChar(1000)
+  warranty_period     Int? // in months
   wholesale_quantity  Int?
-  is_active       Boolean  @default(true)
-  is_unique       Boolean  @default(true)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime @updatedAt @db.Timestamptz(6)
+  is_active           Boolean  @default(true)
+  is_unique           Boolean  @default(true)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
 
   // Relations
-   price_history         product_price_history[]
-  price_overrides       price_overrides[]
-  current_prices        product_current_prices?
-  
+  price_history   product_price_history[]
+  price_overrides price_overrides[]
+  current_prices  product_current_prices?
+
   brand                 brands?                  @relation(fields: [brand_id], references: [id], onDelete: SetNull)
   subcategory           subcategories?           @relation(fields: [subcategory_id], references: [id], onDelete: SetNull)
   specifications        product_specifications[]
@@ -275,7 +277,7 @@ model products {
   @@map("products")
 }
 
- // ================== NEW: DYNAMIC PRICING SYSTEM ==================
+// ================== NEW: DYNAMIC PRICING SYSTEM ==================
 model product_price_history {
   id              String   @id @default(cuid())
   product_id      String
@@ -336,11 +338,12 @@ model price_overrides {
   @@index([valid_from, valid_until])
   @@map("price_overrides")
 }
+
 model barcodes {
-  id         String       @id @default(cuid())
+  id         String   @id @default(cuid())
   product_id String
-  code       String       @unique @db.VarChar(50)
-  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  code       String   @unique @db.VarChar(50)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
   product products @relation(fields: [product_id], references: [id], onDelete: Cascade)
@@ -489,8 +492,8 @@ model branches {
   updated_at     DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
-  payments               payments[]   
-  user_activity_logs     user_activity_logs[]      // <- Optional back-reference
+  payments               payments[]
+  user_activity_logs     user_activity_logs[] // <- Optional back-reference
   price_overrides        price_overrides[]
   employees              employees[]
   sales_orders           sales_orders[]
@@ -542,19 +545,19 @@ model product_stock_ledgers {
 }
 
 model branch_inventory_items {
-  id                  String    @id @default(cuid())
+  id                  String   @id @default(cuid())
   branch_inventory_id String
   purchase_batch_id   String
-  quantity            Int       @default(0)
-  reserved_quantity   Int       @default(0)
-  cost_price          Decimal   @db.Decimal(10, 2)
-  wholesale_price     Decimal?  @db.Decimal(10, 2)
-  retail_price        Decimal   @db.Decimal(10, 2)
-  received_date       DateTime  @db.Timestamptz(6)
-  is_active           Boolean   @default(true)
+  quantity            Int      @default(0)
+  reserved_quantity   Int      @default(0)
+  cost_price          Decimal  @db.Decimal(10, 2)
+  wholesale_price     Decimal? @db.Decimal(10, 2)
+  retail_price        Decimal  @db.Decimal(10, 2)
+  received_date       DateTime @db.Timestamptz(6)
+  is_active           Boolean  @default(true)
   fifo_order          Int? // NEW: For FIFO processing
-  created_at          DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
   branch_inventory branch_inventory @relation(fields: [branch_inventory_id], references: [id], onDelete: Cascade)
@@ -580,7 +583,7 @@ model branch_inventory {
   last_sale_date          DateTime? @db.Timestamptz(6)
   last_counted_at         DateTime? @db.Timestamptz(6)
   is_low_stock_alert_sent Boolean   @default(false)
-  is_active     Boolean  @default(true)
+  is_active               Boolean   @default(true)
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
   updated_at              DateTime  @default(now()) @db.Timestamptz(6)
 
@@ -725,24 +728,31 @@ model stock_adjustments {
 
 // ================== SUPPLIER & PURCHASE MANAGEMENT ==================
 model suppliers {
-  id              String   @id @default(cuid())
-  name            String   @db.VarChar(100)
-  code            String   @unique @db.VarChar(10)
-  contact_name    String?  @db.VarChar(100)
-  phone           String?  @db.VarChar(20)
-  email           String?  @db.VarChar(255)
-  address         String?  @db.Text
-  sales_rep_name  String   @db.VarChar(100)
-  sales_rep_phone String?  @db.VarChar(20)
-  payment_terms   String?  @db.VarChar(100)
-  credit_limit    Decimal? @db.Decimal(12, 2)
-  is_active       Boolean  @default(true)
-  created_at      DateTime @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  id                  String    @id @default(cuid())
+  name                String    @db.VarChar(100)
+  code                String    @unique @db.VarChar(10)
+  contact_name        String?   @db.VarChar(100)
+  phone               String?   @db.VarChar(20)
+  email               String?   @db.VarChar(255)
+  address             String?   @db.Text
+  sales_rep_name      String    @db.VarChar(100)
+  sales_rep_phone     String?   @db.VarChar(20)
+  payment_terms       String?   @db.VarChar(100)
+  credit_limit        Decimal?  @db.Decimal(12, 2)
+  is_active           Boolean   @default(true)
+  opening_balance     Decimal   @default(0) @db.Decimal(12, 2)
+  current_balance     Decimal   @default(0) @db.Decimal(12, 2)
+  last_statement_date DateTime? @db.Date
+  payment_terms_days  Int?
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
+  payments        payments[]
+  ledger_entries  supplier_ledger[]
   purchase_orders purchase_orders[]
   item_barcodes   item_barcodes[] // Track items from this supplier
+  credit_notes    credit_notes[]
 
   @@index([code])
   @@index([name])
@@ -750,21 +760,24 @@ model suppliers {
 }
 
 model purchase_orders {
-  id             String       @id @default(cuid())
-  order_number   String       @unique @db.VarChar(20)
-  invoice_number String?
-  supplier_id    String
-  purchased_by   String?
-  branch_id      String?
-  order_date     DateTime     @default(now()) @db.Date
-  expected_date  DateTime?    @db.Date
-  received_date  DateTime?    @db.Date
-  status         order_status @default(PENDING)
-  subtotal       Decimal?     @default(0) @db.Decimal(50, 2)
-  total_amount   Decimal?     @default(0) @db.Decimal(50, 2)
-  notes          String?      @db.Text
-  created_at     DateTime     @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  id                 String         @id @default(cuid())
+  order_number       String         @unique @db.VarChar(20)
+  invoice_number     String?
+  supplier_id        String
+  purchased_by       String?
+  branch_id          String?
+  order_date         DateTime       @default(now()) @db.Date
+  expected_date      DateTime?      @db.Date
+  received_date      DateTime?      @db.Date
+  status             order_status   @default(PENDING)
+  subtotal           Decimal?       @default(0) @db.Decimal(50, 2)
+  total_amount       Decimal?       @default(0) @db.Decimal(50, 2)
+  notes              String?        @db.Text
+  due_date           DateTime?      @db.Date
+  payment_status     payment_status @default(PENDING)
+  outstanding_amount Decimal         @default(0) @db.Decimal(50, 2)
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime       @default(now()) @db.Timestamptz(6)
 
   // Relations
   supplier suppliers              @relation(fields: [supplier_id], references: [id])
@@ -772,6 +785,7 @@ model purchase_orders {
   branch   branches?              @relation(fields: [branch_id], references: [id])
   items    purchase_order_items[]
   returns  purchase_returns[]
+  payments payments[]
 
   @@index([order_number])
   @@index([supplier_id])
@@ -781,17 +795,17 @@ model purchase_orders {
 }
 
 model purchase_order_items {
-  id                String    @id @default(cuid())
+  id                String   @id @default(cuid())
   purchase_order_id String
   product_id        String
   quantity_ordered  Int
-  quantity_received Int       @default(0)
-  cost_price        Decimal   @db.Decimal(500, 2)
-  wholesale_price   Decimal?  @db.Decimal(500, 2)
-  retail_price      Decimal   @db.Decimal(500, 2)
-  line_total        Decimal   @db.Decimal(500, 2)
-  batch_number      String?   @db.VarChar(50)
-  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  quantity_received Int      @default(0)
+  cost_price        Decimal  @db.Decimal(500, 2)
+  wholesale_price   Decimal? @db.Decimal(500, 2)
+  retail_price      Decimal  @db.Decimal(500, 2)
+  line_total        Decimal  @db.Decimal(500, 2)
+  batch_number      String?  @db.VarChar(50)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
 
   // Relations
   purchase_order purchase_orders   @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
@@ -858,13 +872,19 @@ model customers {
   loyalty_points      Int           @default(0)
   discount_percentage Decimal?      @db.Decimal(5, 2) // NEW: Customer-specific discount
   is_active           Boolean       @default(true)
+  opening_balance     Decimal       @default(0) @db.Decimal(12, 2)
+  current_balance     Decimal       @default(0) @db.Decimal(12, 2)
+  last_statement_date DateTime?     @db.Date
+  credit_days         Int?
   created_at          DateTime      @default(now()) @db.Timestamptz(6)
   updated_at          DateTime      @default(now()) @db.Timestamptz(6)
 
   // Relations
+  ledger_entries  customer_ledger[]
   sales_orders    sales_orders[]
   purchased_items item_barcodes[] // Track items sold to this customer
-  payments        payments[]   
+  payments        payments[]
+  credit_notes    credit_notes[]
 
   @@index([customer_number])
   @@index([phone])
@@ -874,23 +894,23 @@ model customers {
 }
 
 model sales_orders {
-  id             String          @id @default(cuid())
-  order_number   String          @unique @db.VarChar(20)
+  id             String         @id @default(cuid())
+  order_number   String         @unique @db.VarChar(20)
   customer_id    String?
   branch_id      String
-  sold_by        String?         // This should reference employees.id
-  order_date     DateTime        @default(now()) @db.Date
-  status         order_status    @default(PENDING)
-  payment_status payment_status  @default(PENDING)
-  subtotal       Decimal         @default(0) @db.Decimal(12, 2)
-  total_amount   Decimal         @default(0) @db.Decimal(12, 2)
-  balance_due    Decimal         @default(0) @db.Decimal(12, 2)
-  discount       Decimal         @default(0) @db.Decimal(10, 2)
-  total_cost     Decimal?        @default(0) @db.Decimal(12, 2)
-  profit_amount  Decimal?        @default(0) @db.Decimal(12, 2)
-  notes          String?         @db.Text
-  created_at     DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime        @default(now()) @db.Timestamptz(6)
+  sold_by        String? // This should reference employees.id
+  order_date     DateTime       @default(now()) @db.Date
+  status         order_status   @default(PENDING)
+  payment_status payment_status @default(PENDING)
+  subtotal       Decimal        @default(0) @db.Decimal(12, 2)
+  total_amount   Decimal        @default(0) @db.Decimal(12, 2)
+  balance_due    Decimal        @default(0) @db.Decimal(12, 2)
+  discount       Decimal        @default(0) @db.Decimal(10, 2)
+  total_cost     Decimal?       @default(0) @db.Decimal(12, 2)
+  profit_amount  Decimal?       @default(0) @db.Decimal(12, 2)
+  notes          String?        @db.Text
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
 
   // Relations
   customer    customers?          @relation(fields: [customer_id], references: [id])
@@ -898,43 +918,58 @@ model sales_orders {
   sold_by_emp employees?          @relation("SoldBy", fields: [sold_by], references: [id], onDelete: SetNull)
   items       sales_order_items[]
   returns     sales_returns[]
-  payments    payments[]   
+  payments    payments[]
 
   @@index([order_number])
   @@index([customer_id])
   @@index([branch_id])
-  @@index([sold_by])  // Add index for sold_by field
+  @@index([sold_by]) // Add index for sold_by field
   @@index([status])
   @@index([order_date])
   @@map("sales_orders")
 }
+
 model payments {
-  id                String                @id @default(cuid())
-  payment_number    String?                @db.VarChar(20)
-  sales_order_id    String?               // Link to sales order
-  customer_id       String?               // Direct link to customer (for standalone payments)
+  id                String         @id @default(cuid())
+  payment_number    String?        @db.VarChar(20)
+
+  payment_direction payment_direction      @default(INCOMING)
+  payment_type      payment_type          @default(SALE_PAYMENT)
+
+  customer_id       String? // Direct link to customer (for standalone payments)
+  supplier_id       String?
+
+  sales_order_id    String? // Link to sales order
+  purchase_order_id String? // Can be linked to specific PO
+
   branch_id         String
-  payment_method    payment_method        @default(CASH)
-  payment_status    payment_status        @default(PENDING)
-  amount            Decimal               @db.Decimal(12, 2)
-  received_amount   Decimal?              @db.Decimal(12, 2) // Actual amount received (for change calculation)
-  change_amount     Decimal?              @default(0) @db.Decimal(12, 2)
-  reference_number  String?               @db.VarChar(50) // Bank reference, card transaction ID, etc.
-  cheque_number     String?               @db.VarChar(20)
-  cheque_date       DateTime?             @db.Date
-  bank_name         String?               @db.VarChar(100)
-  payment_date      DateTime              @default(now()) @db.Timestamptz(6)
-  processed_by      String?               // Employee who processed the payment
-  notes             String?               @db.Text
-  created_at        DateTime              @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime              @default(now()) @db.Timestamptz(6)
+  processed_by      String? // Employee who processed the payment
+
+  payment_method    payment_method @default(CASH)
+  payment_status    payment_status @default(PENDING)
+  amount            Decimal        @db.Decimal(12, 2)
+  received_amount   Decimal?       @db.Decimal(12, 2) // Actual amount received (for change calculation)
+  change_amount     Decimal?       @default(0) @db.Decimal(12, 2)
+
+  reference_number  String?        @db.VarChar(50) // Bank reference, card transaction ID, etc.
+  cheque_number     String?        @db.VarChar(20)
+  cheque_date       DateTime?      @db.Date
+  bank_name         String?        @db.VarChar(100)
+  
+  payment_date      DateTime       @default(now()) @db.Timestamptz(6)
+  notes             String?        @db.Text
+  
+  created_at        DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime       @default(now()) @db.Timestamptz(6)
 
   // Relations
-  sales_order   sales_orders?  @relation(fields: [sales_order_id], references: [id])
-  customer      customers?     @relation(fields: [customer_id], references: [id])
-  branch        branches       @relation(fields: [branch_id], references: [id])
-  employees employees?  @relation(fields: [processed_by], references: [id], onDelete: SetNull)
-  
+  supplier       suppliers?       @relation(fields: [supplier_id], references: [id])
+  purchase_order purchase_orders? @relation(fields: [purchase_order_id], references: [id])
+  sales_order    sales_orders?    @relation(fields: [sales_order_id], references: [id])
+  customer       customers?       @relation(fields: [customer_id], references: [id])
+  branch         branches         @relation(fields: [branch_id], references: [id])
+  employees      employees?       @relation(fields: [processed_by], references: [id], onDelete: SetNull)
+
   // For refunds and adjustments
   parent_payment_id String?
   parent_payment    payments?  @relation("PaymentRefunds", fields: [parent_payment_id], references: [id])
@@ -943,6 +978,8 @@ model payments {
   @@index([payment_number])
   @@index([sales_order_id])
   @@index([customer_id])
+  @@index([supplier_id])
+  @@index([purchase_order_id])
   @@index([branch_id])
   @@index([payment_method])
   @@index([payment_status])
@@ -951,19 +988,20 @@ model payments {
   @@index([reference_number])
   @@map("payments")
 }
+
 model sales_order_items {
-  id              String    @id @default(cuid())
-  sales_order_id  String
-  product_id      String
-  quantity        Int
-  is_wholesale_price  Boolean  @default(false)
-  unit_price      Decimal   @db.Decimal(10, 2) // Selling price
-  discount        Decimal   @default(0) @db.Decimal(10, 2)
-  line_total      Decimal   @db.Decimal(12, 2)
-  line_cost       Decimal?  @db.Decimal(12, 2) // NEW: Total cost for this line
-  line_profit     Decimal?  @db.Decimal(12, 2) // NEW: Profit for this line
-  warranty_expiry DateTime? @db.Date
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  id                 String    @id @default(cuid())
+  sales_order_id     String
+  product_id         String
+  quantity           Int
+  is_wholesale_price Boolean   @default(false)
+  unit_price         Decimal   @db.Decimal(10, 2) // Selling price
+  discount           Decimal   @default(0) @db.Decimal(10, 2)
+  line_total         Decimal   @db.Decimal(12, 2)
+  line_cost          Decimal?  @db.Decimal(12, 2) // NEW: Total cost for this line
+  line_profit        Decimal?  @db.Decimal(12, 2) // NEW: Profit for this line
+  warranty_expiry    DateTime? @db.Date
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
   sales_order       sales_orders              @relation(fields: [sales_order_id], references: [id], onDelete: Cascade)
@@ -973,6 +1011,45 @@ model sales_order_items {
 
   @@index([product_id])
   @@map("sales_order_items")
+}
+
+model customer_ledger {
+  id               String      @id @default(cuid())
+  customer_id      String
+  transaction_id   String? // Sales order, payment, return ID
+  transaction_type ledger_type
+  reference_number String?     @db.VarChar(50)
+  description      String      @db.VarChar(255)
+  debit_amount     Decimal?    @db.Decimal(12, 2)
+  credit_amount    Decimal?    @db.Decimal(12, 2)
+  running_balance  Decimal     @db.Decimal(12, 2)
+  transaction_date DateTime    @db.Timestamptz(6)
+  created_at       DateTime    @default(now()) @db.Timestamptz(6)
+
+  customer customers @relation(fields: [customer_id], references: [id])
+
+  @@index([customer_id, transaction_date, running_balance])
+  @@index([customer_id, transaction_date])
+  @@map("customer_ledger")
+}
+
+model supplier_ledger {
+  id               String      @id @default(cuid())
+  supplier_id      String
+  transaction_id   String?
+  transaction_type ledger_type
+  reference_number String?     @db.VarChar(50)
+  description      String      @db.VarChar(255)
+  debit_amount     Decimal?    @db.Decimal(12, 2)
+  credit_amount    Decimal?    @db.Decimal(12, 2)
+  running_balance  Decimal     @db.Decimal(12, 2)
+  transaction_date DateTime    @db.Timestamptz(6)
+  created_at       DateTime    @default(now()) @db.Timestamptz(6)
+
+  supplier suppliers @relation(fields: [supplier_id], references: [id])
+  @@index([supplier_id, transaction_date, running_balance])
+  @@index([supplier_id, transaction_date])
+  @@map("supplier_ledger")
 }
 
 model sales_returns {
@@ -1015,7 +1092,47 @@ model sales_return_items {
   @@map("sales_return_items")
 }
 
+model credit_notes {
+  id           String        @id @default(cuid())
+  note_number  String        @unique @db.VarChar(20)
+  customer_id  String?
+  supplier_id  String?
+  reference_id String? // Original invoice/order ID
+  amount       Decimal       @db.Decimal(12, 2)
+  reason       String        @db.Text
+  status       credit_status @default(PENDING)
+  issued_date  DateTime      @default(now()) @db.Date
+  applied_date DateTime?     @db.Date
+  created_by   String
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+
+  customer customers? @relation(fields: [customer_id], references: [id])
+  supplier suppliers? @relation(fields: [supplier_id], references: [id])
+  creator  employees  @relation(fields: [created_by], references: [id])
+
+  @@map("credit_notes")
+}
+
+enum credit_status {
+  PENDING
+  APPROVED
+  APPLIED
+  CANCELLED
+}
+
 // ================== ENHANCED ENUMS ==================
+
+enum ledger_type {
+  SALE
+  PURCHASE
+  PAYMENT_RECEIVED
+  PAYMENT_MADE
+  RETURN
+  DISCOUNT
+  ADJUSTMENT
+  OPENING_BALANCE
+}
+
 enum barcode_status {
   AVAILABLE
   RESERVED
@@ -1093,6 +1210,8 @@ enum alert_status {
 }
 
 enum order_status {
+  DRAFT
+  INITIAL_STOCK
   PENDING
   PROCESSING
   COMPLETED
@@ -1121,7 +1240,7 @@ enum payment_method {
   BANK_TRANSFER
   CHEQUE
   MOBILE_PAYMENT
-  CREDIT
+  CREDIT_NOTE
   INSTALLMENT
 }
 
@@ -1170,4 +1289,22 @@ enum item_condition {
   RETURNED
   REPAIRED
   REFURBISHED
+}
+
+
+enum payment_direction {
+  INCOMING  
+  OUTGOING 
+}
+
+
+enum payment_type {
+  SALE_PAYMENT
+  PURCHASE_PAYMENT
+  ADVANCE_PAYMENT
+  PARTIAL_PAYMENT
+  REFUND_PAYMENT
+  SECURITY_DEPOSIT
+  ADJUSTMENT
+  OPENING_BALANCE
 }

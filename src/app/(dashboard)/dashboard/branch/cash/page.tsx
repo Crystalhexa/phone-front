@@ -28,7 +28,7 @@ import {
   Users
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
-import { printReceipt, type ReceiptData } from '@/lib/utils/print'
+import { printReceipt, ReceiptPrinter, type ReceiptData } from '@/lib/utils/print'
 import { User } from '@/types/auth'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -50,14 +50,14 @@ interface PendingSalesOrderItem {
 interface PendingSalesOrder {
   id: string
   order_number: string
-  customer_id: string 
-  customer_name: string 
+  customer_id: string
+  customer_name: string
   customer_phone: string
   customer_email: string
-  customer_type: string 
+  customer_type: string
   branch_id: string
   branch_name: string
-  sold_by: string 
+  sold_by: string
   sold_by_name: string
   order_date: string
   status: string
@@ -66,7 +66,7 @@ interface PendingSalesOrder {
   total_amount: number
   balance_due: number
   discount: number
-  notes: string 
+  notes: string
   created_at: string
   updated_at: string
   items: PendingSalesOrderItem[]
@@ -74,7 +74,7 @@ interface PendingSalesOrder {
 
 interface PaymentData {
   orderId: string
-  paymentMethod: 'CASH' | 'CREDIT_CARD'|'DEBIT_CARD' | 'MOBILE' | 'BANK_TRANSFER'
+  paymentMethod: 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'MOBILE' | 'BANK_TRANSFER'
   amount: number
   received_amount: number
   change_amount: number
@@ -118,9 +118,9 @@ const CashierPaymentComponent = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [alert, setAlert] = useState<{ type: 'success' | 'error', message: string } | null>(null)
-  
-    const { user } = useAuth();
-  
+
+  const { user } = useAuth();
+
   // Auto-hide alerts after 5 seconds
   useEffect(() => {
     if (alert) {
@@ -210,13 +210,13 @@ const CashierPaymentComponent = () => {
 
   // Generate receipt data from order and payment
   const generateReceiptData = (
-    order: PendingSalesOrder, 
+    order: PendingSalesOrder,
     payment: { payment_number: string }
   ): ReceiptData => {
     const paymentMethodMap = {
       'CASH': 'Cash',
       'CREDIT_CARD': 'credit card payment',
-      'DEBIT_CARD':'debit card payment',
+      'DEBIT_CARD': 'debit card payment',
       'MOBILE': 'Mobile Payment',
       'BANK_TRANSFER': 'Bank Transfer'
     }
@@ -284,18 +284,24 @@ const CashierPaymentComponent = () => {
 
       if (result.success && result.data) {
         setAlert({ type: 'success', message: 'Payment processed successfully!' })
-        
+
         // Generate and print receipt
         if (user) {
           try {
             const receiptData = generateReceiptData(selectedOrder, result.data)
-            printReceipt(receiptData, user)
+            await ReceiptPrinter.printReceipt(receiptData, user, {
+              showPreview: true,   // User can review before printing
+              autoClose: false,    // Window stays open after printing
+              timeout: 0,
+              paperSize: 'a4'
+            })
+
           } catch (printError) {
             console.error('Failed to print receipt:', printError)
             setAlert({ type: 'success', message: 'Payment processed successfully! (Receipt printing failed)' })
           }
         }
-        
+
         setShowPaymentDialog(false)
         setSelectedOrder(null)
         // Refresh orders list
@@ -697,7 +703,7 @@ const CashierPaymentComponent = () => {
                   <Label htmlFor="paymentMethod">Payment Method</Label>
                   <Select
                     value={paymentData.paymentMethod}
-                    onValueChange={(value: PaymentData['paymentMethod']) => 
+                    onValueChange={(value: PaymentData['paymentMethod']) =>
                       setPaymentData(prev => ({ ...prev, paymentMethod: value }))
                     }
                   >
@@ -714,13 +720,13 @@ const CashierPaymentComponent = () => {
                       <SelectItem value="CREDIT_CARD">
                         <div className="flex items-center">
                           <CreditCard className="w-4 h-4 mr-2" />
-                            Credit Card
+                          Credit Card
                         </div>
                       </SelectItem>
                       <SelectItem value="DEBIT_CARD">
                         <div className="flex items-center">
                           <CreditCard className="w-4 h-4 mr-2" />
-                            Debit Card
+                          Debit Card
                         </div>
                       </SelectItem>
                       <SelectItem value="MOBILE">
@@ -748,9 +754,9 @@ const CashierPaymentComponent = () => {
                     min="0"
                     max={selectedOrder.balance_due}
                     value={paymentData.amount || ''}
-                    onChange={(e) => setPaymentData(prev => ({ 
-                      ...prev, 
-                      amount: parseFloat(e.target.value) || 0 
+                    onChange={(e) => setPaymentData(prev => ({
+                      ...prev,
+                      amount: parseFloat(e.target.value) || 0
                     }))}
                   />
                 </div>
