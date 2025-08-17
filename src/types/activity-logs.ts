@@ -1,58 +1,52 @@
-export interface UserActivityLog {
+
+export interface ActivityLogWithDetails {
   id: string
-  user_id: string
+  userId: string
   action: string
   entity: string | null
-  entity_id: string | null
-  ip_address: string | null
-  user_agent: string | null
-  metadata: Record<string, any>
-  branch_id: string | null
-  created_at: string
-  // Joined fields
-  username: string
-  user_email: string
-  user_role: string | null
-  branch_name: string | null
-  branch_code: string | null
-  employee_name: string | null
-  employee_number: string | null
+  entityId: string | null
+  ipAddress: string | null
+  userAgent: string | null
+  metadata: any
+  branchId: string | null
+  createdAt: string
+  user: {
+    id: string
+    username: string
+    email: string
+    isActive: boolean
+    role: {
+      id: string
+      name: string
+    } | null
+  }
+  branch: {
+    id: string
+    name: string
+    code: string
+    location: string | null
+  } | null
+  employee: {
+    id: string
+    employeeNumber: string
+    name: string | null
+    email: string | null
+    position: string | null
+    department: string | null
+  } | null
 }
 
 export interface ActivityLogFilters {
-  dateFrom?: string
-  dateTo?: string
   branchId?: string
-  userId?: string
   employeeId?: string
+  userId?: string
   action?: string
   entity?: string
-  page?: number
-  limit?: number
-  sortBy?: 'created_at' | 'action' | 'username'
-  sortOrder?: 'asc' | 'desc'
-}
-
-export interface PaginationInfo {
-  currentPage: number
-  totalPages: number
-  totalRecords: number
+  search?: string
+  startDate?: string
+  endDate?: string
+  page: number
   limit: number
-  hasNext: boolean
-  hasPrev: boolean
-}
-
-export interface ActivityLogsResponse {
-  data: UserActivityLog[]
-  pagination: PaginationInfo
-  filters: ActivityLogFilters
-}
-
-export interface ApiResponse<T = any> {
-  success: boolean
-  data: T | null
-  message: string
-  errors?: string[] | null
-  timestamp: string
-  metadata?: Record<string, any>
+  sortBy: 'createdAt' | 'action' | 'user' | 'branch'
+  sortOrder: 'asc' | 'desc'
 }
