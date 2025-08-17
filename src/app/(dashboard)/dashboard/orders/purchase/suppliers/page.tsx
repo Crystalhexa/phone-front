@@ -6,9 +6,7 @@ import { useSupplierData } from '@/components/table/SupplierTable/SupplierData'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/DataTable/DataTable'
 import { Input } from '@/components/ui/input'
-import { Employee } from '@/types'
 import { redirect } from 'next/navigation'
-import React, { useEffect, useState } from 'react'
 
 const page = () => {
   

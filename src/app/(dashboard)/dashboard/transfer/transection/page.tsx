@@ -27,10 +27,8 @@ import { ProductCard } from '@/components/transfer/ProductCard'
 import { TransferSummary } from '@/components/transfer/TransferSummary'
 import { SearchableDropdown } from '@/components/form/SearchableDropdown'
 import { useBranchData } from '@/components/table/BranchTable/useBranchData'
-import { Branch } from '@/types/branch'
 
 const StockTransferPage: React.FC = () => {
-  const [branches, setBranches] = useState<Branch[]>([])
   const [fromBranch, setFromBranch] = useState('')
   const [toBranch, setToBranch] = useState('')
   const [priority, setPriority] = useState<'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'>('NORMAL')
@@ -159,7 +157,6 @@ const StockTransferPage: React.FC = () => {
     isLoading: isSearching,
     handleSearch: handleBranchSearch,
     searchTerm,
-    handlePageSizeChange,
   } = useBranchData();
 
   const branch = branchOptions?.data?.branches;

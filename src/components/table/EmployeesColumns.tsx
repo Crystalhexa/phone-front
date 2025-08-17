@@ -4,9 +4,23 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Button } from "../ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { redirect } from "next/navigation";
-import { Employee } from "@/types";
 
-
+export interface Employee {
+    user_id: string;
+    username: string;
+    employee: {
+        name: string;           // from employee.name
+        email: string;          // from employee.email
+        phone: string;          // from employee.phone
+        is_active: boolean;     // from employee.is_active
+        nic: string;
+        gender: string;
+        dob: string;
+    };
+    role: {
+        name: string;
+    };
+}
 export const EmployeesColumns: ColumnDef<Employee>[] = [
   {
     accessorKey: 'userName',

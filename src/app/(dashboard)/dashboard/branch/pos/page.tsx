@@ -1,7 +1,5 @@
 "use client"
 import React, { useState } from 'react';
-import { useBrandData } from '@/components/table/BrandTable/useBrandData';
-import { useCategoryData } from '@/components/table/CategoryTable/useCategoryData';
 import { useProductsData } from '@/components/table/PosTable/usePosData';
 import { PosHeader } from '@/components/table/PosTable/PosHeader';
 import { PosFilters } from '@/components/table/PosTable/PosFilters';

@@ -2,9 +2,7 @@
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ShoppingCart, Plus, ChevronRight } from 'lucide-react';
-import SalesPopover from '@/components/pos/SalesPopover';
 import { useRouter } from 'next/navigation';
 
 interface PosHeaderProps {

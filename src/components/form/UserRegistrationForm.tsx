@@ -10,7 +10,7 @@ import { ArrowLeft } from 'lucide-react'
 import { Form } from '../ui/form'
 import CustomFormField, { FormFieldType } from '../form/CustomFormField'
 import SubmitButton from '../form/SubmitButton'
-import { Props, RolesApiResponse } from '@/types/roles'
+import { Props, RolesApiResponse } from '@/types/role'
 import {
   useCreateUserMutation,
   useGetUserByIdQuery,

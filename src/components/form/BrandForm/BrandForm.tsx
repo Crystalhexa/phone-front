@@ -10,7 +10,6 @@ import CustomFormField, { FormFieldType } from "../common/CustomFormField";
 import { BrandFormActions } from "./BrandFormActions";
 import { BrandFormHeader } from "./BrandFormHeader";
 import { BrandFormSkeleton } from "./BrandFormSkeleton";
-import { brandFormEvents, trackEvent } from "@/lib/utils/analytics";
 import { createBrandSchema } from "@/lib/validations/brandValidation";
 import { useAddBrandMutation, useGetBrandByIdQuery, useUpdateBrandMutation } from "@/state/brand";
 
@@ -76,12 +75,7 @@ console.log(isEdit, brandId);
     }
   }, [isEdit, brandData, form]);
 
-  useEffect(() => {
-    trackEvent({
-      name: brandFormEvents.FORM_OPENED,
-      properties: { mode: isEdit ? "edit" : "create", brandId },
-    });
-  }, [isEdit, brandId]);
+  
 
   const onSubmit = async (values: { name: string; description?: string }) => {
     try {
@@ -99,11 +93,6 @@ console.log(isEdit, brandId);
         toast.success("Brand created successfully!");
         form.reset();
       }
-
-      trackEvent({
-        name: brandFormEvents.FORM_SUBMITTED,
-        properties: { mode: isEdit ? "edit" : "create", brandId },
-      });
 
       onSuccess?.();
     } catch (error: any) {

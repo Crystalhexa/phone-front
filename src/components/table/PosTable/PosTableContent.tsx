@@ -17,7 +17,7 @@ import { formatCurrency } from '@/lib/utils/formatCurrency';
 
 // Lazy load ProductBatchDetailsPopover
 const ProductBatchDetailsPopover = React.lazy(() =>
-  import('@/components/pos/ProductDetailsPopover')
+  import('@/components/pos/ProductBatchDetailsPopover')
 );
 const ProductBranchBatchDetailsPopover = React.lazy(() =>
   import('@/components/pos/BatchDetailsViewer')
