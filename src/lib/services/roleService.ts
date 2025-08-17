@@ -278,7 +278,3 @@ export class RoleService {
     return result.rows[0];
   }
 }
-
-function uuidv4() {
-  throw new Error('Function not implemented.');
-}
