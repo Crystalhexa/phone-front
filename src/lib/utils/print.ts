@@ -1,4 +1,5 @@
 import { User } from "@/types/auth"
+import { formatCurrency } from "./formatCurrency"
 
 export interface ReceiptData {
   orderNumber: string
@@ -40,9 +41,6 @@ export class ReceiptPrinter {
     paperSize: 'thermal'
   }
 
-  /**
-   * Generate receipt HTML with proper escaping and validation
-   */
   public static generateReceiptHTML(data: ReceiptData, user: User): string {
     // Validate required data
     if (!data.orderNumber || !data.paymentNumber || !data.date) {
@@ -66,12 +64,6 @@ export class ReceiptPrinter {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;')
-    }
-
-    // Format currency consistently
-    const formatCurrency = (amount: number): string => {
-      if (isNaN(amount)) return 'Rs.0.00'
-      return `Rs.${amount.toFixed(2)}`
     }
 
     // Validate numerical values
@@ -233,7 +225,7 @@ export class ReceiptPrinter {
         <div class="hotline">Hotline: 0812 220 550</div>
         <div class="branch-info">
           <div><strong>${escapeHtml(user?.branch_name) || 'Main Store'}</strong></div>
-          <div>${escapeHtml(user?.branch_address) || 'No 12/B Kandy'}</div>
+          <div>${escapeHtml(user?.branch_address) }</div>
           <div>Tel: ${escapeHtml(user?.branch_phone) || '0814256548'}</div>
         </div>
       </div>
@@ -321,7 +313,7 @@ export class ReceiptPrinter {
       </div>
 
       <div class="center thank-you">
-        Thank you for your business!
+        Thank you!
       </div>
 
       <div class="footer">
@@ -345,9 +337,6 @@ export class ReceiptPrinter {
     `
   }
 
-  /**
-   * Print receipt with comprehensive error handling and logging
-   */
   public static async printReceipt(
     data: ReceiptData, 
     user: User, 
@@ -378,9 +367,6 @@ export class ReceiptPrinter {
     }
   }
 
-  /**
-   * Preview receipt without auto-closing or timeout
-   */
   public static previewReceipt(data: ReceiptData, user: User): boolean {
     try {
       const html = this.generateReceiptHTML(data, user)
@@ -403,9 +389,6 @@ export class ReceiptPrinter {
     }
   }
 
-  /**
-   * Open print window with timeout and error handling
-   */
   private static async openPrintWindow(
     html: string, 
     options: PrintOptions, 
@@ -464,6 +447,7 @@ export class ReceiptPrinter {
             if (options.showPreview) {
               // Just show the preview, don't auto-print or close
               resolveOnce(true)
+              printWindow?.print();
             } else {
               // Auto-print
               printWindow!.print()
@@ -476,7 +460,6 @@ export class ReceiptPrinter {
                   resolveOnce(true)
                 }
               }
-
               // Try to detect when printing is done
               if (printWindow!.onafterprint !== undefined) {
                 printWindow!.onafterprint = handleAfterPrint
@@ -511,9 +494,6 @@ export class ReceiptPrinter {
     })
   }
 
-  /**
-   * Handle print errors with user-friendly messages
-   */
   private static handlePrintError(error: Error) {
     let message = 'Failed to print receipt. '
     

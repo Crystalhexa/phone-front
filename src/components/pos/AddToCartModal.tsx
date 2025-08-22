@@ -42,9 +42,9 @@ export const AddToCartModal = ({ open, onClose, product, orderStatus, onConfirm 
     resolver: zodResolver(purchaseItemSchema),
     defaultValues: {
       quantity: 1,
-      cost_price: product.latest_batch_pricing.cost_price,
-      wholesale_price: product.latest_batch_pricing.wholesale_price,
-      retail_price:product.latest_batch_pricing.retail_price,
+      cost_price: product.latest_batch_pricing?.cost_price,
+      wholesale_price: product.latest_batch_pricing?.wholesale_price,
+      retail_price:product.latest_batch_pricing?.retail_price,
     },
   });
 

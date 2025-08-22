@@ -53,7 +53,6 @@ interface ExtendedFilters extends Filters {
 
 const ProductsTable: React.FC = () => {
           const [popoverOpen, setPopoverOpen] = useState(false);
-
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);

@@ -9,7 +9,9 @@ export class ActivityLogService {
   static async createActivityLog(
     client: PoolClient,
     userId: string,
+    branch_id: string,
     action: string,
+    entity:string,
     entityId: string,
     metadata: any,
     ipAddress?: string,
@@ -19,17 +21,18 @@ export class ActivityLogService {
 
     await client.query(`
       INSERT INTO user_activity_logs (
-        id, user_id, action, entity, entity_id, ip_address, user_agent, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        id, user_id, action, entity, entity_id, ip_address, user_agent, metadata,branch_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,$9)
     `, [
       logId,
       userId,
       action,
-      'sales_orders',
+      entity,
       entityId,
       ipAddress || null,
       userAgent || null,
-      JSON.stringify(metadata)
+      JSON.stringify(metadata),
+      branch_id
     ])
   }
 

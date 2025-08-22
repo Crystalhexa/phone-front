@@ -197,7 +197,7 @@ export const createPurchaseOrderColumns = (actions: TableAction[]): ColumnDef<Pu
     cell: ({ row }) => {
       const order = row.original;
       return (
-        <div className="text-right space-y-1">
+        <div className="text-left space-y-1">
           <div className="font-medium text-lg">
             {formatCurrency(order.total_amount)}
           </div>

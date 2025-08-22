@@ -390,7 +390,11 @@ model item_barcodes {
   returned_by_emp       employees?              @relation("ReturnedBy", fields: [returned_by], references: [id])
   current_branch        branches?               @relation(fields: [location_branch], references: [id])
   item_movement_history item_movement_history[]
+  warranty_claims       warranty_claims[]
+  supplier_warranty_claims  supplier_warranty_claims[]
+  replacement_claims   warranty_claims[] @relation("ReplacementItem")
 
+  @@index([code, status, is_active, location_branch])
   @@index([purchase_batch_id])
   @@index([product_id])
   @@index([status])
@@ -436,7 +440,7 @@ model purchase_batches {
   received_date          DateTime? @db.Date
   received_by            String? // NEW: Track who received this batch
   is_active              Boolean   @default(true)
-  fifo_sequence          Int? // NEW: For FIFO ordering
+  fifo_sequence          Int      @unique @default(autoincrement())
   created_at             DateTime  @default(now()) @db.Timestamptz(6)
   updated_at             DateTime  @default(now()) @db.Timestamptz(6)
 
@@ -563,11 +567,12 @@ model branch_inventory_items {
   branch_inventory branch_inventory @relation(fields: [branch_inventory_id], references: [id], onDelete: Cascade)
   purchase_batch   purchase_batches @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
 
-  @@unique([branch_inventory_id, purchase_batch_id])
+  @@unique([branch_inventory_id, purchase_batch_id,fifo_order])
   @@index([branch_inventory_id])
   @@index([purchase_batch_id])
   @@index([quantity])
   @@index([fifo_order]) // NEW: For FIFO queries
+  @@unique([branch_inventory_id, fifo_order])
   @@map("branch_inventory_items")
 }
 
@@ -748,6 +753,7 @@ model suppliers {
   updated_at          DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
+  supplier_warranty_claims  supplier_warranty_claims[]
   payments        payments[]
   ledger_entries  supplier_ledger[]
   purchase_orders purchase_orders[]
@@ -880,6 +886,7 @@ model customers {
   updated_at          DateTime      @default(now()) @db.Timestamptz(6)
 
   // Relations
+  warranty_claims     warranty_claims[]
   ledger_entries  customer_ledger[]
   sales_orders    sales_orders[]
   purchased_items item_barcodes[] // Track items sold to this customer
@@ -1000,7 +1007,6 @@ model sales_order_items {
   line_total         Decimal   @db.Decimal(12, 2)
   line_cost          Decimal?  @db.Decimal(12, 2) 
   line_profit        Decimal?  @db.Decimal(12, 2) 
-  warranty_expiry    DateTime? @db.Date
   created_at         DateTime  @default(now()) @db.Timestamptz(6)
 
   // Relations
@@ -1112,16 +1118,110 @@ model credit_notes {
 
   @@map("credit_notes")
 }
+model warranty_claims {
+  id                   String @id @default(cuid())
+  claim_number         String @unique
+  item_barcode_id      String // Only item-wise claims allowed
+  customer_id          String
+  claim_date           DateTime @default(now())
+  issue_description    String @db.Text
+  claim_type           warranty_claim_type // REPLACEMENT, REPAIR, REFUND
+  status               warranty_status
+  resolution_type      warranty_resolution?
+  replacement_item_id  String? // New item given to customer
+  supplier_claim_id    String? // Reference when sent to supplier
+  customer_receipt_id  String? // Receipt given to customer
+  resolved_date        DateTime?
+  notes                String? @db.Text
+  created_at           DateTime @default(now())
+  
+  // Relations
+  item_barcode         item_barcodes @relation(fields: [item_barcode_id], references: [id])
+  customer             customers @relation(fields: [customer_id], references: [id])
+  replacement_item     item_barcodes? @relation("ReplacementItem", fields: [replacement_item_id], references: [id])
+  supplier_claim       supplier_warranty_claims? @relation(fields: [supplier_claim_id], references: [id])
+}
 
+model supplier_warranty_claims {
+  id                  String @id @default(cuid())
+  claim_number        String @unique
+  supplier_id         String
+  original_claim_id   String // Links back to customer warranty claim
+  item_barcode_id     String
+  sent_date           DateTime
+  expected_return     DateTime?
+  actual_return       DateTime?
+  supplier_response   String? @db.Text
+  resolution          supplier_warranty_resolution?
+  replacement_cost    Decimal? @db.Decimal(10, 2)
+  repair_cost         Decimal? @db.Decimal(10, 2)
+  status              supplier_claim_status
+  created_at          DateTime @default(now())
+  
+  // Relations
+  supplier            suppliers @relation(fields: [supplier_id], references: [id])
+  item_barcode        item_barcodes @relation(fields: [item_barcode_id], references: [id])
+  warranty_claims     warranty_claims[]
+}
+// ================== ENHANCED ENUMS ==================
+
+enum warranty_claim_type {
+  REPLACEMENT
+  REPAIR
+  REFUND
+  INSPECTION
+}
+
+enum warranty_status {
+  RECEIVED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REPLACEMENT_GIVEN
+  SENT_TO_SUPPLIER
+  REPAIR_IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum warranty_resolution {
+  REPLACED_IMMEDIATELY
+  SENT_FOR_REPAIR
+  SENT_TO_SUPPLIER
+  REFUNDED
+  REJECTED
+}
+
+enum supplier_warranty_resolution {
+  REPLACED
+  REPAIRED
+  REFUNDED
+  REJECTED
+  CREDIT_GIVEN
+}
+
+enum supplier_claim_status {
+  PENDING
+  SENT
+  RECEIVED_BY_SUPPLIER
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum warranty_receipt_type {
+  CLAIM_ACKNOWLEDGMENT
+  REPLACEMENT_GIVEN
+  REPAIR_RECEIPT
+  COLLECTION_NOTICE
+}
 enum credit_status {
   PENDING
   APPROVED
   APPLIED
   CANCELLED
 }
-
-// ================== ENHANCED ENUMS ==================
-
 enum ledger_type {
   SALE
   PURCHASE
@@ -1132,15 +1232,16 @@ enum ledger_type {
   ADJUSTMENT
   OPENING_BALANCE
 }
-
 enum barcode_status {
+  WARRANTY_CLAIM
+  REPLACED_UNDER_WARRANTY
+  SENT_FOR_REPAIR
   AVAILABLE
   RESERVED
   SOLD
   RETURNED
   DAMAGED
 }
-
 enum stock_entry_type {
   PURCHASE
   SALE
@@ -1151,7 +1252,6 @@ enum stock_entry_type {
   DAMAGED
   INITIAL_STOCK
 }
-
 enum transfer_status {
   PENDING
   APPROVED
@@ -1253,21 +1353,17 @@ enum payment_status {
   CANCELLED
   REFUNDED
 }
-
-// NEW: Additional enums
 enum price_type {
   RETAIL
   WHOLESALE
   COST
 }
-
 enum receipt_status {
   PENDING
   COMPLETED
   PARTIAL
   CANCELLED
 }
-
 enum item_movement_type {
   PURCHASE_RECEIVED
   SALE_DISPATCHED
@@ -1280,7 +1376,6 @@ enum item_movement_type {
   LOST
   LOCATION_CHANGE
 }
-
 enum item_condition {
   GOOD
   DAMAGED
@@ -1290,18 +1385,13 @@ enum item_condition {
   REPAIRED
   REFURBISHED
 }
-
-
 enum payment_direction {
   INCOMING  
   OUTGOING 
 }
-
-
 enum payment_type {
   SALE_PAYMENT
   PURCHASE_PAYMENT
-  ADVANCE_PAYMENT
   PARTIAL_PAYMENT
   REFUND_PAYMENT
   SECURITY_DEPOSIT

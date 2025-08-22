@@ -35,7 +35,6 @@ export async function POST(request: NextRequest) {
       }
 
       const orderData: PlaceOrderRequest = validationResult.data;
-      console.log(orderData.customer_id)
       // ✅ UPDATED: Use enhanced validation
       const preValidation = await transaction(async (client) => {
         return await ValidationService.validateCompleteCart(client, userDetails.branch_id, orderData.items)
@@ -83,7 +82,9 @@ export async function POST(request: NextRequest) {
         await ActivityLogService.createActivityLog(
           client,
           userDetails.userId,
+          userDetails.branch_id,
           'SALES_ORDER_CREATED',
+          'sales_orders',
           salesOrderId,
           {
             order_number: 454,
@@ -159,7 +160,6 @@ interface SalesOrderItem {
   line_total: number
   line_cost?: number
   line_profit?: number
-  warranty_expiry?: string
 }
 
 interface SalesOrder {
@@ -378,8 +378,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           soi.discount,
           soi.line_total,
           soi.line_cost,
-          soi.line_profit,
-          soi.warranty_expiry
+          soi.line_profit
         FROM sales_order_items soi
         LEFT JOIN products p ON soi.product_id = p.id
         LEFT JOIN brands b ON p.brand_id = b.id
@@ -409,8 +408,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           discount: parseFloat(item.discount.toString()),
           line_total: parseFloat(item.line_total.toString()),
           line_cost: item.line_cost ? parseFloat(item.line_cost.toString()) : undefined,
-          line_profit: item.line_profit ? parseFloat(item.line_profit.toString()) : undefined,
-          warranty_expiry: item.warranty_expiry
+          line_profit: item.line_profit ? parseFloat(item.line_profit.toString()) : undefined
         })
       })
 

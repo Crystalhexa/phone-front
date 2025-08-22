@@ -1,29 +1,27 @@
-// app/api/stock-transfer/route.ts
 import { query, transaction } from '@/lib/database/connection'
 import { createId } from '@paralleldrive/cuid2'
 import { NextRequest, NextResponse } from 'next/server'
 import { PoolClient } from 'pg'
 import { z } from 'zod'
 
-// ========== Updated Types for Item-wise Transfer ==========
 interface TransferRequest {
-  to_branch_id: string      // receiving branch (CUID) - renamed from revived_branch_id
-  from_branch_id: string    // sending branch (CUID) - renamed from send_branch_id
+  to_branch_id: string     
+  from_branch_id: string    
   transfer_items: {
     product_id: string
-    transfer_type: 'BATCH' | 'INDIVIDUAL'  // NEW: Transfer by batch or individual items
+    transfer_type: 'BATCH' | 'INDIVIDUAL'  
     batches?: {
       batch_id: string
-      quantity: number      // For batch transfer
+      quantity: number     
     }[]
     individual_items?: {
-      item_barcode_id: string  // NEW: Individual item barcode IDs
+      item_barcode_id: string 
     }[]
   }[]
   requested_by?: string
   priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
   notes?: string
-  reason?: string           // NEW: Transfer reason
+  reason?: string           
 }
 
 interface ApiResponse<T = any> {
@@ -34,7 +32,6 @@ interface ApiResponse<T = any> {
   timestamp: string
 }
 
-// ========== Zod Validation Schemas ==========
 const transferItemSchema = z.object({
   product_id: z.string().min(1, 'Product ID is required'),
   transfer_type: z.enum(['BATCH', 'INDIVIDUAL']),
@@ -79,19 +76,6 @@ function generateCuid(): string {
   return createId()
 }
 
-async function generateTransferNumber(): Promise<string> {
-  const year = new Date().getFullYear()
-  const month = String(new Date().getMonth() + 1).padStart(2, '0')
-
-  const result = await query(`
-    SELECT COUNT(*) as count 
-    FROM stock_transfer_requests 
-    WHERE request_number LIKE $1
-  `, [`TR${year}${month}%`])
-
-  const count = parseInt(result.rows[0].count) + 1
-  return `TR${year}${month}${String(count).padStart(4, '0')}`
-}
 
 // ========== Validation Functions ==========
 async function validateBranches(fromBranchId: string, toBranchId: string): Promise<void> {
@@ -211,21 +195,19 @@ async function validateTransferAvailability(
 // ========== Database Operations ==========
 async function createTransferRequest(
   client: PoolClient,
-  transferData: TransferRequest,
-  transferNumber: string
+  transferData: TransferRequest
 ): Promise<string> {
   const transferRequestId = generateCuid()
 
   const result = await client.query(`
     INSERT INTO stock_transfer_requests (
-      id, request_number, from_branch_id, to_branch_id,
+      id, from_branch_id, to_branch_id,
       requested_by, priority, request_reason, notes,
       status, requested_at, approved_at, dispatched_at, completed_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW(), NOW(), NOW())
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW(), NOW(), NOW())
     RETURNING id
   `, [
     transferRequestId,
-    transferNumber,
     transferData.from_branch_id,
     transferData.to_branch_id,
     transferData.requested_by || null,
@@ -331,7 +313,6 @@ async function createIndividualTransferItem(
 
   const itemData = itemResult.rows[0]
   const transferItemId = generateCuid()
-  console.log("ssds", itemData.purchase_batch_id)
   await client.query(`
     INSERT INTO stock_transfer_items (
       id, transfer_request_id, product_id, batch_id,
@@ -580,11 +561,7 @@ async function updateDestinationInventory(
       20
     ])
   } else {
-    // Update existing inventory record with weighted average cost
     const current = destInventoryResult.rows[0]
-    const currentQty = current.total_quantity || 0
-
-
     destInventoryId = current.id
     await client.query(`
       UPDATE branch_inventory 
@@ -804,11 +781,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // 2. Validate inventory availability
       await validateTransferAvailability(client, transferData.from_branch_id, transferData.transfer_items)
 
-      // 3. Generate transfer number
-      const transferNumber = await generateTransferNumber()
-
       // 4. Create transfer request (marked as COMPLETED)
-      const transferRequestId = await createTransferRequest(client, transferData, transferNumber)
+      const transferRequestId = await createTransferRequest(client, transferData)
 
       // 5. Create transfer items
       await createTransferItems(client, transferRequestId, transferData.transfer_items)
@@ -834,7 +808,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
       return {
         transferRequestId,
-        transferNumber,
         status: 'COMPLETED',
         completedAt: new Date().toISOString(),
         summary: {
@@ -844,8 +817,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
       }
     }, { timeout: 120000 }) // Increased timeout for complex transfers
-
-    const duration = Date.now() - startTime
 
     return NextResponse.json<ApiResponse>({
       success: true,

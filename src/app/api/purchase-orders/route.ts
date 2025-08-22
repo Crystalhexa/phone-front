@@ -149,11 +149,6 @@ async function createPurchaseBatches(
 
   const batchIds: string[] = []
 
-  // Get next FIFO sequence number
-  const fifoQuery = `SELECT COALESCE(MAX(fifo_sequence), 0) + 1 as next_sequence FROM purchase_batches`
-  const fifoResult = await client.query(fifoQuery)
-  let currentFifoSequence = fifoResult.rows[0].next_sequence
-
   for (let i = 0; i < orderItems.length; i++) {
     const orderItem = orderItems[i]
     const itemData = itemsData[i]
@@ -168,8 +163,8 @@ async function createPurchaseBatches(
       INSERT INTO purchase_batches (
         id, purchase_order_item_id, quantity_ordered,
         quantity_received, cost_price, wholesale_price, retail_price,
-        received_date, received_by, is_active, fifo_sequence
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        received_date, received_by, is_active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING id
     `
 
@@ -183,8 +178,7 @@ async function createPurchaseBatches(
       itemData.retail_price,
       new Date().toISOString(),
       user.user_id || user.employee_id,
-      true,
-      currentFifoSequence++
+      true
     ]
 
     const batchResult = await client.query(batchInsertQuery, batchInsertValues)
@@ -208,27 +202,16 @@ async function createItemBarcodes(
   user: any,
   quantityReceived: number
 ): Promise<void> {
-  // Calculate warranty expiry if product has warranty
-  const warrantyQuery = `SELECT warranty_period FROM products WHERE id = $1`
-  const warrantyResult = await client.query(warrantyQuery, [productId])
-  const warrantyPeriod = warrantyResult.rows[0]?.warranty_period
-
-  let warrantyExpiry = null
-  if (warrantyPeriod) {
-    const expiry = new Date()
-    expiry.setMonth(expiry.getMonth() + warrantyPeriod)
-    warrantyExpiry = expiry.toISOString().split('T')[0]
-  }
-
+  
   for (let j = 0; j < quantityReceived; j++) {
     const itemBarcodeId = generateCuid()
 
     const itemBarcodeQuery = `
       INSERT INTO item_barcodes (
         id, purchase_batch_id, product_id, status,
-        purchased_at, purchase_cost, supplier_id, warranty_expiry,
+        purchased_at, purchase_cost, supplier_id,
         condition, location_branch, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `
 
     const itemBarcodeValues = [
@@ -239,7 +222,6 @@ async function createItemBarcodes(
       new Date().toISOString(),
       itemData.cost_price,
       supplierId,
-      warrantyExpiry,
       'GOOD',
       user.branch_id,
       true

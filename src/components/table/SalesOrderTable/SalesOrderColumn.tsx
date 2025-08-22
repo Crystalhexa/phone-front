@@ -214,8 +214,8 @@ export const createSalesOrderColumns = (actions?: TableAction[]): ColumnDef<Sale
     size: 180,
     cell: ({ row }) => {
       const order = row.original;
-      return (
-        <div className="text-right space-y-1">
+        return (
+        <div className="text-left space-y-1">
           <div className="font-medium text-lg">
             {formatCurrency(order.total_amount)}
           </div>
@@ -242,6 +242,7 @@ export const createSalesOrderColumns = (actions?: TableAction[]): ColumnDef<Sale
     size: 150,
     cell: ({ row }) => (
       <div className="w-[150px]">
+        <ActionCell actions={actions} row={row.original} />
       </div>
     ),
   },

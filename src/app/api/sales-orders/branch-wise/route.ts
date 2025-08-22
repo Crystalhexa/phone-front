@@ -13,7 +13,6 @@ interface PendingSalesOrderItem {
   discount: number  // This will now be total_discount
   line_total: number  // This will now be total_line_total
   is_wholesale_price: boolean  // This will now be has_wholesale_price
-  warranty_expiry: string | null
   line_count: number  // NEW: How many times this product appears
   quantity_breakdown: string  // NEW: Shows "2 + 3 + 1" format
 }
@@ -176,30 +175,27 @@ export async function GET(request: NextRequest) {
       if (orderIds.length > 0) {
         // Replace your existing itemsQuery with this:
         const itemsQuery = `
-  SELECT 
-    MIN(soi.id) as id,
-    soi.sales_order_id,
-    soi.product_id,
-    p.name as product_name,
-    SUM(soi.quantity) as total_quantity,
-    AVG(soi.unit_price) as avg_unit_price,
-    SUM(soi.discount) as total_discount,
-    SUM(soi.line_total) as total_line_total,
-    BOOL_OR(soi.is_wholesale_price) as has_wholesale_price,
-    MIN(soi.warranty_expiry) as warranty_expiry,
-    COUNT(*) as line_count,
-    STRING_AGG(soi.quantity::text, ' + ') as quantity_breakdown
-  FROM sales_order_items soi
-  JOIN products p ON soi.product_id = p.id
-  WHERE soi.sales_order_id = ANY($1)
-  GROUP BY soi.sales_order_id, soi.product_id, p.name
-  ORDER BY MIN(soi.created_at) ASC
-`
+          SELECT 
+            MIN(soi.id) as id,
+            soi.sales_order_id,
+            soi.product_id,
+            p.name as product_name,
+            SUM(soi.quantity) as total_quantity,
+            AVG(soi.unit_price) as avg_unit_price,
+            SUM(soi.discount) as total_discount,
+            SUM(soi.line_total) as total_line_total,
+            BOOL_OR(soi.is_wholesale_price) as has_wholesale_price,
+            COUNT(*) as line_count,
+            STRING_AGG(soi.quantity::text, ' + ') as quantity_breakdown
+          FROM sales_order_items soi
+          JOIN products p ON soi.product_id = p.id
+          WHERE soi.sales_order_id = ANY($1)
+          GROUP BY soi.sales_order_id, soi.product_id, p.name
+          ORDER BY MIN(soi.created_at) ASC
+        `
 
         const itemsResult = await query(itemsQuery, [orderIds])
 
-        // Group items by sales_order_id
-        // Replace the items processing section with:
         itemsResult.rows.forEach((item: any) => {
           if (!orderItems[item.sales_order_id]) {
             orderItems[item.sales_order_id] = []
@@ -214,7 +210,6 @@ export async function GET(request: NextRequest) {
             discount: parseFloat(item.total_discount),
             line_total: parseFloat(item.total_line_total),
             is_wholesale_price: item.has_wholesale_price,
-            warranty_expiry: item.warranty_expiry,
             line_count: parseInt(item.line_count),
             quantity_breakdown: item.quantity_breakdown
           })

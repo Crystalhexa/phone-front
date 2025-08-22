@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { SalesOrder } from '@/components/table/SalesOrderTable/useSalesOrderData';
+import { formatCurrency } from '@/lib/utils/formatCurrency';
 
 const SalesOrderDetailsPage = () => {
   const params = useParams();
@@ -65,12 +66,6 @@ const SalesOrderDetailsPage = () => {
       fetchOrderDetails();
     }
   }, [id]);
-
-  // Format currency
-  const formatCurrency = (amount: number) => {
-    return `Rs. ${amount.toFixed(2)}`;
-  };
-
   // Format date
   const formatDate = (dateString: string) => {
     return format(new Date(dateString), 'MMM dd, yyyy');
@@ -334,7 +329,6 @@ const SalesOrderDetailsPage = () => {
                     <TableHead>Discount</TableHead>
                     <TableHead>Line Total</TableHead>
                     <TableHead>Profit</TableHead>
-                    <TableHead>Warranty</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -356,9 +350,7 @@ const SalesOrderDetailsPage = () => {
                       <TableCell className="text-green-600">
                         {item.line_profit !== undefined ? formatCurrency(item.line_profit) : 'N/A'}
                       </TableCell>
-                      <TableCell>
-                        {item.warranty_expiry ? formatDate(item.warranty_expiry) : 'N/A'}
-                      </TableCell>
+                     
                     </TableRow>
                   ))}
                 </TableBody>

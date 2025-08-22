@@ -15,7 +15,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         { status: 200 }
       );
     } catch (error) {
-      console.error('[AUTH_ME_ERROR]', error);
       return NextResponse.json(
         {
           success: false,

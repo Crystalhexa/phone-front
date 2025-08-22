@@ -28,8 +28,7 @@ import {
   Users
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
-import { printReceipt, ReceiptPrinter, type ReceiptData } from '@/lib/utils/print'
-import { User } from '@/types/auth'
+import {  ReceiptPrinter,generateReceiptHTML, type ReceiptData } from '@/lib/utils/print'
 import { useAuth } from '@/hooks/useAuth'
 
 interface PendingSalesOrderItem {
@@ -289,12 +288,7 @@ const CashierPaymentComponent = () => {
         if (user) {
           try {
             const receiptData = generateReceiptData(selectedOrder, result.data)
-            await ReceiptPrinter.printReceipt(receiptData, user, {
-              showPreview: true,   // User can review before printing
-              autoClose: false,    // Window stays open after printing
-              timeout: 0,
-              paperSize: 'a4'
-            })
+            ReceiptPrinter.downloadReceiptPDF(receiptData, user)
 
           } catch (printError) {
             console.error('Failed to print receipt:', printError)

@@ -120,7 +120,6 @@ export async function GET(
         e.phone as employee_phone,
         so.order_date,
         so.status,
-        so.payment_method,
         so.payment_status,
         so.subtotal,
         so.total_amount,
@@ -189,7 +188,6 @@ export async function GET(
           soi.line_total,
           soi.line_cost,
           soi.line_profit,
-          soi.warranty_expiry,
           soi.created_at
         FROM sales_order_items soi
         LEFT JOIN products p ON soi.product_id = p.id

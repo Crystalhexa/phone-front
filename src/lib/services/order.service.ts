@@ -95,8 +95,7 @@ export class OrderService {
       SELECT 
         pb.cost_price, 
         pb.retail_price,
-        bii.branch_inventory_id,
-        p.warranty_period
+        bii.branch_inventory_id
       FROM purchase_batches pb
       JOIN branch_inventory_items bii ON pb.id = bii.purchase_batch_id
       JOIN branch_inventory bi ON bii.branch_inventory_id = bi.id
@@ -109,20 +108,12 @@ export class OrderService {
     const lineCost = costPrice * batch.quantity
     const lineProfit = lineTotal - lineCost
 
-    // Calculate warranty expiry
-    let warrantyExpiry = null
-    if (batchInfo.warranty_period) {
-      const expiry = new Date()
-      expiry.setMonth(expiry.getMonth() + batchInfo.warranty_period)
-      warrantyExpiry = expiry.toISOString().split('T')[0]
-    }
-
     // Insert sales order item
     await client.query(`
       INSERT INTO sales_order_items (
         id, sales_order_id, product_id, quantity, unit_price,
-        discount, line_total, line_cost, line_profit, warranty_expiry
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        discount, line_total, line_cost, line_profit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `, [
       salesOrderItemId,
       salesOrderId,
@@ -132,8 +123,7 @@ export class OrderService {
       discount || 0,
       lineTotal,
       lineCost,
-      lineProfit,
-      warrantyExpiry
+      lineProfit
     ])
 
     // Create sales batch allocation (FIFO tracking)
@@ -196,21 +186,12 @@ export class OrderService {
     const costPrice = parseFloat(itemInfo.purchase_cost)
     const lineCost = costPrice
     const lineProfit = lineTotal - lineCost
-
-    // Calculate warranty expiry
-    let warrantyExpiry = null
-    if (itemInfo.warranty_period) {
-      const expiry = new Date()
-      expiry.setMonth(expiry.getMonth() + itemInfo.warranty_period)
-      warrantyExpiry = expiry.toISOString().split('T')[0]
-    }
-
     // Insert sales order item
     await client.query(`
       INSERT INTO sales_order_items (
         id, sales_order_id, product_id, quantity,is_wholesale_price, unit_price,
-        discount, line_total, line_cost, line_profit, warranty_expiry
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,$11)
+        discount, line_total, line_cost, line_profit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     `, [
       salesOrderItemId,
       salesOrderId,
@@ -221,8 +202,7 @@ export class OrderService {
       item.discount_amount_per_item || 0,
       lineTotal,
       lineCost,
-      lineProfit,
-      warrantyExpiry
+      lineProfit
     ])
 
     // Update item barcode status
