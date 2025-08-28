@@ -46,13 +46,8 @@ import { getStockBadge, ProductDetailsPopup, StockDetailsPopup } from '@/compone
 import { ProductResponse,CartItem, Filters, ApiResponse } from '@/types/inventory';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
 
-// Extended Filters interface to include barcode
-interface ExtendedFilters extends Filters {
-  barcode?: string;
-}
-
 const ProductsTable: React.FC = () => {
-          const [popoverOpen, setPopoverOpen] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -65,7 +60,7 @@ const ProductsTable: React.FC = () => {
     has_next: false,
     has_prev: false
   });
-  const [filters, setFilters] = useState<ExtendedFilters>({
+  const [filters, setFilters] = useState<Filters>({
     search: '',
     sort: 'name',
     order: 'asc',
@@ -101,7 +96,6 @@ const ProductsTable: React.FC = () => {
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
     }
-
     debounceTimeout.current = setTimeout(() => {
       if (filters.search) {
         setPagination(prev => ({ ...prev, page: 1 }));

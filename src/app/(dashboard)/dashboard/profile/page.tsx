@@ -9,7 +9,7 @@ import { Form } from '@/components/ui/form';
 import { Badge } from '@/components/ui/badge';
 import { User, Building, Lock, Save, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import CustomFormField, { FormFieldType } from '@/components/form/CustomFormField';
+import CustomFormField, { FormFieldType } from '@/components/form/common/CustomFormField';
 import { useAuth } from '@/hooks/useAuth';
 
 // Form validation schema - only password fields are required for updates

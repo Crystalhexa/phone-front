@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Form } from "@/components/ui/form";
-import CustomFormField, { FormFieldType } from "./CustomFormField";
+import CustomFormField, { FormFieldType } from "./common/CustomFormField";
 import { Button } from "@/components/ui/button";
 import { useAddBranchMutation, useGetBranchByIdQuery, useUpdateBranchMutation } from "@/state/brnach";
 

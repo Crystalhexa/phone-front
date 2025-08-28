@@ -1,5 +1,5 @@
 "use client"
-import UserForm, { UserFormData } from '@/components/form/UserRegistrationForm'
+import UserForm from '@/components/form/UserRegistrationForm'
 
 const page =() => {
 

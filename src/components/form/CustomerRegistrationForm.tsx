@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 import { z } from 'zod';
 import { Form } from '../ui/form';
-import CustomFormField, { FormFieldType } from '../form/CustomFormField'
+import CustomFormField, { FormFieldType } from '../form/common/CustomFormField'
 import { useAddCustomerMutation, useGetCustomerByIdQuery, useUpdateCustomerMutation } from '@/state/customer';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';

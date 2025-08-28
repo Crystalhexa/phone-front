@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Form } from '@/components/ui/form';
-import CustomFormField, { FormFieldType } from '@/components/form/CustomFormField';
+import CustomFormField, { FormFieldType } from '@/components/form/common/CustomFormField';
 import {  ShoppingCart, TrendingUp } from 'lucide-react';
 import { ProductResponse } from '@/types/inventory';
 

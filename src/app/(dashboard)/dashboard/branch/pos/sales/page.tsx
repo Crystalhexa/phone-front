@@ -77,7 +77,6 @@ export default function EnhancedSalesOrderPage() {
   const [scannedProduct, setScannedProduct] = useState<ScannedProduct | null>(null)
   const [barcodeInput, setBarcodeInput] = useState('')
   const [quantityInput, setQuantityInput] = useState(1)
-  const [customer, setCustomer] = useState<Customer | null>(null)
   const [orderDiscount, setOrderDiscount] = useState(0)
   const [orderNotes, setOrderNotes] = useState('')
   const [scannedBarcodes, setScannedBarcodes] = useState<Set<string>>(new Set())

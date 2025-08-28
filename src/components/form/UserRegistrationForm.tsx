@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 import { z } from 'zod'
 import { ArrowLeft } from 'lucide-react'
 import { Form } from '../ui/form'
-import CustomFormField, { FormFieldType } from '../form/CustomFormField'
+import CustomFormField, { FormFieldType } from '../form/common/CustomFormField'
 import SubmitButton from '../form/SubmitButton'
 import { Props, RolesApiResponse } from '@/types/role'
 import {

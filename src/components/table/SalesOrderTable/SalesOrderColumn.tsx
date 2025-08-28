@@ -242,7 +242,7 @@ export const createSalesOrderColumns = (actions?: TableAction[]): ColumnDef<Sale
     size: 150,
     cell: ({ row }) => (
       <div className="w-[150px]">
-        <ActionCell actions={actions} row={row.original} />
+        {/* <ActionCell actions={actions} row={row.original} /> */}
       </div>
     ),
   },

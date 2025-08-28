@@ -7,7 +7,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import CustomFormField, { FormFieldType } from '@/components/form/CustomFormField';
+import CustomFormField, { FormFieldType } from '@/components/form/common/CustomFormField';
 import { Form } from '@/components/ui/form';
 import { useAddSupplierMutation, useGetSupplierByIdQuery, useUpdateSupplierMutation } from '@/state/supplier';
 

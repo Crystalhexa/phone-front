@@ -36,8 +36,9 @@ import {
   Maximize2,
   Check,
 } from 'lucide-react';
-import CustomFormField, { FormFieldType } from '../form/CustomFormField';
+import CustomFormField, { FormFieldType } from '../form/common/CustomFormField';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils/formatCurrency';
 
 // Zod schemas
 export const orderFormSchema = z.object({
@@ -131,7 +132,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
   orderFormData,
   setOrderFormData
 }) => {
-  console.log(cartItems)
   const [currentOrder, setCurrentOrder] = useState<PurchaseOrder | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
@@ -458,18 +458,6 @@ export const PurchaseCart: React.FC<PurchaseCartProps> = ({
     setCreateOrderDialogOpen(true);
   };
 
-const formatCurrency = (amount: unknown) => {
-  const num = typeof amount === 'number'
-    ? amount
-    : typeof amount === 'string'
-    ? Number(amount)
-    : NaN;
-
-  if (isNaN(num)) return 'Rs. 0.00';
-
-  return `Rs. ${num.toFixed(2)}`;
-};
-
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return '-';
@@ -669,7 +657,6 @@ const formatCurrency = (amount: unknown) => {
                     <TableBody>
                       {cartItems.map((item) => {
                         const isEditingThis = editingItemId === item.id;
-
                         return (
                           <TableRow key={item.id} className={isEditingThis ? 'bg-muted/50' : ''}>
                             <TableCell>

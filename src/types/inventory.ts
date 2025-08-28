@@ -99,6 +99,8 @@ export interface ApiResponse {
 }
 
 export interface Filters {
+    barcode?: string;
+
   search: string;
   sort: 'name' | 'created_at' | 'stock' | 'brand' | 'category';
   order: 'asc' | 'desc';
