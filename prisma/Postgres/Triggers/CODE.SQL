@@ -296,3 +296,21 @@ CREATE TRIGGER set_supplier_code
   FOR EACH ROW
   WHEN (NEW.code IS NULL OR NEW.code = '')
   EXECUTE FUNCTION trg_supplier_code();
+
+
+-- Payment number
+CREATE OR REPLACE FUNCTION trg_payment_number()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.payment_number IS NULL OR NEW.payment_number = '' THEN
+    NEW.payment_number := generate_order_number('PY', true, false);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_payment_number
+  BEFORE INSERT ON payments
+  FOR EACH ROW
+  WHEN (NEW.payment_number IS NULL OR NEW.payment_number = '')
+  EXECUTE FUNCTION trg_payment_number();

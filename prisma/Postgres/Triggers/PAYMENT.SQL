@@ -24,12 +24,6 @@ BEGIN
             updated_at = NOW()
         WHERE id = NEW.sales_order_id;
         
-        -- Update customer's outstanding balance
-        UPDATE customers 
-        SET 
-            outstanding_balance = GREATEST(outstanding_balance - NEW.amount, 0),
-            updated_at = NOW()
-        WHERE id = NEW.customer_id;
         
     ELSE
         -- If payment is not linked to a specific order, apply to oldest unpaid orders first
@@ -79,13 +73,6 @@ BEGIN
             
         END LOOP;
         
-        -- Update customer's outstanding balance with the full payment amount
-        UPDATE customers 
-        SET 
-            outstanding_balance = GREATEST(outstanding_balance - NEW.amount, 0),
-            updated_at = NOW()
-        WHERE id = NEW.customer_id;
-        
     END IF;
     
     RETURN NEW;
@@ -121,8 +108,6 @@ CREATE INDEX IF NOT EXISTS idx_sales_orders_allocation
 ON sales_orders (customer_id, payment_status, order_date, created_at) 
 WHERE balance_due > 0;
 
-CREATE INDEX IF NOT EXISTS idx_customers_balance 
-ON customers (id, outstanding_balance);
 
 -- Optional: Performance monitoring table
 CREATE TABLE IF NOT EXISTS payment_processing_log (

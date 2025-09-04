@@ -44,16 +44,6 @@ interface ProductBarcode {
   code: string
 }
 
-// Initialize database connection
-let dbInitialized = false
-
-async function ensureDbInit() {
-  if (!dbInitialized) {
-    await initDatabase()
-    dbInitialized = true
-  }
-}
-
 // Validation schemas
 const productSpecificationSchema = z.object({
   id: z.string().min(1,'Specification is min'),
@@ -253,7 +243,7 @@ export async function GET(
   const startTime = Date.now()
   
   try {
-    await ensureDbInit()
+    await initDatabase()
     
     // Await params in Next.js 15
     const { id: productId } = await context.params
@@ -452,7 +442,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ): Promise<NextResponse<ApiResponse<{ deleted: boolean }>>> {
   try {
-    await ensureDbInit()
+    await initDatabase()
     
     // Await params in Next.js 15
     const { id: productId } = await context.params

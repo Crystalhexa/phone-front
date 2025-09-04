@@ -318,7 +318,6 @@ export class ValidationService {
         ib.id,
         ib.code,
         ib.status,
-        ib.condition,
         ib.location_branch,
         ib.warranty_expiry,
         ib.is_active,

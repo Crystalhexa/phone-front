@@ -13,7 +13,7 @@ export class OrderService {
     branchId: string,
     soldBy: string,
     totals: OrderSummary
-  ): Promise<string> {
+  ): Promise<{ order_id: string, order_number: string }> {
     const salesOrderId = generateCuid()
 
     const query = `
@@ -22,7 +22,7 @@ export class OrderService {
         order_date, status, 
         subtotal, discount, balance_due,total_amount, total_cost, profit_amount, notes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,$13)
-      RETURNING id
+      RETURNING id,order_number
     `
 
     const values = [
@@ -41,8 +41,10 @@ export class OrderService {
       orderData.notes || null
     ]
 
-    const result = await client.query(query, values)
-    return result.rows[0].id
+    const result = await client.query(query, values);
+    const order_id = result.rows[0].id;
+    const order_number = result.rows[0].order_number;
+    return { order_id, order_number };
   }
 
   static async createSalesOrderItems(
@@ -89,7 +91,7 @@ export class OrderService {
       discount = item.discount_amount_per_item * batch.quantity;
     }
     const lineTotal = (item.unit_price * batch.quantity) - discount;
-    
+
     // Get batch cost and details
     const batchResult = await client.query(`
       SELECT 
@@ -170,6 +172,7 @@ export class OrderService {
     const salesOrderItemId = generateCuid()
     const lineTotal = item.unit_price - (item.discount_amount_per_item || 0)
 
+
     // Get item details
     const itemResult = await client.query(`
       SELECT 
@@ -196,14 +199,22 @@ export class OrderService {
       salesOrderItemId,
       salesOrderId,
       item.product_id,
-      1, 
-      item.wholesale_applied||false,
+      1,
+      item.wholesale_applied || false,
       item.unit_price,
       item.discount_amount_per_item || 0,
       lineTotal,
       lineCost,
       lineProfit
     ])
+
+    const warrantyPeriod = itemInfo.warranty_period || 0;
+    const purchaseDate = new Date();
+    let warrantyExpiryDate = null;
+    if (warrantyPeriod > 0) {
+      warrantyExpiryDate = new Date(purchaseDate);
+      warrantyExpiryDate.setMonth(warrantyExpiryDate.getMonth() + warrantyPeriod);
+    }
 
     // Update item barcode status
     await client.query(`
@@ -212,9 +223,10 @@ export class OrderService {
           sales_order_item_id = $1,
           sold_at = NOW(),
           sold_price = $2,
+          warranty_expiry = $4,
           updated_at = NOW()
       WHERE id = $3
-    `, [salesOrderItemId, item.unit_price, itemBarcodeId])
+    `, [salesOrderItemId, item.unit_price, itemBarcodeId, warrantyExpiryDate])
 
     // Update inventory
     await InventoryService.updateIndividualItemInventory(client, itemBarcodeId, item.product_id)
@@ -255,14 +267,32 @@ export class OrderService {
     client: PoolClient,
     salesOrderId: string,
     totalCost: number,
-    totalProfit: number
+    totalProfit: number,
+    total_amount: number,
+        previousBalance?: number | undefined,
   ): Promise<void> {
-    await client.query(`
+
+    console.log(previousBalance,'previousBalance')
+    if (previousBalance !== undefined && previousBalance < 0) {
+
+      const balance_due = total_amount+previousBalance;      
+      await client.query(`
+      UPDATE sales_orders 
+      SET total_cost = $1,
+          profit_amount = $2,
+          balance_due=$4,
+          updated_at = NOW()
+      WHERE id = $3
+    `, [totalCost, totalProfit, salesOrderId,balance_due])
+    } else {
+      await client.query(`
       UPDATE sales_orders 
       SET total_cost = $1,
           profit_amount = $2,
           updated_at = NOW()
       WHERE id = $3
     `, [totalCost, totalProfit, salesOrderId])
+    }
+
   }
 }

@@ -12,7 +12,7 @@ const customerSchema = z.object({
   address: z.string().nullable().optional(),
   date_of_birth: z.string().datetime({ offset: true }).nullable().optional(),
   credit_limit: z.coerce.number().nullable().optional(),
-  outstanding_balance: z.coerce.number().default(0),
+  running_balance: z.coerce.number().default(0),
   loyalty_points: z.coerce.number().default(0),
   is_active: z.boolean().default(true),
 });
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       WITH filtered_customers AS (
         SELECT 
           id, customer_number, name, email, nic, phone, address,
-          date_of_birth, credit_limit, outstanding_balance,
+          date_of_birth, credit_limit, running_balance,
           loyalty_points, is_active, created_at, updated_at,
           COUNT(*) OVER() AS total_count
         FROM customers
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
     const cleanCustomers = customers.map(({ total_count, ...rest }) => ({
       ...rest,
-      outstanding_balance: rest.outstanding_balance !== null ? Number(rest.outstanding_balance) : 0,
+      running_balance: rest.running_balance !== null ? Number(rest.running_balance) : 0,
       credit_limit: rest.credit_limit !== null ? Number(rest.credit_limit) : null,
       loyalty_points: rest.loyalty_points !== null ? Number(rest.loyalty_points) : 0,
     }));
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
         data.address ?? null,
         data.date_of_birth ? new Date(data.date_of_birth) : null,
         data.credit_limit ?? null,
-        data.outstanding_balance,
+        data.running_balance,
         data.loyalty_points,
         data.is_active,
       ];

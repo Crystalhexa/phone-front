@@ -64,13 +64,13 @@ export const createCustomerColumns = (
     ),
   },
   {
-    accessorKey: "outstanding_balance",
+    accessorKey: "running_balance",
     header: "Outstanding",
     size: 120,
     cell: ({ row }) => (
       <div className="text-red-400 font-semibold text-sm">
-        Rs. {typeof row.getValue("outstanding_balance") === "number"
-          ? formatCurrency(row.getValue("outstanding_balance"))
+        Rs. {typeof row.getValue("running_balance") === "number"
+          ? formatCurrency(row.getValue("running_balance"))
           : "0.00"}
       </div>
     ),

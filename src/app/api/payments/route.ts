@@ -3,15 +3,15 @@ import { initDatabase, query, transaction } from '@/lib/database/connection';
 import { z } from 'zod';
 import { AuthenticatedRequest, withPermission } from '@/middleware/auth';
 import cuid from 'cuid';
+import { CustomerLedgerService } from '@/lib/services/customer-ledger.service';
 
 // Validation schema
 const createPaymentSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
   amountPaid: z.number().min(0).optional().default(0),
-  order_id: z.string().optional(),
-  orderId: z.string().optional(), // Handle both field names
+  order_id: z.string().optional().nullable(),
   customer_id: z.string().optional().nullable(),
-  paymentMethod: z.enum(['CASH', 'CREDIT_CARD','DEBIT_CARD', 'BANK_TRANSFER', 'CHEQUE', 'MOBILE_PAYMENT']),
+  paymentMethod: z.enum(['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'CHEQUE', 'MOBILE_PAYMENT']),
   received_amount: z.number().min(0).optional(),
   change_amount: z.number().min(0).optional().default(0),
   reference_number: z.string().optional(),
@@ -21,17 +21,16 @@ const createPaymentSchema = z.object({
   notes: z.string().optional().default(''),
 });
 
-type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
 export async function POST(request: NextRequest) {
   return withPermission('create_product')(async (authedReq: AuthenticatedRequest) => {
     try {
       // Initialize database if needed
       await initDatabase();
-      
+
       const { user: userDetails } = authedReq.user;
       const branchId = userDetails.branch_id;
-      
+
       if (!branchId) {
         return NextResponse.json({
           success: false,
@@ -44,7 +43,7 @@ export async function POST(request: NextRequest) {
       // Parse and validate request body
       const body = await request.json();
       const validationResult = createPaymentSchema.safeParse(body);
-      
+
       if (!validationResult.success) {
         return NextResponse.json({
           success: false,
@@ -56,10 +55,10 @@ export async function POST(request: NextRequest) {
       }
 
       const data = validationResult.data;
-      
+
       // Handle both order_id and orderId field names
-      const salesOrderId = data.order_id || data.orderId;
-      
+      const salesOrderId = data.order_id;
+
       // Validate payment method specific requirements
       if (data.paymentMethod === 'CASH') {
         if (!data.received_amount || data.received_amount <= 0) {
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
             timestamp: new Date().toISOString()
           }, { status: 400 });
         }
-        
+
         // Calculate change amount for cash payments
         const changeAmount = Math.max(0, data.received_amount - data.amount);
         data.change_amount = changeAmount;
@@ -82,7 +81,7 @@ export async function POST(request: NextRequest) {
           'SELECT id, customer_id, total_amount, branch_id FROM sales_orders WHERE id = $1',
           [salesOrderId]
         );
-        
+
         if (orderCheck.rows.length === 0) {
           return NextResponse.json({
             success: false,
@@ -91,9 +90,9 @@ export async function POST(request: NextRequest) {
             timestamp: new Date().toISOString()
           }, { status: 404 });
         }
-        
+
         const order = orderCheck.rows[0];
-        
+
         // Ensure the order belongs to the same branch
         if (order.branch_id !== branchId) {
           return NextResponse.json({
@@ -103,7 +102,7 @@ export async function POST(request: NextRequest) {
             timestamp: new Date().toISOString()
           }, { status: 403 });
         }
-        
+
         // Use customer from order if not provided
         if (!data.customer_id) {
           data.customer_id = order.customer_id;
@@ -116,7 +115,7 @@ export async function POST(request: NextRequest) {
           'SELECT id FROM customers WHERE id = $1',
           [data.customer_id]
         );
-        
+
         if (customerCheck.rows.length === 0) {
           return NextResponse.json({
             success: false,
@@ -127,14 +126,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Generate payment number
-      const paymentNumberResult = await query(
-        `SELECT COALESCE(MAX(CAST(SUBSTRING(payment_number FROM 4) AS INTEGER)), 0) + 1 as next_number
-         FROM payments 
-         WHERE payment_number LIKE 'PAY%'`
-      );
-      const nextNumber = paymentNumberResult.rows[0]?.next_number || 1;
-      const paymentNumber = `PAY${String(nextNumber).padStart(6, '0')}`;
       const paymentId = cuid()
       // Create payment within a transaction
       const result = await transaction(async (client) => {
@@ -142,12 +133,10 @@ export async function POST(request: NextRequest) {
         const insertPaymentQuery = `
           INSERT INTO payments (
             id,
-            payment_number,
             sales_order_id,
             customer_id,
             branch_id,
             payment_method,
-            payment_status,
             amount,
             received_amount,
             change_amount,
@@ -161,18 +150,16 @@ export async function POST(request: NextRequest) {
             created_at,
             updated_at
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,$17, NOW(), NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW()
           ) RETURNING *
         `;
-        
+
         const paymentValues = [
           paymentId,
-          paymentNumber,
           salesOrderId || null,
           data.customer_id || null,
           branchId,
           data.paymentMethod,
-          'PAID', // Default status
           data.amount,
           data.received_amount || null,
           data.change_amount || 0,
@@ -184,13 +171,17 @@ export async function POST(request: NextRequest) {
           userDetails.employee_id, // processed_by
           data.notes || '',
         ];
-        
+
         const paymentResult = await client.query(insertPaymentQuery, paymentValues);
         const payment = paymentResult.rows[0];
         
-      
+        if (payment.customer_id) {
+          const ledgerResult = await CustomerLedgerService.createCustomerLedger(client, payment.payment_number, 'PAYMENT_MADE', payment?.customer_id, payment.id, 'Payment made', null,payment.amount)
+        };
+
         return payment;
       });
+
 
       // Fetch the complete payment with relations
       const completePayment = await query(`
@@ -217,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
       console.error('❌ Error creating payment:', error);
-      
+
       return NextResponse.json({
         success: false,
         message: 'Failed to create payment',

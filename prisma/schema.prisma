@@ -353,43 +353,42 @@ model barcodes {
 }
 
 model item_barcodes {
-  id                String         @id @default(cuid())
-  purchase_batch_id String
-  product_id        String 
-  code              String         @unique @db.VarChar(50)
-  status            barcode_status @default(AVAILABLE)
+  id                  String         @id @default(cuid())
+  purchase_batch_id   String
+  product_id          String 
+  code                String         @unique @db.VarChar(50)
+  status              barcode_status @default(AVAILABLE)
 
-  purchased_at  DateTime @default(now()) @db.Timestamptz(6)
-  purchase_cost Decimal  @db.Decimal(10, 2)
-  supplier_id   String? // Track original supplier
+  purchased_at        DateTime @default(now()) @db.Timestamptz(6)
+  purchase_cost       Decimal  @db.Decimal(10, 2)
+  supplier_id         String? // Track original supplier
 
   sales_order_item_id String?
   sold_at             DateTime? @db.Timestamptz(6)
   sold_price          Decimal?  @db.Decimal(10, 2)
   sold_to_customer    String? 
   sold_by_employee    String? 
-  returned_at   DateTime? @db.Timestamptz(6)
-  return_reason String?   @db.Text
-  returned_by   String? 
+  returned_at         DateTime? @db.Timestamptz(6)
+  return_reason       String?   @db.Text
+  returned_by         String? 
 
-  warranty_expiry DateTime?      @db.Date
-  condition       item_condition @default(GOOD)
-  location_branch String? 
-  notes           String?        @db.Text
-  is_active       Boolean        @default(true)
-  created_at      DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime?      @updatedAt @db.Timestamptz(6)
+  warranty_expiry     DateTime?      @db.Date
+  location_branch     String? 
+  notes               String?        @db.Text
+  is_active           Boolean        @default(true)
+  created_at          DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?      @updatedAt @db.Timestamptz(6)
 
-  purchase_batch        purchase_batches        @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
-  product               products                @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  supplier              suppliers?              @relation(fields: [supplier_id], references: [id])
-  sales_order_item      sales_order_items?      @relation(fields: [sales_order_item_id], references: [id])
-  customer              customers?              @relation(fields: [sold_to_customer], references: [id])
-  sold_by               employees?              @relation("SoldBy", fields: [sold_by_employee], references: [id])
-  returned_by_emp       employees?              @relation("ReturnedBy", fields: [returned_by], references: [id])
-  current_branch        branches?               @relation(fields: [location_branch], references: [id])
+  purchase_batch      purchase_batches        @relation(fields: [purchase_batch_id], references: [id], onDelete: Cascade)
+  product             products                @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  supplier            suppliers?              @relation(fields: [supplier_id], references: [id])
+  sales_order_item    sales_order_items?      @relation(fields: [sales_order_item_id], references: [id])
+  customer            customers?              @relation(fields: [sold_to_customer], references: [id])
+  sold_by             employees?              @relation("SoldBy", fields: [sold_by_employee], references: [id])
+  returned_by_emp     employees?              @relation("ReturnedBy", fields: [returned_by], references: [id])
+  current_branch      branches?               @relation(fields: [location_branch], references: [id])
   item_movement_history item_movement_history[]
-  warranty_claims       warranty_claims[]
+  warranty_claims     warranty_claims[]
 
   @@index([code, status, is_active, location_branch])
   @@index([purchase_batch_id])
@@ -424,7 +423,6 @@ model item_movement_history {
   @@index([movement_type])
   @@map("item_movement_history")
 }
-
 model purchase_batches {
   id                     String    @id @default(cuid())
   batch_number           String?   @unique @db.VarChar(50)
@@ -636,7 +634,6 @@ model stock_transfer_requests {
   requested_by   String
   approved_by    String?
   status         transfer_status @default(PENDING)
-  priority       priority_level  @default(NORMAL)
   request_reason String?         @db.Text
   notes          String?         @db.Text
   requested_at   DateTime        @default(now()) @db.Timestamptz(6)
@@ -870,14 +867,11 @@ model customers {
   date_of_birth       DateTime?     @db.Date
   customer_type       customer_type @default(RETAIL) // NEW: Customer type for pricing
   credit_limit        Decimal?      @db.Decimal(45, 2)
-  outstanding_balance Decimal       @default(0) @db.Decimal(45, 2)
+  running_balance     Decimal       @default(0) @db.Decimal(45, 2)
   loyalty_points      Int           @default(0)
   discount_percentage Decimal?      @db.Decimal(5, 2) // NEW: Customer-specific discount
   is_active           Boolean       @default(true)
-  opening_balance     Decimal       @default(0) @db.Decimal(12, 2)
-  current_balance     Decimal       @default(0) @db.Decimal(12, 2)
   last_statement_date DateTime?     @db.Date
-  credit_days         Int?
   created_at          DateTime      @default(now()) @db.Timestamptz(6)
   updated_at          DateTime      @default(now()) @db.Timestamptz(6)
 
@@ -949,7 +943,6 @@ model payments {
   processed_by String? // Employee who processed the payment
 
   payment_method  payment_method @default(CASH)
-  payment_status  payment_status @default(PENDING)
   amount          Decimal        @db.Decimal(12, 2)
   received_amount Decimal?       @db.Decimal(12, 2) // Actual amount received (for change calculation)
   change_amount   Decimal?       @default(0) @db.Decimal(12, 2)
@@ -985,7 +978,6 @@ model payments {
   @@index([purchase_order_id])
   @@index([branch_id])
   @@index([payment_method])
-  @@index([payment_status])
   @@index([payment_date])
   @@index([processed_by])
   @@index([reference_number])
@@ -1133,8 +1125,7 @@ model warranty_claims {
   item_barcode     item_barcodes  @relation(fields: [item_barcode_id], references: [id])
   customer         customers?     @relation(fields: [customer_id], references: [id])
 }
-// ================== ENHANCED ENUMS ==================
-
+// ================== ENUMS ==================
 enum warranty_status {
   UNDER_REVIEW
   REJECTED
@@ -1144,14 +1135,12 @@ enum warranty_status {
   RETURN_TO_CUSTOMER
   REFUNDED
 }
-
 enum credit_status {
   PENDING
   APPROVED
   APPLIED
   CANCELLED
 }
-
 enum ledger_type {
   SALE
   PURCHASE
@@ -1162,10 +1151,8 @@ enum ledger_type {
   ADJUSTMENT
   OPENING_BALANCE
 }
-
 enum barcode_status {
   WARRANTY_CLAIM
-  REPLACED_UNDER_WARRANTY
   SENT_FOR_REPAIR
   AVAILABLE
   RESERVED
@@ -1173,7 +1160,6 @@ enum barcode_status {
   RETURNED
   DAMAGED
 }
-
 enum stock_entry_type {
   PURCHASE
   SALE
@@ -1184,7 +1170,6 @@ enum stock_entry_type {
   DAMAGED
   INITIAL_STOCK
 }
-
 enum transfer_status {
   PENDING
   APPROVED
@@ -1194,30 +1179,6 @@ enum transfer_status {
   COMPLETED
   CANCELLED
 }
-
-enum priority_level {
-  LOW
-  NORMAL
-  HIGH
-  URGENT
-}
-
-enum delivery_method {
-  INTERNAL_TRANSPORT
-  THIRD_PARTY
-  PICKUP
-  COURIER
-}
-
-enum delivery_status {
-  PENDING
-  DISPATCHED
-  IN_TRANSIT
-  DELIVERED
-  RETURNED
-  CANCELLED
-}
-
 enum adjustment_reason {
   DAMAGED
   EXPIRED
@@ -1228,20 +1189,17 @@ enum adjustment_reason {
   SYSTEM_ERROR
   INITIAL_STOCK
 }
-
 enum low_stock_alert_type {
   LOW_STOCK
   OUT_OF_STOCK
   CRITICAL_STOCK
 }
-
 enum alert_status {
   ACTIVE
   ACKNOWLEDGED
   RESOLVED
   DISMISSED
 }
-
 enum order_status {
   DRAFT
   INITIAL_STOCK
@@ -1249,9 +1207,7 @@ enum order_status {
   PROCESSING
   COMPLETED
   CANCELLED
-  RETURNED
 }
-
 enum return_status {
   PENDING
   APPROVED
@@ -1259,13 +1215,11 @@ enum return_status {
   PROCESSED
   COMPLETED
 }
-
 enum customer_type {
   RETAIL
   WHOLESALE
   VIP
 }
-
 enum payment_method {
   CASH
   CREDIT_CARD
@@ -1276,7 +1230,6 @@ enum payment_method {
   CREDIT_NOTE
   INSTALLMENT
 }
-
 enum payment_status {
   ON_ACCOUNT
   PENDING
@@ -1286,20 +1239,17 @@ enum payment_status {
   CANCELLED
   REFUNDED
 }
-
 enum price_type {
   RETAIL
   WHOLESALE
   COST
 }
-
 enum receipt_status {
   PENDING
   COMPLETED
   PARTIAL
   CANCELLED
 }
-
 enum item_movement_type {
   PURCHASE_RECEIVED
   SALE_DISPATCHED
@@ -1312,22 +1262,10 @@ enum item_movement_type {
   LOST
   LOCATION_CHANGE
 }
-
-enum item_condition {
-  GOOD
-  DAMAGED
-  EXPIRED
-  DEFECTIVE
-  RETURNED
-  REPAIRED
-  REFURBISHED
-}
-
 enum payment_direction {
   INCOMING
   OUTGOING
 }
-
 enum payment_type {
   SALE_PAYMENT
   PURCHASE_PAYMENT

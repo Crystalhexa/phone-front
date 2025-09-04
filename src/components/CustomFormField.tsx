@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "./ui/form";
 import { Input } from "./ui/input";
-import { Select, SelectContent, SelectTrigger, SelectValue } from "./ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Textarea } from "./ui/textarea";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -94,15 +94,15 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
       return (
         <FormControl>
           <PhoneInput
-  defaultCountry="US"
-  international={false}
-  withCountryCallingCode={false}
-  placeholder={props.placeholder}
-  value={field.value}
-  onChange={field.onChange}
-  className={cn("input-phone", props.disabled && "opacity-50")}
-  disabled={props.disabled}
-/>
+            defaultCountry="US"
+            international={false}
+            withCountryCallingCode={false}
+            placeholder={props.placeholder}
+            value={field.value}
+            onChange={field.onChange}
+            className={cn("input-phone", props.disabled && "opacity-50")}
+            disabled={props.disabled}
+          />
 
 
         </FormControl>
@@ -146,18 +146,25 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
     case FormFieldType.SELECT:
       return (
         <FormControl>
-          <Select onValueChange={field.onChange} defaultValue={field.value}>
+          <Select onValueChange={field.onChange} value={field.value}>
             <FormControl>
-              <SelectTrigger className={cn("shad-select-trigger", props.disabled && "opacity-50")}>
+              <SelectTrigger
+                className={cn("shad-select-trigger", props.disabled && "opacity-50")}
+              >
                 <SelectValue placeholder={props.placeholder} />
               </SelectTrigger>
             </FormControl>
             <SelectContent className="shad-select-content">
-              {props.children}
+              {props.options?.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </FormControl>
       );
+
     case FormFieldType.COMBOBOX:
       return (
         <FormControl>
@@ -174,8 +181,6 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
       return null;
   }
 };
-
-
 const CustomFormField = (props: CustomProps) => {
   const { control, name, label } = props;
 

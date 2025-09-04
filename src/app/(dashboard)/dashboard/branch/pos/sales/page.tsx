@@ -459,7 +459,7 @@ export default function EnhancedSalesOrderPage() {
 
       // Check credit limit for wholesale customers
       if (customer.customer_type === 'WHOLESALE' && customer.credit_limit) {
-        const totalWithOutstanding =  customer.outstanding_balance
+        const totalWithOutstanding =  customer.running_balance
         if (totalWithOutstanding > customer.credit_limit) {
           console.warn('Customer credit limit exceeded!')
         }

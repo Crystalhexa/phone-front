@@ -23,9 +23,7 @@ export function useSalesOrder(): SalesOrderHook {
         },
         body: JSON.stringify({ barcode: barcode.trim() }),
       })
-
-      const result = await response.json()
-
+      const result = await response.json();
       if (!response.ok) {
         throw new Error(result.message || 'Failed to scan product')
       }

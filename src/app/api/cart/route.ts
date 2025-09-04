@@ -98,7 +98,7 @@ async function enhancedBarcodeSearch(
 
   // Route to appropriate handler based on what we found
   if (found.source === 'INDIVIDUAL_ITEM') {
-    return await CartService.handleIndividualItemScan(barcode, branchId)
+    return await CartService.handleIndividualItemScan(barcode,branchId)
   } else {
     return await CartService.handleProductLevelScan(barcode, branchId)
   }
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       try {
         // Route to appropriate handler
         if (barcodeType === 'INDIVIDUAL_ITEM') {
-          scannedProduct = await CartService.handleIndividualItemScan(barcode, userDetails.branch_id)
+          scannedProduct = await CartService.handleIndividualItemScan(barcode,userDetails.branch_id)
         } else if (barcodeType === 'PRODUCT_LEVEL') {
           scannedProduct = await CartService.handleProductLevelScan(barcode, userDetails.branch_id)
         } else {

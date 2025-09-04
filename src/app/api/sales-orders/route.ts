@@ -7,6 +7,7 @@ import { PlaceOrderRequest } from '@/types/sales.back'
 import { placeOrderSchema } from '@/validation/order.schemas'
 import { calculateOrderTotals } from '@/utils/calculations'
 import { OrderService } from '@/lib/services/order.service'
+import { CustomerLedgerService } from '@/lib/services/customer-ledger.service'
 
 
 // ========== Main POST Handler - Place Sales Order ==========
@@ -60,8 +61,7 @@ export async function POST(request: NextRequest) {
 
       const result = await transaction(async (client) => {
         const customerResult = await ValidationService.validateCustomer(client, orderData.customer_id)
-        console.log(customerResult)
-        const salesOrderId = await OrderService.createSalesOrder(
+        const { order_id, order_number } = await OrderService.createSalesOrder(
           client,
           orderData,
           customerResult.customerId,
@@ -69,23 +69,26 @@ export async function POST(request: NextRequest) {
           userDetails.employee_id || userDetails.userId,
           totals
         )
-
         const { totalCost, totalProfit } = await OrderService.createSalesOrderItems(
           client,
-          salesOrderId,
+          order_id,
           orderData.items,
           userDetails.branch_id
         )
+        let previousBalance: number | undefined;
+        if (customerResult.customerId) {
+           const ledgerResult = await CustomerLedgerService.createCustomerLedger(client, order_number, 'SALE', customerResult?.customerId, order_id, 'Sales Order',totals.total_amount, null)
+           previousBalance = ledgerResult.previousBalance
+        };
 
-        await OrderService.updateOrderTotals(client, salesOrderId, totalCost, totalProfit)
-              
+        await OrderService.updateOrderTotals(client, order_id, totalCost, totalProfit,totals.total_amount, previousBalance);
         await ActivityLogService.createActivityLog(
           client,
           userDetails.userId,
           userDetails.branch_id,
-          'SALES_ORDER_CREATED',
+          'SALES_ORDER_CREAED',
           'sales_orders',
-          salesOrderId,
+          order_number,
           {
             order_number: 454,
             customer_id: customerResult.customerId,
@@ -103,7 +106,7 @@ export async function POST(request: NextRequest) {
           SELECT so.id, so.order_number, so.customer_id, so.total_amount
           FROM sales_orders so WHERE so.id = $1
         `
-        const orderResult = await client.query(orderQuery, [salesOrderId])
+        const orderResult = await client.query(orderQuery, [order_id])
 
         return {
           order: orderResult.rows[0],
@@ -263,14 +266,14 @@ function buildWhereClause(filters: FilterParams): { whereClause: string; params:
 function buildOrderClause(filters: FilterParams): string {
   const sortBy = filters.sort_by || 'order_date'
   const sortOrder = filters.sort_order || 'desc'
-  
+
   const sortMapping: Record<string, string> = {
     order_date: 'so.order_date',
     total_amount: 'so.total_amount',
     order_number: 'so.order_number',
     customer_name: 'c.name'
   }
-  
+
   const sortColumn = sortMapping[sortBy] || 'so.order_date'
   return `ORDER BY ${sortColumn} ${sortOrder.toUpperCase()}, so.created_at DESC`
 }
@@ -301,7 +304,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Build dynamic query
     const { whereClause, params } = buildWhereClause(filters)
     const orderClause = buildOrderClause(filters)
-    
+
     // Calculate pagination
     const offset = ((filters.page || 1) - 1) * (filters.limit || 50)
     const limitClause = `LIMIT $${params.length + 1} OFFSET $${params.length + 2}`
@@ -364,7 +367,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (salesOrders.length > 0) {
       const orderIds = salesOrders.map(order => order.id)
       const placeholders = orderIds.map((_, index) => `$${index + 1}`).join(',')
-      
+
       const itemsQuery = `
         SELECT 
           soi.id,
@@ -387,7 +390,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       `
 
       const itemsResult = await query<SalesOrderItem & { sales_order_id: string }>(
-        itemsQuery, 
+        itemsQuery,
         orderIds
       )
 

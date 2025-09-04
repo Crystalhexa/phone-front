@@ -7,16 +7,10 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Search,
-  CreditCard,
-  Banknote,
-  Smartphone,
-  Receipt,
   Calendar,
   Package,
   DollarSign,
@@ -28,8 +22,10 @@ import {
   Users
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
-import {  ReceiptPrinter,generateReceiptHTML, type ReceiptData } from '@/lib/utils/print'
+import { ReceiptPrinter, type ReceiptData } from '@/lib/utils/print'
 import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
+import { PaymentDialog } from '@/components/PaymentDialog'
 
 interface PendingSalesOrderItem {
   id: string
@@ -61,6 +57,7 @@ interface PendingSalesOrder {
   order_date: string
   status: string
   payment_status: string
+  running_balance: number
   subtotal: number
   total_amount: number
   balance_due: number
@@ -89,13 +86,6 @@ interface PaymentResponse {
     payment_number: string
     order: PendingSalesOrder
   }
-}
-
-const PaymentMethodIcons = {
-  CASH: Banknote,
-  CARD: CreditCard,
-  MOBILE: Smartphone,
-  BANK_TRANSFER: Receipt
 }
 
 const CashierPaymentComponent = () => {
@@ -262,10 +252,8 @@ const CashierPaymentComponent = () => {
   // Handle payment processing
   const handlePayment = async () => {
     if (!selectedOrder || !isPaymentValid()) return
-
     try {
       setProcessing(true)
-
       const response = await fetch('/api/payments', {
         method: 'POST',
         headers: {
@@ -273,7 +261,7 @@ const CashierPaymentComponent = () => {
         },
         body: JSON.stringify({
           ...paymentData,
-          order_id: selectedOrder.id,
+          order_id: selectedOrder.customer_id?null:selectedOrder.id,
           customer_id: selectedOrder.customer_id,
           branch_id: selectedOrder.branch_id,
         })
@@ -325,8 +313,8 @@ const CashierPaymentComponent = () => {
   }
 
   const openPaymentDialog = (order: PendingSalesOrder) => {
-    setSelectedOrder(order)
-    setShowPaymentDialog(true)
+      setSelectedOrder(order)
+      setShowPaymentDialog(true)
   }
 
   const formatDate = (dateString: string) => {
@@ -354,6 +342,7 @@ const CashierPaymentComponent = () => {
           <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
+
       </div>
 
       {/* Alert */}
@@ -656,196 +645,23 @@ const CashierPaymentComponent = () => {
         </div>
       )}
 
-      {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={(open) => {
-        setShowPaymentDialog(open)
-        if (!open) {
+      <PaymentDialog
+        open={showPaymentDialog}
+        onOpenChange={setShowPaymentDialog}
+        order={selectedOrder}
+        paymentData={paymentData}
+        setPaymentData={setPaymentData}
+        onSubmit={handlePayment}
+        onCancel={() => {
           setSelectedOrder(null)
           resetPaymentForm()
-        }
-      }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Process Payment</DialogTitle>
-          </DialogHeader>
+          setShowPaymentDialog(false)
+        }}
+        processing={processing}
+        isPaymentValid={isPaymentValid}
+        formatCurrency={formatCurrency}
+      />
 
-          {selectedOrder && (
-            <div className="space-y-4">
-              {/* Order Summary */}
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="font-medium">Order Number:</span>
-                      <span>{selectedOrder.order_number}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-medium">Customer:</span>
-                      <span>{selectedOrder.customer_name || 'Walk-in Customer'}</span>
-                    </div>
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Amount Due:</span>
-                      <span className="text-destructive">{formatCurrency(selectedOrder.balance_due)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Payment Form */}
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="paymentMethod">Payment Method</Label>
-                  <Select
-                    value={paymentData.paymentMethod}
-                    onValueChange={(value: PaymentData['paymentMethod']) =>
-                      setPaymentData(prev => ({ ...prev, paymentMethod: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CASH">
-                        <div className="flex items-center">
-                          <Banknote className="w-4 h-4 mr-2" />
-                          Cash
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="CREDIT_CARD">
-                        <div className="flex items-center">
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Credit Card
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="DEBIT_CARD">
-                        <div className="flex items-center">
-                          <CreditCard className="w-4 h-4 mr-2" />
-                          Debit Card
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="MOBILE">
-                        <div className="flex items-center">
-                          <Smartphone className="w-4 h-4 mr-2" />
-                          Mobile Payment
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="BANK_TRANSFER">
-                        <div className="flex items-center">
-                          <Receipt className="w-4 h-4 mr-2" />
-                          Bank Transfer
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="amount">Amount Paid</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max={selectedOrder.balance_due}
-                    value={paymentData.amount || ''}
-                    onChange={(e) => setPaymentData(prev => ({
-                      ...prev,
-                      amount: parseFloat(e.target.value) || 0
-                    }))}
-                  />
-                </div>
-
-                {paymentData.paymentMethod === 'CASH' && (
-                  <div>
-                    <Label htmlFor="received_amount">Amount Received</Label>
-                    <Input
-                      id="received_amount"
-                      type="number"
-                      step="0.01"
-                      min={paymentData.amount}
-                      value={paymentData.received_amount || ''}
-                      onChange={(e) =>
-                        setPaymentData(prev => ({
-                          ...prev,
-                          received_amount: parseFloat(e.target.value) || 0
-                        }))
-                      }
-                    />
-                  </div>
-                )}
-
-                {paymentData.paymentMethod !== 'CASH' && (
-                  <div>
-                    <Label htmlFor="reference">Reference Number *</Label>
-                    <Input
-                      id="reference"
-                      value={paymentData.reference || ''}
-                      onChange={(e) => setPaymentData(prev => ({ ...prev, reference: e.target.value }))}
-                      placeholder="Transaction reference"
-                      required
-                    />
-                  </div>
-                )}
-
-                <div>
-                  <Label htmlFor="notes">Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={paymentData.notes || ''}
-                    onChange={(e) => setPaymentData(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Payment notes..."
-                    rows={2}
-                  />
-                </div>
-              </div>
-
-              {/* Change Calculation */}
-              {paymentData.paymentMethod === 'CASH' && paymentData.change_amount > 0 && (
-                <Alert>
-                  <DollarSign className="h-4 w-4" />
-                  <AlertDescription>
-                    Change to give: {formatCurrency(paymentData.change_amount)}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Validation Messages */}
-              {paymentData.paymentMethod === 'CASH' && paymentData.received_amount < paymentData.amount && paymentData.received_amount > 0 && (
-                <Alert className="border-destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Received amount must be at least {formatCurrency(paymentData.amount)}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowPaymentDialog(false)}
-                  disabled={processing}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handlePayment}
-                  disabled={processing || !isPaymentValid()}
-                  className="flex-1"
-                >
-                  {processing ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                  )}
-                  {processing ? 'Processing...' : 'Process Payment'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

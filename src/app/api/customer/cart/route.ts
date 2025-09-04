@@ -16,7 +16,7 @@ interface Customer {
   date_of_birth: Date | null
   customer_type: 'RETAIL' | 'WHOLESALE' | 'VIP'
   credit_limit: number | null
-  outstanding_balance: number
+  running_balance: number
   loyalty_points: number
   discount_percentage: number | null
   is_active: boolean
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         phone,
         address,
         customer_type,
-        outstanding_balance,
+        running_balance,
         loyalty_points,
         discount_percentage,
         is_active,
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         phone,
         address,
         customer_type,
-        outstanding_balance,
+        running_balance,
         loyalty_points,
         discount_percentage,
         is_active,

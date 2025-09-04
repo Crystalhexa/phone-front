@@ -203,8 +203,8 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
             
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">Outstanding Balance:</span>
-              <span className={`font-bold ${selectedCustomer.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(selectedCustomer.outstanding_balance)}
+              <span className={`font-bold ${selectedCustomer.running_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {formatCurrency(selectedCustomer.running_balance)}
               </span>
             </div>
             
@@ -386,8 +386,8 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
                         </div>
                         
                         <div className="text-right text-sm">
-                          <div className={`font-medium ${customer.outstanding_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {formatCurrency(customer.outstanding_balance)}
+                          <div className={`font-medium ${customer.running_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {formatCurrency(customer.running_balance)}
                           </div>
                           <div className="text-gray-500">
                             {customer.loyalty_points} pts

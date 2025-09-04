@@ -112,7 +112,7 @@ export interface Customer {
   date_of_birth: Date | null
   customer_type: CustomerType
   credit_limit: number | null
-  outstanding_balance: number
+  running_balance: number
   loyalty_points: number
   discount_percentage: number | null
   is_active: boolean

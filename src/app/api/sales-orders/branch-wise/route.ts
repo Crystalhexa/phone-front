@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { query, initDatabase, ApiResponse } from '@/lib/database/connection'
 import { withPermission, AuthenticatedRequest } from '@/middleware/auth' // Adjust import path as needed
 
-// Types for the response
 interface PendingSalesOrderItem {
   id: string
   product_id: string
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
       // Initialize database if needed
       await initDatabase()
 
-      const { user: userDetails } = authedReq.user
+      const { user: userDetails } = authedReq.user;
       const branchId = userDetails.branch_id;
 
       if (!branchId) {
@@ -116,6 +115,7 @@ export async function GET(request: NextRequest) {
           c.phone as customer_phone,
           c.email as customer_email,
           c.customer_type,
+          c.running_balance,
           so.branch_id,
           b.name as branch_name,
                     e.employee_number as sold_by,
@@ -225,6 +225,7 @@ export async function GET(request: NextRequest) {
         customer_phone: order.customer_phone,
         customer_email: order.customer_email,
         customer_type: order.customer_type,
+        running_balance: parseFloat(order.running_balance || '0'),
         branch_id: order.branch_id,
         branch_name: order.branch_name,
         sold_by: order.sold_by,
@@ -281,175 +282,3 @@ export async function GET(request: NextRequest) {
     }
   })(request)
 }
-
-// // Optional: POST endpoint to fetch specific orders by IDs
-// export async function POST(request: NextRequest) {
-//   return withPermission('view_sales_orders')(async (authedReq: AuthenticatedRequest) => {
-//     try {
-//       await initDatabase()
-
-//       const { user: userDetails } = authedReq.user
-//       const branchId = userDetails.branch_id
-
-//       if (!branchId) {
-//         return NextResponse.json({
-//           success: false,
-//           data: null,
-//           message: 'Branch ID not found for user',
-//           timestamp: new Date().toISOString()
-//         } as ApiResponse, { status: 400 })
-//       }
-
-//       const body = await request.json()
-//       const { orderIds } = body
-
-//       if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
-//         return NextResponse.json({
-//           success: false,
-//           data: null,
-//           message: 'Order IDs are required and must be a non-empty array',
-//           timestamp: new Date().toISOString()
-//         } as ApiResponse, { status: 400 })
-//       }
-
-//       // Get specific orders
-//       const salesOrdersQuery = `
-//         SELECT 
-//           so.id,
-//           so.order_number,
-//           so.customer_id,
-//           c.name as customer_name,
-//           c.phone as customer_phone,
-//           c.email as customer_email,
-//           c.customer_type,
-//           so.branch_id,
-//           b.name as branch_name,
-//           e.employee_number as sold_by,
-//           e.name as sold_by_name,
-//           so.order_date,
-//           so.status,
-//           so.payment_status,
-//           so.subtotal,
-//           so.total_amount,
-//           so.balance_due,
-//           so.discount,
-//           so.notes,
-//           so.created_at,
-//           so.updated_at
-//         FROM sales_orders so
-//         LEFT JOIN customers c ON so.customer_id = c.id
-//         LEFT JOIN branches b ON so.branch_id = b.id  
-//         LEFT JOIN employees e ON so.sold_by = e.id
-//         WHERE so.branch_id = $1 
-//           AND so.payment_status = 'PENDING'
-//           AND so.id = ANY($2)
-//         ORDER BY so.created_at DESC
-//       `
-
-//       const salesOrdersResult = await query(salesOrdersQuery, [branchId, orderIds])
-
-//       if (salesOrdersResult.rows.length === 0) {
-//         return NextResponse.json({
-//           success: false,
-//           data: null,
-//           message: 'No pending sales orders found for the provided IDs',
-//           timestamp: new Date().toISOString()
-//         } as ApiResponse, { status: 404 })
-//       }
-
-//       // Get items for found orders
-//       const foundOrderIds = salesOrdersResult.rows.map(order => order.id)
-//       const itemsQuery = `
-//         SELECT 
-//           soi.id,
-//           soi.sales_order_id,
-//           soi.product_id,
-//           p.name as product_name,
-//           soi.quantity,
-//           soi.unit_price,
-//           soi.discount,
-//           soi.line_total,
-//           soi.is_wholesale_price,
-//           soi.warranty_expiry
-//         FROM sales_order_items soi
-//         JOIN products p ON soi.product_id = p.id
-//         WHERE soi.sales_order_id = ANY($1)
-//         ORDER BY soi.created_at ASC
-//       `
-
-//       const itemsResult = await query(itemsQuery, [foundOrderIds])
-
-//       // Group items by sales_order_id
-//       const orderItems: { [key: string]: PendingSalesOrderItem[] } = {}
-//       itemsResult.rows.forEach((item: any) => {
-//         if (!orderItems[item.sales_order_id]) {
-//           orderItems[item.sales_order_id] = []
-//         }
-//         orderItems[item.sales_order_id].push({
-//           id: item.id,
-//           product_id: item.product_id,
-//           product_name: item.product_name,
-//           product_code: item.product_code,
-//           quantity: parseInt(item.total_quantity),
-//           unit_price: parseFloat(item.avg_unit_price),
-//           discount: parseFloat(item.total_discount),
-//           line_total: parseFloat(item.total_line_total),
-//           is_wholesale_price: item.has_wholesale_price,
-//           warranty_expiry: item.warranty_expiry,
-//           line_count: parseInt(item.line_count),
-//           quantity_breakdown: item.quantity_breakdown
-//         })
-//       })
-
-//       // Format response
-//       const orders: PendingSalesOrder[] = salesOrdersResult.rows.map((order: any) => ({
-//         id: order.id,
-//         order_number: order.order_number,
-//         customer_id: order.customer_id,
-//         customer_name: order.customer_name,
-//         customer_phone: order.customer_phone,
-//         customer_email: order.customer_email,
-//         customer_type: order.customer_type,
-//         branch_id: order.branch_id,
-//         branch_name: order.branch_name,
-//         sold_by: order.sold_by,
-//         sold_by_name: order.sold_by_name,
-//         order_date: order.order_date,
-//         status: order.status,
-//         payment_status: order.payment_status,
-//         subtotal: parseFloat(order.subtotal),
-//         total_amount: parseFloat(order.total_amount),
-//         balance_due: parseFloat(order.balance_due),
-//         discount: parseFloat(order.discount),
-//         notes: order.notes,
-//         created_at: order.created_at,
-//         updated_at: order.updated_at,
-//         items: orderItems[order.id] || []
-//       }))
-
-//       const totalAmount = orders.reduce((sum, order) => sum + order.total_amount, 0)
-
-//       return NextResponse.json({
-//         success: true,
-//         data: {
-//           orders,
-//           total_count: orders.length,
-//           total_amount: totalAmount
-//         },
-//         message: `Found ${orders.length} pending sales orders`,
-//         timestamp: new Date().toISOString()
-//       } as ApiResponse, { status: 200 })
-
-//     } catch (error: any) {
-//       console.error('❌ Error fetching specific pending sales orders:', error)
-
-//       return NextResponse.json({
-//         success: false,
-//         data: null,
-//         message: 'Internal server error while fetching specific pending sales orders',
-//         errors: process.env.NODE_ENV === 'development' ? [error.message] : null,
-//         timestamp: new Date().toISOString()
-//       } as ApiResponse, { status: 500 })
-//     }
-//   })
-// }
