@@ -470,11 +470,7 @@ export default function EnhancedSalesOrderPage() {
 
   return (
     <div className="min-h-screen">
-      <Button variant="ghost" size="sm" onClick={() => { route.back() }}>
-        <X className="w-4 h-4" />
-      </Button>
-
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Scanner & Cart */}
           <div className="lg:col-span-2 space-y-6">

@@ -9,7 +9,6 @@ import { redirect } from 'next/navigation';
 
 export const useCustomerActions = () => {
   // Dialog state management
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
@@ -19,7 +18,7 @@ export const useCustomerActions = () => {
   // Action handlers
   const handleView = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setIsViewDialogOpen(true);
+        redirect(`/dashboard/customers/statement/${customer.id}`);
   };
 
   const handleEdit = (customer: Customer) => {
@@ -44,12 +43,12 @@ export const useCustomerActions = () => {
   // Define table actions
   const tableActions: TableAction[] = [
     {
-      label: "View Details",
+      label: "Customer Statement",
       icon: Eye,
       onClick: handleView,
     },
     {
-      label: "Edit Brand",
+      label: "Edit Customer",
       icon: Edit,
       onClick: handleEdit,
     },
@@ -86,8 +85,6 @@ export const useCustomerActions = () => {
   return {
     tableActions,
     isDeleting,
-    // EditDialog,
-    isViewDialogOpen,
     isEditDialogOpen,
     selectedCustomer,
   };

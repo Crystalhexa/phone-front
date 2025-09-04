@@ -71,12 +71,7 @@ const ProductsTable: React.FC = () => {
     <div >
       {/* Main Content Area */}
         <div className="container mx-auto p-6 space-y-3 h-full overflow-y-auto">
-           
-          {/* Header */}
-          <PosHeader
-            cartPanelOpen={cartPanelOpen}
-            setCartPanelOpen={setCartPanelOpen}
-          />
+       
 
           {/* Filters Section */}
           <PosFilters

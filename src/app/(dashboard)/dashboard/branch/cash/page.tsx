@@ -328,23 +328,7 @@ const CashierPaymentComponent = () => {
   return (
     <div className="p-6 space-y-6 bg-background min-h-screen">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Cashier - Payment Processing</h1>
-          <p className="text-muted-foreground">Process payments for pending sales orders</p>
-        </div>
-        <Button
-          onClick={() => fetchOrders(currentPage, searchTerm)}
-          variant="outline"
-          size="sm"
-          disabled={loading}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
-
-      </div>
-
+      
       {/* Alert */}
       {alert && (
         <Alert className={alert.type === 'error' ? 'border-destructive' : 'border-green-500'}>

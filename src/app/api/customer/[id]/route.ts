@@ -30,8 +30,8 @@ export async function GET(
 ) {
   try {
     await initDatabase();
-      const { id: idParam } = await params;
-  const id = idParam;
+    const { id: idParam } = await params;
+    const id = idParam;
     const result = await query('SELECT * FROM customers WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
@@ -60,7 +60,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id: idParam } = await params;
+  const { id: idParam } = await params;
   const id = idParam;
   try {
     await initDatabase();
@@ -129,7 +129,7 @@ export async function DELETE(
   _: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-    const { id: idParam } = await params;
+  const { id: idParam } = await params;
   const id = idParam;
   try {
     await initDatabase();

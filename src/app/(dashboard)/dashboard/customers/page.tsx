@@ -24,7 +24,6 @@ const page = () => {
 
   const {
     tableActions,
-    // EditDialog,
   } = useCustomerActions();
 
   const columns = createCustomerColumns(tableActions);
@@ -35,8 +34,8 @@ const page = () => {
   const headerActions = (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
       <Button onClick={handleAddCustomer} variant="outline" className="whitespace-nowrap">
-            Add Customer
-          </Button>
+        Add Customer
+      </Button>
       {/* 🔍 Search input */}
       <Input
         type="text"
@@ -61,7 +60,7 @@ const page = () => {
             title="Customers"
             subtitle={`Total: ${data?.data?.total || 0} customers`}
             actions={headerActions}
-            searchable={false} // Disable built-in search if using custom input
+            searchable={false} 
             pagination={{
               currentPage,
               pageSize,
