@@ -1,5 +1,5 @@
 "use client"
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,13 +18,11 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  RefreshCw,
   Users
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils/formatCurrency'
 import { ReceiptPrinter, type ReceiptData } from '@/lib/utils/print'
 import { useAuth } from '@/hooks/useAuth'
-import { useRouter } from 'next/navigation'
 import { PaymentDialog } from '@/components/PaymentDialog'
 
 interface PendingSalesOrderItem {
@@ -50,6 +48,7 @@ interface PendingSalesOrder {
   customer_phone: string
   customer_email: string
   customer_type: string
+  customer_number: string
   branch_id: string
   branch_name: string
   sold_by: string
@@ -197,11 +196,13 @@ const CashierPaymentComponent = () => {
     return () => clearTimeout(timeoutId)
   }, [searchTerm, currentPage])
 
+
   // Generate receipt data from order and payment
   const generateReceiptData = (
     order: PendingSalesOrder,
     payment: { payment_number: string }
   ): ReceiptData => {
+
     const paymentMethodMap = {
       'CASH': 'Cash',
       'CREDIT_CARD': 'credit card payment',
@@ -222,6 +223,7 @@ const CashierPaymentComponent = () => {
         hour12: true
       }),
       customerName: order.customer_name,
+      customerNumber: order.customer_number,
       items: order.items.map(item => ({
         name: item.product_name,
         quantity: item.quantity,
@@ -232,8 +234,8 @@ const CashierPaymentComponent = () => {
       discount: order.discount,
       total: order.total_amount,
       paymentMethod: paymentMethodMap[paymentData.paymentMethod],
-      sales_ref: order.sold_by_name,
-      sales_ref_name: order.sold_by,
+      sales_ref: order.sold_by,
+      sales_ref_name: order.sold_by_name,
       paymentDetails: {
         amountPaid: paymentData.amount,
         receivedAmount: paymentData.paymentMethod === 'CASH' ? paymentData.received_amount : paymentData.amount,
@@ -261,7 +263,7 @@ const CashierPaymentComponent = () => {
         },
         body: JSON.stringify({
           ...paymentData,
-          order_id: selectedOrder.customer_id?null:selectedOrder.id,
+          order_id: selectedOrder.customer_id ? null : selectedOrder.id,
           customer_id: selectedOrder.customer_id,
           branch_id: selectedOrder.branch_id,
         })
@@ -276,7 +278,7 @@ const CashierPaymentComponent = () => {
         if (user) {
           try {
             const receiptData = generateReceiptData(selectedOrder, result.data)
-            ReceiptPrinter.downloadReceiptPDF(receiptData, user)
+            ReceiptPrinter.printReceipt(receiptData, user)
 
           } catch (printError) {
             console.error('Failed to print receipt:', printError)
@@ -313,8 +315,12 @@ const CashierPaymentComponent = () => {
   }
 
   const openPaymentDialog = (order: PendingSalesOrder) => {
-      setSelectedOrder(order)
-      setShowPaymentDialog(true)
+    setSelectedOrder(order)
+    setShowPaymentDialog(true)
+  }
+
+  const haddOrderToCustomerAccount = (order: PendingSalesOrder) => {
+
   }
 
   const formatDate = (dateString: string) => {
@@ -325,10 +331,30 @@ const CashierPaymentComponent = () => {
     })
   }
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Example: "/" key OR Ctrl+K to focus search
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="p-6 space-y-6 bg-background min-h-screen">
       {/* Header */}
-      
+
       {/* Alert */}
       {alert && (
         <Alert className={alert.type === 'error' ? 'border-destructive' : 'border-green-500'}>
@@ -347,6 +373,7 @@ const CashierPaymentComponent = () => {
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
+              ref={searchInputRef}  // 👈 attach ref
               placeholder="Search by order number, customer name, phone, or employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -588,15 +615,23 @@ const CashierPaymentComponent = () => {
                       </ScrollArea>
                     </DialogContent>
                   </Dialog>
-
-                  <Button
-                    onClick={() => openPaymentDialog(order)}
-                    className="flex-1"
-                    disabled={order.balance_due <= 0}
-                  >
-                    <DollarSign className="w-4 h-4 mr-2" />
-                    Process Payment
-                  </Button>
+                  {order.customer_id ? (
+                    <Button
+                      onClick={() => haddOrderToCustomerAccount(order)}
+                      className="flex-1"
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      Add order to customer account and print recipt
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => openPaymentDialog(order)}
+                      className="flex-1"
+                      disabled={order.balance_due <= 0}
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      Process Payment
+                    </Button>)}
                 </div>
               </CardContent>
             </Card>

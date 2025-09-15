@@ -4,6 +4,7 @@ import { PlaceOrderRequest, OrderSummary, CartItem, BatchInfo, ProcessResult } f
 import { generateCuid } from '@/utils/calculations'
 import { InventoryService } from './inventory.service'
 import { StockLedgerService } from './stock-ledger.service'
+import { query } from '../database/connection'
 
 export class OrderService {
   static async createSalesOrder(
@@ -269,13 +270,12 @@ export class OrderService {
     totalCost: number,
     totalProfit: number,
     total_amount: number,
-        previousBalance?: number | undefined,
+    previousBalance?: number | undefined,
   ): Promise<void> {
 
-    console.log(previousBalance,'previousBalance')
     if (previousBalance !== undefined && previousBalance < 0) {
 
-      const balance_due = total_amount+previousBalance;      
+      const balance_due = total_amount + previousBalance;
       await client.query(`
       UPDATE sales_orders 
       SET total_cost = $1,
@@ -283,7 +283,7 @@ export class OrderService {
           balance_due=$4,
           updated_at = NOW()
       WHERE id = $3
-    `, [totalCost, totalProfit, salesOrderId,balance_due])
+    `, [totalCost, totalProfit, salesOrderId, balance_due])
     } else {
       await client.query(`
       UPDATE sales_orders 
@@ -294,5 +294,34 @@ export class OrderService {
     `, [totalCost, totalProfit, salesOrderId])
     }
 
+  }
+
+  static async changeOrderStatus(
+    order_id: string,
+    newStatus: string
+  ): Promise<{ id: string; customer_id: string; payment_status: string; status: string }> {
+
+    const allowedStatues = ['ON_ACCOUNT', 'PENDING', 'PAID', 'PARTIAL', 'CANCELLED', 'REFUNDED'];
+    if (!allowedStatues.includes(newStatus)) {
+      throw new Error(`Invalid status: ${newStatus}. Allowed statuses are: ${allowedStatues.join(', ')}`);
+    }
+    const updateQuery = `
+      UPDATE sales_orders 
+      SET payment_status=$2,
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING id,customer_id,payment_status, status, updated_at
+      `
+    try {
+      const result = await query(updateQuery, [order_id, newStatus]);
+      if (result.rowCount === 0) {
+        throw new Error(`Order with ID ${order_id} not found or status unchanged`);
+      }
+
+      return result.rows[0];
+    }
+    catch (error: any) {
+        throw new Error('Faild to update order status. please try again later.')
+    }
   }
 }

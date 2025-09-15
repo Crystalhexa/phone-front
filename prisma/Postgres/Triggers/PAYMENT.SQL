@@ -33,7 +33,7 @@ BEGIN
             INTO v_oldest_order_id, v_oldest_balance
             FROM sales_orders
             WHERE customer_id = NEW.customer_id
-              AND payment_status IN ('PENDING', 'PARTIAL')
+              AND payment_status IN ('PENDING', 'PARTIAL','ON_ACCOUNT')
               AND balance_due > 0
             ORDER BY order_date ASC, created_at ASC
             LIMIT 1;

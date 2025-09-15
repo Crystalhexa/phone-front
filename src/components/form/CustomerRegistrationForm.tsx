@@ -224,7 +224,7 @@ const CustomerFormComponent: React.FC<CustomerFormProps> = ({
         address: customer.address || '',
         date_of_birth: customer.date_of_birth ? new Date(customer.date_of_birth).toISOString().split('T')[0] : '',
         credit_limit: customer.credit_limit ? Number(customer.credit_limit) : 0,
-        outstanding_balance: Number(customer.outstanding_balance),
+        outstanding_balance: Number(customer.running_balance),
         loyalty_points: customer.loyalty_points,
         is_active: customer.is_active,
       });

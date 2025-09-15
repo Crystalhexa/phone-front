@@ -6,6 +6,7 @@ export interface ReceiptData {
   paymentNumber: string
   date: string
   customerName?: string
+  customerNumber?: string
   items: Array<{
     name: string
     quantity: number
@@ -239,7 +240,7 @@ export class ReceiptPrinter {
         <div><strong>Receipt No:</strong> ${escapeHtml(data.orderNumber)}</div>
         <div><strong>Payment No:</strong> ${escapeHtml(data.paymentNumber)}</div>
         <div><strong>Date &amp; Time:</strong> ${escapeHtml(data.date)}</div>
-        ${data.customerName ? `<div><strong>Customer:</strong> ${escapeHtml(data.customerName)}</div>` : ''}
+        ${data.customerName ? `<div><strong>Customer:</strong> ${escapeHtml(data.customerName)}</div>-<div> ${escapeHtml(data.customerNumber)}</div>` : 'Walk In Customer'}
       </div>
 
       <div class="double-line"></div>
@@ -515,9 +516,6 @@ export class ReceiptPrinter {
     }
   }
 
-  /**
-   * Download receipt as PDF (alternative to printing)
-   */
   public static async downloadReceiptPDF(data: ReceiptData, user: User): Promise<boolean> {
     try {
       const html = this.generateReceiptHTML(data, user)

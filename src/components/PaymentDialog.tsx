@@ -60,7 +60,6 @@ export function PaymentDialog({
         <DialogHeader>
           <DialogTitle>Process Payment</DialogTitle>
         </DialogHeader>
-
         {order && (
           <div className="space-y-4">
             {/* Order Summary */}
@@ -155,7 +154,7 @@ export function PaymentDialog({
                     onChange={(e) =>
                       setPaymentData(prev => ({
                         ...prev,
-                        received_amount: parseFloat(e.target.value) || 0,
+                        received_amount: parseFloat(e.target.value) ,
                       }))
                     }
                   />

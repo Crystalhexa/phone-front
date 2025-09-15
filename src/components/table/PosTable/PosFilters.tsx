@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ interface PosFiltersProps {
   categorySearchTerm: string;
   brandSearchTerm: string;
 }
+// ... other imports
 
 export const PosFilters: React.FC<PosFiltersProps> = ({
   filters,
@@ -39,6 +40,26 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
   categorySearchTerm,
   brandSearchTerm
 }) => {
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Example: "/" key OR Ctrl+K to focus search
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -55,19 +76,20 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Search..."
+                ref={searchInputRef}  // 👈 attach ref
+                placeholder="Search... (Press / or Ctrl+S)"
                 className="pl-10 w-full"
                 value={filters.search}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, search: e.target.value }))
                 }
               />
-
             </div>
           </div>
 
           {/* Category */}
           <SearchableDropdown
+          
             value={filters.category_id}
             onValueChange={(value) =>
               setFilters((prev) => ({ ...prev, category_id: value, subcategory_id: '' }))
@@ -106,8 +128,6 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
             onSearch={onBrandSearch}
             searchTerm={brandSearchTerm}
           />
-
-
         </div>
 
         <Separator className="my-4" />
@@ -129,5 +149,5 @@ export const PosFilters: React.FC<PosFiltersProps> = ({
         </div>
       </CardContent>
     </Card>
-  )
+  );
 };

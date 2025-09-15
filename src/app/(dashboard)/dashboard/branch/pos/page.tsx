@@ -1,7 +1,6 @@
 "use client"
 import React, { useState } from 'react';
 import { useProductsData } from '@/components/table/PosTable/usePosData';
-import { PosHeader } from '@/components/table/PosTable/PosHeader';
 import { PosFilters } from '@/components/table/PosTable/PosFilters';
 import { PosTableContent } from '@/components/table/PosTable/PosTableContent';
 import { PosPagination } from '@/components/table/PosTable/PosPagination';

@@ -88,6 +88,20 @@ export default function EnhancedSalesOrderPage() {
   
   const { scanProduct, placeOrder, isLoading } = useSalesOrder()
 
+  const placeOrderButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  // Focus place order button on Ctrl+Enter
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        placeOrderButtonRef.current?.focus();
+        placeOrderButtonRef.current?.click();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   // Load data from localStorage on component mount
   useEffect(() => {
     const savedCart = loadFromStorage(STORAGE_KEYS.CART, [])
@@ -878,6 +892,7 @@ export default function EnhancedSalesOrderPage() {
 
             {/* Place Order Button */}
             <Button
+            ref={placeOrderButtonRef}
               onClick={handlePlaceOrder}
               disabled={cart.length === 0 || isLoading}
               className="w-full h-14 text-lg"

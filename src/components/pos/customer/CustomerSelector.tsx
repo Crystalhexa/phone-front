@@ -1,11 +1,11 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, Plus, User, Phone, CreditCard, Award } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -27,6 +27,36 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
 
+  // Track key sequence
+  const keySequence = useRef<string[]>([])
+
+  useEffect(() => {
+    const handleShortcut = (e: KeyboardEvent) => {
+      keySequence.current.push(e.key.toLowerCase())
+
+      // Only keep the last 2 keys
+      if (keySequence.current.length > 2) {
+        keySequence.current.shift()
+      }
+
+      // Check if "n" followed by "c"
+      if (keySequence.current.join('+') === 'n+c') {
+        e.preventDefault()
+        setShowCreateDialog(true)
+        keySequence.current = [] // reset after trigger
+      }
+
+      if (keySequence.current.join('+') === 'c+s') {
+        e.preventDefault()
+        onCustomerSelect(null)
+        keySequence.current = [] // reset after trigger
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
+
   // Form state for new customer
   const [newCustomer, setNewCustomer] = useState<CreateCustomerRequest>({
     name: '',
@@ -40,31 +70,43 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
     discount_percentage: undefined
   })
 
+  // refs for arrow navigation
+  const inputRefs = useRef<(HTMLInputElement | HTMLTextAreaElement | null)[]>([])
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === 'ArrowDown' || e.key === 'Enter') {
+      e.preventDefault()
+      inputRefs.current[index + 1]?.focus()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      inputRefs.current[index - 1]?.focus()
+    }
+  }
+
   // Debounced search
   const searchCustomers = useCallback(async (search: string) => {
     setLoading(true)
     try {
       const response = await fetch(`/api/customer/cart?search=${encodeURIComponent(search)}&limit=20`)
       const data: ApiResponse<Customer[]> = await response.json()
-      
+
       if (data.success) {
         setCustomers(data.data || [])
       } else {
         toast(data.message)
       }
     } catch (error) {
-      toast( "Failed to search customers")
+      toast('Failed to search customers')
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       searchCustomers(searchTerm)
     }, 300)
-    
     return () => clearTimeout(timer)
   }, [searchTerm, searchCustomers])
 
@@ -76,7 +118,7 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
   // Handle customer creation
   const handleCreateCustomer = async () => {
     if (!newCustomer.name.trim()) {
-      toast( "Customer name is required")
+      toast('Customer name is required')
       return
     }
 
@@ -84,9 +126,7 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
     try {
       const response = await fetch('/api/customer/cart', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...newCustomer,
           email: newCustomer.email || undefined,
@@ -98,11 +138,8 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
       })
 
       const data: ApiResponse<Customer> = await response.json()
-
       if (data.success && data.data) {
         toast(`${data.data.name} has been created successfully`)
-        
-        // Add to customers list and select
         setCustomers(prev => [data.data!, ...prev])
         onCustomerSelect(data.data)
         setShowCreateDialog(false)
@@ -111,7 +148,7 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
         toast(data.message)
       }
     } catch (error) {
-      toast( "Failed to create customer")
+      toast('Failed to create customer')
     } finally {
       setCreateLoading(false)
     }
@@ -155,14 +192,9 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Selected Customer
+                <User className="h-5 w-5" /> Selected Customer
               </CardTitle>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => onCustomerSelect(null)}
-              >
+              <Button variant="outline" size="sm" onClick={() => onCustomerSelect(null)}>
                 Clear Selection
               </Button>
             </div>
@@ -179,7 +211,7 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
                 </Badge>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               {selectedCustomer.phone && (
                 <div className="flex items-center gap-2">
@@ -198,16 +230,16 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
                 <span>{selectedCustomer.loyalty_points} points</span>
               </div>
             </div>
-            
+
             <Separator />
-            
+
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium">Outstanding Balance:</span>
               <span className={`font-bold ${selectedCustomer.running_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
                 {formatCurrency(selectedCustomer.running_balance)}
               </span>
             </div>
-            
+
             {selectedCustomer.discount_percentage && (
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">Discount:</span>
@@ -221,187 +253,220 @@ export default function CustomerSelector({ onCustomerSelect, selectedCustomer }:
       )}
 
       {/* Customer Search and Selection */}
-      {!selectedCustomer &&(
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            Select Customer
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  New Customer
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create New Customer</DialogTitle>
-                  <DialogDescription>
-                    Add a new customer to the system
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name *</Label>
-                    <Input
-                      id="name"
-                      value={newCustomer.name}
-                      onChange={(e) => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Customer name"
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
+      {!selectedCustomer && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Select Customer
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogTrigger asChild>
+                  <Button size="sm" className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" /> New Customer
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create New Customer</DialogTitle>
+                    <DialogDescription>Add a new customer to the system</DialogDescription>
+                  </DialogHeader>
+
+                  <div className="space-y-4">
                     <div>
-                      <Label htmlFor="phone">Phone</Label>
+                      <Label htmlFor="name">Name *</Label>
                       <Input
-                        id="phone"
-                        value={newCustomer.phone}
-                        onChange={(e) => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
-                        placeholder="Phone number"
+                        id="name"
+                        ref={(el) => {
+                          inputRefs.current[0] = el
+                        }}
+
+                        value={newCustomer.name}
+                        onChange={(e) => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
+                        onKeyDown={(e) => handleKeyDown(e, 0)}
+                        placeholder="Customer name"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="nic">NIC</Label>
-                      <Input
-                        id="nic"
-                        value={newCustomer.nic}
-                        onChange={(e) => setNewCustomer(prev => ({ ...prev, nic: e.target.value }))}
-                        placeholder="NIC number"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newCustomer.email}
-                      onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="Email address"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="customer_type">Customer Type</Label>
-                    <Select
-                      value={newCustomer.customer_type}
-                      onValueChange={(value: CustomerType) => setNewCustomer(prev => ({ ...prev, customer_type: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="RETAIL">Retail</SelectItem>
-                        <SelectItem value="WHOLESALE">Wholesale</SelectItem>
-                        <SelectItem value="VIP">VIP</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="address">Address</Label>
-                    <Textarea
-                      id="address"
-                      value={newCustomer.address}
-                      onChange={(e) => setNewCustomer(prev => ({ ...prev, address: e.target.value }))}
-                      placeholder="Customer address"
-                      rows={2}
-                    />
-                  </div>
-                </div>
-                
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateCustomer} disabled={createLoading}>
-                    {createLoading ? 'Creating...' : 'Create Customer'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent className="space-y-4">
-          {/* Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search by name, phone, NIC, or customer number..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          
-          {/* Customer List */}
-          <ScrollArea className="h-64">
-            {loading ? (
-              <div className="flex justify-center items-center h-32">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
-              </div>
-            ) : customers.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                {searchTerm ? 'No customers found' : 'No customers available'}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {customers.map((customer) => (
-                  <Card
-                    key={customer.id}
-                    className={`cursor-pointer transition-colors hover:bg-gray-900`}
-                    onClick={() => onCustomerSelect(customer)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">{customer.name}</span>
-                            <Badge variant="outline" className="text-xs">
-                              #{customer.customer_number}
-                            </Badge>
-                            <Badge className={getCustomerTypeColor(customer.customer_type)}>
-                              {customer.customer_type}
-                            </Badge>
-                          </div>
-                          
-                          <div className="text-sm text-gray-600 space-y-1">
-                            {customer.phone && (
-                              <div className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {customer.phone}
-                              </div>
-                            )}
-                            {customer.nic && (
-                              <div className="flex items-center gap-1">
-                                <CreditCard className="h-3 w-3" />
-                                {customer.nic}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="text-right text-sm">
-                          <div className={`font-medium ${customer.running_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {formatCurrency(customer.running_balance)}
-                          </div>
-                          <div className="text-gray-500">
-                            {customer.loyalty_points} pts
-                          </div>
-                        </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label htmlFor="phone">Phone</Label>
+                        <Input
+                          id="phone"
+                          ref={(el) => { (inputRefs.current[1] = el) }}
+                          value={newCustomer.phone}
+                          onChange={(e) => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
+                          onKeyDown={(e) => handleKeyDown(e, 1)}
+                          placeholder="Phone number"
+                        />
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
+                      <div>
+                        <Label htmlFor="nic">NIC</Label>
+                        <Input
+                          id="nic"
+                          ref={(el) => { (inputRefs.current[2] = el) }}
+                          value={newCustomer.nic}
+                          onChange={(e) => setNewCustomer(prev => ({ ...prev, nic: e.target.value }))}
+                          onKeyDown={(e) => handleKeyDown(e, 2)}
+                          placeholder="NIC number"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        ref={(el) => { (inputRefs.current[3] = el) }}
+                        value={newCustomer.email}
+                        onChange={(e) => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
+                        onKeyDown={(e) => handleKeyDown(e, 3)}
+                        placeholder="Email address"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="customer_type">Customer Type</Label>
+                      <Select
+                        value={newCustomer.customer_type}
+                        onValueChange={(value: CustomerType) =>
+                          setNewCustomer(prev => ({ ...prev, customer_type: value }))
+                        }
+                      >
+                        <SelectTrigger
+                          ref={(el) => {
+                            inputRefs.current[4] = el as unknown as HTMLInputElement // cast to fit refs array
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown' && !e.altKey) {
+                              // If dropdown is closed, move to next field
+                              // If dropdown is open, let Radix handle arrow navigation
+                              if (!e.currentTarget.getAttribute("data-state")?.includes("open")) {
+                                e.preventDefault()
+                                inputRefs.current[5]?.focus()
+                              }
+                            } else if (e.key === 'Enter') {
+                              // Press Enter once to open dropdown
+                              if (!e.currentTarget.getAttribute("data-state")?.includes("open")) {
+                                return // let Radix handle open
+                              }
+                              // If already open, Enter should move focus to next field
+                              e.preventDefault()
+                              inputRefs.current[5]?.focus()
+                            } else if (e.key === ' ') {
+                              // Space opens dropdown (Radix default)
+                              return
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault()
+                              inputRefs.current[3]?.focus()
+                            }
+                          }}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="RETAIL">Retail</SelectItem>
+                          <SelectItem value="WHOLESALE">Wholesale</SelectItem>
+                          <SelectItem value="VIP">VIP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+
+                    <div>
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        ref={(el) => { (inputRefs.current[5] = el) }}
+                        value={newCustomer.address}
+                        onChange={(e) => setNewCustomer(prev => ({ ...prev, address: e.target.value }))}
+                        onKeyDown={(e) => handleKeyDown(e, 5)}
+                        placeholder="Customer address"
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
+                    <Button onClick={handleCreateCustomer} disabled={createLoading}>
+                      {createLoading ? 'Creating...' : 'Create Customer'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardTitle>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search by name, phone, NIC, or customer number..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Customer List */}
+            <ScrollArea className="h-64">
+              {loading ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                </div>
+              ) : customers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {searchTerm ? 'No customers found' : 'No customers available'}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {customers.map((customer) => (
+                    <Card
+                      key={customer.id}
+                      className="cursor-pointer transition-colors hover:bg-gray-900"
+                      onClick={() => onCustomerSelect(customer)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium">{customer.name}</span>
+                              <Badge variant="outline" className="text-xs">#{customer.customer_number}</Badge>
+                              <Badge className={getCustomerTypeColor(customer.customer_type)}>
+                                {customer.customer_type}
+                              </Badge>
+                            </div>
+
+                            <div className="text-sm text-gray-600 space-y-1">
+                              {customer.phone && (
+                                <div className="flex items-center gap-1">
+                                  <Phone className="h-3 w-3" /> {customer.phone}
+                                </div>
+                              )}
+                              {customer.nic && (
+                                <div className="flex items-center gap-1">
+                                  <CreditCard className="h-3 w-3" /> {customer.nic}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-right text-sm">
+                            <div className={`font-medium ${customer.running_balance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {formatCurrency(customer.running_balance)}
+                            </div>
+                            <div className="text-gray-500">{customer.loyalty_points} pts</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

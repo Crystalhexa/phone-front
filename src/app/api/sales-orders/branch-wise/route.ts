@@ -88,10 +88,10 @@ export async function GET(request: NextRequest) {
 
       // First, get branch information
       const branchQuery = `
-        SELECT id, name, code
-        FROM branches
-        WHERE id = $1
-      `
+          SELECT id, name, code
+          FROM branches
+          WHERE id = $1
+        `
       const branchResult = await query(branchQuery, [branchId])
 
       if (branchResult.rows.length === 0) {
@@ -107,63 +107,63 @@ export async function GET(request: NextRequest) {
 
       // Main query to get pending sales orders with customer and employee details
       const salesOrdersQuery = `
-        SELECT 
-          so.id,
-          so.order_number,
-          so.customer_id,
-          c.name as customer_name,
-          c.phone as customer_phone,
-          c.email as customer_email,
-          c.customer_type,
-          c.running_balance,
-          so.branch_id,
-          b.name as branch_name,
-                    e.employee_number as sold_by,
-          e.name as sold_by_name,
-          so.order_date,
-          so.status,
-          so.payment_status,
-          so.subtotal,
-          so.total_amount,
-          so.balance_due,
-          so.discount,
-          so.notes,
-          so.created_at,
-          so.updated_at
-        FROM sales_orders so
-        LEFT JOIN customers c ON so.customer_id = c.id
-        LEFT JOIN branches b ON so.branch_id = b.id  
-        LEFT JOIN employees e ON so.sold_by = e.id
-        WHERE so.branch_id = $1 
-          AND so.payment_status = 'PENDING'
-          AND ($2 = '' OR 
-     LOWER(so.order_number) LIKE LOWER($2) OR 
-     LOWER(COALESCE(c.name, '')) LIKE LOWER($2) OR
-     LOWER(COALESCE(c.phone, '')) LIKE LOWER($2) OR
-     LOWER(COALESCE(e.name, '')) LIKE LOWER($2))
-        ORDER BY ${orderBy === 'customer_name' ? 'c.name' : 'so.' + orderBy} ${orderDirection}
-        LIMIT $3 OFFSET $4
-      `
+          SELECT 
+            so.id,
+            so.order_number,
+            so.customer_id,
+            c.name as customer_name,
+            c.phone as customer_phone,
+            c.email as customer_email,
+            c.customer_number,
+            c.customer_type,
+            c.running_balance,
+            so.branch_id,
+            b.name as branch_name,
+                      e.employee_number as sold_by,
+            e.name as sold_by_name,
+            so.order_date,
+            so.status,
+            so.payment_status,
+            so.subtotal,
+            so.total_amount,
+            so.balance_due,
+            so.discount,
+            so.notes,
+            so.created_at,
+            so.updated_at
+          FROM sales_orders so
+          LEFT JOIN customers c ON so.customer_id = c.id
+          LEFT JOIN branches b ON so.branch_id = b.id  
+          LEFT JOIN employees e ON so.sold_by = e.id
+          WHERE so.branch_id = $1 
+            AND so.payment_status = 'PENDING'
+            AND ($2 = '' OR 
+      LOWER(so.order_number) LIKE LOWER($2) OR 
+      LOWER(COALESCE(c.name, '')) LIKE LOWER($2) OR
+      LOWER(COALESCE(c.phone, '')) LIKE LOWER($2) OR
+      LOWER(COALESCE(e.name, '')) LIKE LOWER($2))
+          ORDER BY ${orderBy === 'customer_name' ? 'c.name' : 'so.' + orderBy} ${orderDirection}
+          LIMIT $3 OFFSET $4
+        `
 
       const searchPattern = search ? `%${search}%` : ''
       const salesOrdersResult = await query(salesOrdersQuery, [branchId, searchPattern, limit, offset])
 
       // Get total count for pagination
       const countQuery = `
-        SELECT COUNT(*) as total_count,
-               COALESCE(SUM(so.total_amount), 0) as total_amount
-        FROM sales_orders so
-        LEFT JOIN customers c ON so.customer_id = c.id
-                LEFT JOIN employees e ON so.sold_by = e.id
-
-        WHERE so.branch_id = $1 
-          AND so.payment_status = 'PENDING'
-          AND ($2 = '' OR 
-     LOWER(so.order_number) LIKE LOWER($2) OR 
-     LOWER(COALESCE(c.name, '')) LIKE LOWER($2) OR
-     LOWER(COALESCE(c.phone, '')) LIKE LOWER($2) OR
-     LOWER(COALESCE(e.name, '')) LIKE LOWER($2))
-      `
+          SELECT COUNT(*) as total_count,
+                COALESCE(SUM(so.total_amount), 0) as total_amount
+          FROM sales_orders so
+          LEFT JOIN customers c ON so.customer_id = c.id
+                  LEFT JOIN employees e ON so.sold_by = e.id
+          WHERE so.branch_id = $1 
+            AND so.payment_status = 'PENDING'
+            AND ($2 = '' OR 
+      LOWER(so.order_number) LIKE LOWER($2) OR 
+      LOWER(COALESCE(c.name, '')) LIKE LOWER($2) OR
+      LOWER(COALESCE(c.phone, '')) LIKE LOWER($2) OR
+      LOWER(COALESCE(e.name, '')) LIKE LOWER($2))
+        `
       const countResult = await query(countQuery, [branchId, searchPattern])
       const totalCount = parseInt(countResult.rows[0].total_count)
       const totalAmount = parseFloat(countResult.rows[0].total_amount)
@@ -175,24 +175,24 @@ export async function GET(request: NextRequest) {
       if (orderIds.length > 0) {
         // Replace your existing itemsQuery with this:
         const itemsQuery = `
-          SELECT 
-            MIN(soi.id) as id,
-            soi.sales_order_id,
-            soi.product_id,
-            p.name as product_name,
-            SUM(soi.quantity) as total_quantity,
-            AVG(soi.unit_price) as avg_unit_price,
-            SUM(soi.discount) as total_discount,
-            SUM(soi.line_total) as total_line_total,
-            BOOL_OR(soi.is_wholesale_price) as has_wholesale_price,
-            COUNT(*) as line_count,
-            STRING_AGG(soi.quantity::text, ' + ') as quantity_breakdown
-          FROM sales_order_items soi
-          JOIN products p ON soi.product_id = p.id
-          WHERE soi.sales_order_id = ANY($1)
-          GROUP BY soi.sales_order_id, soi.product_id, p.name
-          ORDER BY MIN(soi.created_at) ASC
-        `
+            SELECT 
+              MIN(soi.id) as id,
+              soi.sales_order_id,
+              soi.product_id,
+              p.name as product_name,
+              SUM(soi.quantity) as total_quantity,
+              AVG(soi.unit_price) as avg_unit_price,
+              SUM(soi.discount) as total_discount,
+              SUM(soi.line_total) as total_line_total,
+              BOOL_OR(soi.is_wholesale_price) as has_wholesale_price,
+              COUNT(*) as line_count,
+              STRING_AGG(soi.quantity::text, ' + ') as quantity_breakdown
+            FROM sales_order_items soi
+            JOIN products p ON soi.product_id = p.id
+            WHERE soi.sales_order_id = ANY($1)
+            GROUP BY soi.sales_order_id, soi.product_id, p.name
+            ORDER BY MIN(soi.created_at) ASC
+          `
 
         const itemsResult = await query(itemsQuery, [orderIds])
 
@@ -225,6 +225,7 @@ export async function GET(request: NextRequest) {
         customer_phone: order.customer_phone,
         customer_email: order.customer_email,
         customer_type: order.customer_type,
+        customer_number: order.customer_number,
         running_balance: parseFloat(order.running_balance || '0'),
         branch_id: order.branch_id,
         branch_name: order.branch_name,

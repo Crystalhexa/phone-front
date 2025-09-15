@@ -3,6 +3,7 @@ import { query } from '../database/connection'
 import { AppError } from '../utils/AppError'
 import { PoolClient } from 'pg'
 import { CartItem, CustomerValidation, ValidationResult } from '@/types/sales.back'
+import { promises } from 'dns'
 
 // Validate supplier
 export async function validateSupplier(supplier_id: string): Promise<void> {
@@ -415,4 +416,37 @@ export class ValidationService {
     // Customer is valid and active
     return { customerId: customerRecord.id, isNewCustomer: false }
   }
+
+
+ static async validateCustomerAndOrderById(
+  customer_id: string,
+  order_id: string
+): Promise<{ isValid: boolean; errors: string[] }> {
+
+    const errors: string[] = []
+    const warnings: string[] = []
+
+  const orderQuery = `
+    SELECT id, customer_id, status,payment_status
+    FROM sales_orders
+    WHERE id = $1 AND customer_id = $2 AND payment_status = 'PENDING'
+  `;
+  
+  const orderResult = await query(orderQuery, [order_id, customer_id]);
+
+  if (orderResult.rows.length === 0) {
+      errors.push(`No pending order ${order_id} found for customer ${customer_id}`)
+      return { isValid: false, errors }
+  }
+
+  const order = orderResult.rows[0];
+
+  if (order.payment_status !== 'PENDING') {
+    console.log(order.payment_status);
+     errors.push(`Order ${order_id} is not in a modifiable state`)
+     return { isValid: false, errors }
+  }
+  return {isValid: errors.length===0, errors}; // ✅ return the validated order
+}
+
 }

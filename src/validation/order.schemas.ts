@@ -46,3 +46,8 @@ export const placeOrderSchema = z.object({
   notes: z.string().max(1000).optional(),
   delivery_date: z.string().datetime().optional()
 })
+
+export const changeOrderstatuSchema = z.object({
+  customer_id: z.string().min(20,'Customer id is required'),
+  order_id: z.string().min(20,'Order id is required')
+})

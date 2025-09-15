@@ -260,6 +260,19 @@ function SidebarTrigger({
 }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar()
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Example: Ctrl+B or Cmd+B
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault()
+        toggleSidebar()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [toggleSidebar])
+
   return (
     <Button
       data-sidebar="trigger"
@@ -272,13 +285,13 @@ function SidebarTrigger({
         toggleSidebar()
       }}
       {...props}
+      title="Toggle Sidebar (Ctrl+B)"
     >
       <PanelLeftIcon />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )
 }
-
 function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
   const { toggleSidebar } = useSidebar()
 

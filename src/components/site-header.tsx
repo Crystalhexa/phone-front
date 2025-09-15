@@ -1,4 +1,5 @@
 'use client'
+import { useEffect } from "react"
 import { Separator } from "../components/ui/separator"
 import { SidebarTrigger } from "../components/ui/sidebar"
 
@@ -26,6 +27,18 @@ export function SiteHeader() {
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+
+      if ((e.ctrlKey || e.metaKey) && e.key=== "f") {
+        e.preventDefault();
+        handleFullscreen();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -37,8 +50,8 @@ export function SiteHeader() {
         />
         <h1 className="text-base font-medium">Documents</h1>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={handleFullscreen}>
-            ⛶ 
+          <button onClick={handleFullscreen} title="Toggle Fullscreen (F11 or Ctrl+Shift+F)">
+            ⛶
           </button>
         </div>
       </div>

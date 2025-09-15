@@ -1,8 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { NavUser } from "@/components/nav-user";
 import {
   ShoppingCart,
   ChevronRight,
@@ -10,19 +12,51 @@ import {
   CreditCard,
   Package,
 } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { SidebarFooter } from "@/components/ui/sidebar";
 
 export const PosHeader: React.FC = () => {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  // helper for active button
+  // Check if button is active
   const isActive = (path: string) => pathname === path;
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ⌘/Ctrl + 1 → Product Catalog
+      if ((e.metaKey || e.ctrlKey) && e.key === "1") {
+        e.preventDefault();
+        router.push("/dashboard/branch/pos");
+      }
+
+      // ⌘/Ctrl + 2 → Cashier
+      if ((e.metaKey || e.ctrlKey) && e.key === "2") {
+        e.preventDefault();
+        router.push("/dashboard/branch/cash");
+      }
+
+      // ⌘/Ctrl + 3 → Payments
+      if ((e.metaKey || e.ctrlKey) && e.key === "3") {
+        e.preventDefault();
+        router.push("/dashboard/branch/payments");
+      }
+
+      // ⌘/Ctrl + 4 → Cart
+      if ((e.metaKey || e.ctrlKey) && e.key === "4") {
+        e.preventDefault();
+        router.push("/dashboard/branch/pos/sales");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [router]);
 
   return (
     <div className="flex justify-between items-start">
-      <div className="mb-0">
+      {/* Left Section */}
+      <div>
         <p className="text-lg text-muted-foreground">
           Welcome to{" "}
           <span className="font-semibold">
@@ -30,39 +64,37 @@ export const PosHeader: React.FC = () => {
           </span>
         </p>
         <p className="text-base text-muted-foreground">
-          Branch: <span className="font-medium">{user?.branch_name ?? "—"}</span>
+          Branch:{" "}
+          <span className="font-medium">{user?.branch_name ?? "—"}</span>
         </p>
       </div>
 
+      {/* Middle Section: Buttons */}
       <div className="flex gap-2 flex-wrap">
-        {/* Product Catalog Button */}
         <Button
           variant={isActive("/dashboard/branch/pos") ? "default" : "outline"}
           onClick={() => router.push("/dashboard/branch/pos")}
         >
           <Package className="w-4 h-4 mr-2" />
-          Product Catalog
+          Product Catalog <span className="ml-2 text-xs">(⌘+1)</span>
         </Button>
 
-        {/* Cashier Button */}
         <Button
           variant={isActive("/dashboard/branch/cash") ? "default" : "outline"}
           onClick={() => router.push("/dashboard/branch/cash")}
         >
           <User className="w-4 h-4 mr-2" />
-          Cashier
+          Cashier <span className="ml-2 text-xs">(⌘+2)</span>
         </Button>
 
-        {/* Payment Button */}
         <Button
           variant={isActive("/dashboard/branch/payments") ? "default" : "outline"}
           onClick={() => router.push("/dashboard/branch/payments")}
         >
           <CreditCard className="w-4 h-4 mr-2" />
-          Payment
+          Payment <span className="ml-2 text-xs">(⌘+3)</span>
         </Button>
 
-        {/* Cart Button */}
         <Button
           variant={isActive("/dashboard/branch/pos/sales") ? "default" : "outline"}
           className="relative"
@@ -71,8 +103,14 @@ export const PosHeader: React.FC = () => {
           <ShoppingCart className="w-4 h-4 mr-2" />
           View Cart
           <ChevronRight className="w-4 h-4 ml-2" />
+          <span className="ml-2 text-xs">(⌘+4)</span>
         </Button>
       </div>
+
+      {/* Right Section */}
+        <SidebarFooter>
+        <NavUser />
+      </SidebarFooter>
     </div>
   );
 };

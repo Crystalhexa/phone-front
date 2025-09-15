@@ -9,7 +9,6 @@ import { calculateOrderTotals } from '@/utils/calculations'
 import { OrderService } from '@/lib/services/order.service'
 import { CustomerLedgerService } from '@/lib/services/customer-ledger.service'
 
-
 // ========== Main POST Handler - Place Sales Order ==========
 export async function POST(request: NextRequest) {
   return withPermission('create_product')(async (authedReq: AuthenticatedRequest) => {
@@ -148,7 +147,6 @@ export async function POST(request: NextRequest) {
     }
   })(request)
 }
-
 
 // ========== Types ==========
 interface SalesOrderItem {
