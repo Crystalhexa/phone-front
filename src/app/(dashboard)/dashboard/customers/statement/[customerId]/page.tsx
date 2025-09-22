@@ -5,7 +5,7 @@ import React, { useEffect } from 'react'
 const page = () => {
 
   useEffect(() => {
-    const res = fetch(`/api/customer/${id}/ledger`)
+    const res = fetch(`/api/customer/statement?customer_id=${id}`)
     .then(res => res.json())
     .then(data => console.log(data))  
   }, []);

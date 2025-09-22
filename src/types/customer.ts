@@ -154,3 +154,13 @@ export interface CustomerDisplay {
   customer_type: CustomerType
   discount_percentage: number | null
 }
+
+export interface CustomerLedger{
+  transaction_number: string,
+  transaction_type: string,
+  description: string,
+  debit: number,
+  credit: number,
+  balance: number,
+  date: Date
+}

@@ -25,7 +25,6 @@ const corsHeaders = {
 };
 
 // GET handler — list customers
-// GET handler — list customers
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const limit = Math.min(parseInt(searchParams.get('limit') ?? '10', 10), 100);
@@ -92,7 +91,6 @@ export async function GET(request: NextRequest) {
 
 export async function POST(req: NextRequest) {
   await initDatabase();
-
   try {
     const json = await req.json();
     const data = customerSchema.parse(json);

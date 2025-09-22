@@ -320,7 +320,23 @@ const CashierPaymentComponent = () => {
   }
 
   const haddOrderToCustomerAccount = (order: PendingSalesOrder) => {
+    try {
+      const response = fetch('/api/sales-orders/add_to_account', {
+        method: 'POST',
+        headers: {
+          'Content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          order_id: order.id,
+          customer_id: order.customer_id
+        })
+      }
+      ).then(res => res.json());
 
+
+    } catch (error) {
+
+    }
   }
 
   const formatDate = (dateString: string) => {

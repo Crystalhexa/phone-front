@@ -282,7 +282,6 @@ export async function query<T extends QueryResultRow = any>(
         }
       }
     }
-    
     throw new Error('All query attempts failed')
   })
 }

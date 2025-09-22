@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
       const limit = parseInt(searchParams.get('limit') || '20')
       const search = searchParams.get('search')
       const entryType = searchParams.get('entry_type')
-      const branchId = searchParams.get('branch_id')
       const dateFrom = searchParams.get('date_from')
       const dateTo = searchParams.get('date_to')
       const productId = searchParams.get('product_id')
@@ -35,11 +34,7 @@ export async function GET(request: NextRequest) {
         paramIndex++
       }
 
-      if (branchId && branchId.trim()) {
-        whereConditions.push(`psl.branch_id = $${paramIndex}`)
-        queryParams.push(branchId)
-        paramIndex++
-      } else if (!userDetails.role_id) {
+      if (userDetails.role_name !=='Admin') {
         // Non-admin users can only see their branch
         whereConditions.push(`psl.branch_id = $${paramIndex}`)
         queryParams.push(userDetails.branch_id)
