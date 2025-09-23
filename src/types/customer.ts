@@ -156,6 +156,7 @@ export interface CustomerDisplay {
 }
 
 export interface CustomerLedger{
+  transaction_id:string,
   transaction_number: string,
   transaction_type: string,
   description: string,

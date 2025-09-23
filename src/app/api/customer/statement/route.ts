@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
     try {
         const url = new URL(request.url);
         const customer_id = url.searchParams.get('customer_id');
-        const limit = Number(url.searchParams.get('limit') || '50');
+        const limit = Number(url.searchParams.get('limit') || '10');
         const page = Number(url.searchParams.get('page') || '1');
         const dateFrom = url.searchParams.get('date_from');
         const dateTo = url.searchParams.get('date_to');
@@ -25,7 +25,14 @@ export async function GET(request: NextRequest) {
 
         const [ledgerResult, customerResult] = await Promise.all([
             query(
-                `SELECT *
+                `SELECT 
+                transaction_id as transaction_number,
+                transaction_type,
+                description,
+                debit_amount as debit,
+                credit_amount as credit,
+                running_balance as balance,
+                transaction_date as date
                 FROM customer_ledger
                 WHERE customer_id=$1
                 ORDER by transaction_date DESC
@@ -43,7 +50,6 @@ export async function GET(request: NextRequest) {
 
         const countQuery = `SELECT COUNT(*) FROM customer_ledger WHERE customer_id=$1`;
         let countResult = await query(countQuery,[customer_id]);
-        console.log(countResult.rows);
         const total = parseInt(countResult.rows[0].count);
         const totalPage = Math.ceil(total/limit)
         return NextResponse.json({
