@@ -196,7 +196,6 @@ const CashierPaymentComponent = () => {
     return () => clearTimeout(timeoutId)
   }, [searchTerm, currentPage])
 
-
   // Generate receipt data from order and payment
   const generateReceiptData = (
     order: PendingSalesOrder,

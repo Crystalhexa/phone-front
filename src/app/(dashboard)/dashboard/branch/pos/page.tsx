@@ -20,10 +20,6 @@ const ProductsTable: React.FC = () => {
   } = useProductsData();
 
   const [filtersExpanded, setFiltersExpanded] = useState(true);
-  
-  // Add cart panel state
-  const [cartPanelOpen, setCartPanelOpen] = useState(false);
-
 
   // Brand and category data hooks
   const {
